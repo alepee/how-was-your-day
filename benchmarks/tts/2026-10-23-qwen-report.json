@@ -1,0 +1,43 @@
+{
+  "synthetic": true,
+  "model": "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-4bit",
+  "revision": "08c72cad5e2fd0f41730c8bd1f28149585e46361",
+  "engine_version": "0.6.1",
+  "utterances": [
+    {
+      "speaker": "Ryan",
+      "duration": 16.24,
+      "generation_seconds": 8.871172749903053,
+      "sha256": "9863a8ce367dca60cdd3b1d0be8df49bcca72be14083250e849a143135ceb616"
+    },
+    {
+      "speaker": "Serena",
+      "duration": 16.64,
+      "generation_seconds": 4.307825665920973,
+      "sha256": "235346eb2d5644ad2681b0bab8d9cec1068092432dbe3035ac9b0239a6b7475c"
+    }
+  ],
+  "scores": {
+    "mic": {
+      "reference_words": 150,
+      "hypothesis_words": 150,
+      "substitutions": 0,
+      "deletions": 0,
+      "insertions": 0,
+      "wer": 0.0
+    },
+    "system": {
+      "reference_words": 150,
+      "hypothesis_words": 150,
+      "substitutions": 0,
+      "deletions": 0,
+      "insertions": 0,
+      "wer": 0.0
+    }
+  },
+  "speakers_by_source": {
+    "mic": 2,
+    "system": 2
+  },
+  "unattributed_punctuation": 2
+}

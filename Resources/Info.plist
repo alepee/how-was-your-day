@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>dev.lepee.hwyd</string>
+<key>CFBundleName</key><string>How Was Your Day</string>
+<key>CFBundleDisplayName</key><string>How Was Your Day</string>
+<key>CFBundleExecutable</key><string>HWYD</string>
+<key>CFBundleIconFile</key><string>AppIcon</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>0.1.0</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>LSMinimumSystemVersion</key><string>26.0</string>
+<key>NSHighResolutionCapable</key><true/>
+<key>NSMicrophoneUsageDescription</key><string>HWYD enregistre votre voix et la salle pendant les sessions que vous démarrez.</string>
+<key>NSAudioCaptureUsageDescription</key><string>HWYD enregistre l’audio des applications pendant les sessions que vous démarrez.</string>
+<key>NSCalendarsFullAccessUsageDescription</key><string>HWYD lit vos calendriers, dont Google Calendar synchronisé avec macOS, pour afficher les réunions à venir et vous proposer de les enregistrer. Aucun événement n’est modifié.</string>
+<key>NSPrincipalClass</key><string>NSApplication</string>
+</dict></plist>

@@ -1,0 +1,23 @@
+.build/
+build/
+.DS_Store
+.swiftpm/
+*.xcuserstate
+__pycache__/
+*.py[cod]
+.env
+.env.*
+*.p12
+*.p8
+*.pem
+*.key
+*.sqlite*
+*.wav
+*.caf
+*.aiff
+# Private calibration notes and reports from real conversations.
+benchmarks/alignment/
+benchmarks/refinement/
+benchmarks/summary/2026-10-25-quality.md
+scripts/calibrate-alignment.py
+scripts/test-refinement.py

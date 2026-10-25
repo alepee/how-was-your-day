@@ -1,0 +1,75 @@
+{
+  "echo": {
+    "counts": {
+      "correlatedCandidate": 16,
+      "insufficientSignal": 1
+    },
+    "seconds": 1.087,
+    "candidate_delays": [
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12
+    ]
+  },
+  "double-talk": {
+    "counts": {
+      "uncertain": 16,
+      "insufficientSignal": 1
+    },
+    "seconds": 0.715,
+    "candidate_delays": []
+  },
+  "local-only": {
+    "counts": {
+      "uncertain": 16,
+      "insufficientSignal": 1
+    },
+    "seconds": 0.724,
+    "candidate_delays": []
+  },
+  "silence": {
+    "counts": {
+      "insufficientSignal": 17
+    },
+    "seconds": 0.097,
+    "candidate_delays": []
+  },
+  "weak-double-talk": {
+    "counts": {
+      "correlatedCandidate": 16,
+      "insufficientSignal": 1
+    },
+    "seconds": 0.704,
+    "candidate_delays": [
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12,
+      0.12
+    ]
+  }
+}

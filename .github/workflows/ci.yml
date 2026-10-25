@@ -1,0 +1,43 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build-and-test:
+    runs-on: macos-26
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+      - name: Toolchain
+        run: swift --version
+      - name: Core tests
+        run: swift test --package-path Packages/HWYDCore
+      - name: Pipeline tests
+        run: swift test
+      - name: Realtime buffer sanitizers
+        run: scripts/test-realtime.sh
+      - name: Summary HTTP contract
+        run: python3 scripts/test-summary.py
+      - name: Build isolated app
+        env:
+          SIGN_IDENTITY: '-'
+          HWYD_ALLOW_ADHOC: '1'
+        run: scripts/build-app.sh release
+      - name: Synthetic app checks
+        run: |
+          'build/How Was Your Day.app/Contents/MacOS/HWYD' --self-test build/ci-audio-test
+          'build/How Was Your Day.app/Contents/MacOS/HWYD' --ui-test build/ci-ui-test
+          python3 scripts/test-mcp.py 'build/How Was Your Day.app/Contents/Helpers/hwyd-mcp' build/ci-ui-test
+      - name: Package CI artifact (not a release)
+        run: ditto -c -k --keepParent 'build/How Was Your Day.app' build/HowWasYourDay-ci.zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: HowWasYourDay-ci-arm64
+          path: build/HowWasYourDay-ci.zip
+          retention-days: 7

@@ -1,0 +1,545 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Person": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "alias": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "named",
+            "unnamed"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "alias",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "RecordingMetadata": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "title": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "meeting",
+            "call",
+            "conversation",
+            "voice-memo",
+            "ad-hoc"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_us": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "capturing",
+            "processing",
+            "complete",
+            "partial",
+            "failed"
+          ]
+        },
+        "participants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Person"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "title",
+        "kind",
+        "started_at",
+        "duration_us",
+        "status",
+        "participants"
+      ],
+      "additionalProperties": false
+    },
+    "Artifact": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "pending",
+            "disabled",
+            "failed",
+            "stale",
+            "unavailable"
+          ]
+        },
+        "version": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "markdown": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "version",
+        "markdown"
+      ],
+      "additionalProperties": false
+    },
+    "MutationReceipt": {
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "export_state": {
+          "type": "string",
+          "enum": [
+            "published",
+            "pending"
+          ]
+        },
+        "identity_enrollment": {
+          "const": "not_performed"
+        }
+      },
+      "required": [
+        "request_id",
+        "id",
+        "revision",
+        "export_state",
+        "identity_enrollment"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "tools": {
+    "list_recordings": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "since": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "meeting",
+              "call",
+              "conversation",
+              "voice-memo",
+              "ad-hoc"
+            ]
+          },
+          "participant": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          },
+          "cursor": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/RecordingMetadata"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "snapshot_seq": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "snapshot_seq"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "get_recording": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "include": {
+            "type": "string",
+            "enum": [
+              "transcript",
+              "summary",
+              "notes",
+              "all"
+            ],
+            "default": "all"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "max_chars": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 100000,
+            "default": 50000
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "recording": {
+            "$ref": "#/$defs/RecordingMetadata"
+          },
+          "artifacts": {
+            "type": "object",
+            "properties": {
+              "transcript": {
+                "$ref": "#/$defs/Artifact"
+              },
+              "summary": {
+                "$ref": "#/$defs/Artifact"
+              },
+              "notes": {
+                "$ref": "#/$defs/Artifact"
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "recording",
+          "artifacts",
+          "next_cursor",
+          "truncated"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "search": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "meeting",
+              "call",
+              "conversation",
+              "voice-memo",
+              "ad-hoc"
+            ]
+          },
+          "participant": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          },
+          "cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "recording_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "artifact": {
+                  "type": "string",
+                  "enum": [
+                    "title",
+                    "transcript",
+                    "summary",
+                    "notes"
+                  ]
+                },
+                "entity_id": {
+                  "type": "string"
+                },
+                "snippet": {
+                  "type": "string"
+                },
+                "rank": {
+                  "type": "number"
+                },
+                "resource_uri": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              },
+              "required": [
+                "recording_id",
+                "revision",
+                "artifact",
+                "entity_id",
+                "snippet",
+                "rank",
+                "resource_uri"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "snapshot_seq": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "snapshot_seq"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "get_participants": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          },
+          "cursor": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Person"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "snapshot_seq": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "snapshot_seq"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "set_notes": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "markdown": {
+            "type": "string",
+            "maxLength": 200000
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id",
+          "markdown",
+          "expected_revision",
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/MutationReceipt"
+      }
+    },
+    "rename_speaker": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "speaker": {
+            "type": "string",
+            "minLength": 1
+          },
+          "person": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id",
+          "speaker",
+          "person",
+          "expected_revision",
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "$ref": "#/$defs/MutationReceipt"
+      }
+    }
+  }
+}
