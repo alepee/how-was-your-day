@@ -4,7 +4,7 @@ HWYD follows the same distribution path as No Bleeding Eyes: a signed app in a D
 
 ## Requirements
 
-- Apple Silicon build host, Xcode with Swift 6.2+ and macOS 26+ SDK.
+- Apple Silicon build host, Xcode 27 with Swift 6.4+ (required by the pinned dependencies).
 - A persistent code signing certificate in the local keychain.
 - GitHub CLI authentication with write access to `alepee/how-was-your-day` and `alepee/homebrew-tap`.
 - A clean, committed working tree and release notes in English.
@@ -37,6 +37,6 @@ Developer ID signing and notarization remain future work. The build supports `SI
 
 ## CI and public files
 
-GitHub Actions runs on `macos-26` (Apple Silicon), runs core/pipeline tests and synthetic app checks, and publishes a short-lived CI ZIP. These artifacts are not user releases and must not be used to update the cask.
+GitHub Actions runs on `xcode-27` (Apple Silicon), runs core/pipeline tests and synthetic app checks, and publishes a short-lived CI ZIP. These artifacts are not user releases and must not be used to update the cask.
 
 Build directories, audio, databases, signing keys and private calibration reports are ignored. The original architecture documents are retained in French. New public documentation and release notes are written in English; app localization is unchanged.

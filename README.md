@@ -46,7 +46,7 @@ First-run model downloads are explicit. Audio is processed locally. No real reco
 
 ## Build
 
-Install Xcode with Swift 6.2 or later and the macOS 26 SDK or later. No `.xcodeproj` is needed.
+Install Xcode 27 with Swift 6.4 or later. The pinned Swift Collections dependency requires Swift 6.4; the app deployment target remains macOS 26. No `.xcodeproj` is needed.
 
 ```sh
 SIGN_IDENTITY='Your persistent code signing identity' scripts/build-app.sh debug
