@@ -28,7 +28,7 @@ struct DetailView: View {
                         .font(.system(size: 11)).foregroundStyle(Studio.muted)
                 }
                 HStack {
-                    Button("Identité des voix…") { model.showVoiceIdentity = true }.buttonStyle(StudioButtonStyle()).disabled(recording.isDemo || model.pipelineBusy)
+                    Button("Identité des voix…") { model.showVoiceIdentity = true }.buttonStyle(StudioButtonStyle()).disabled(recording.isDemo || model.modelWorkBusy)
                     Spacer()
                 }
                 audioPlayer
@@ -82,7 +82,7 @@ struct DetailView: View {
                     Text(recording.transcriptState == .failed ? "Le traitement a été interrompu ou a échoué." : (recording.transcription?.diarizationEngine == nil ? "Français · Apple Speech · sur ce Mac" : "Français · Apple Speech + Community-1")).font(.system(size: 11)).foregroundStyle(Studio.muted)
                     Spacer()
                     Button(recording.transcriptVersion > 0 ? "Retranscrire" : "Transcrire") { if recording.transcriptVersion > 0 { confirmReprocessing = true } else { model.transcribe(recording.id) } }
-                        .buttonStyle(StudioButtonStyle()).disabled(model.pipelineBusy || recording.audioChunks.isEmpty)
+                        .buttonStyle(StudioButtonStyle()).disabled(model.modelWorkBusy || recording.audioChunks.isEmpty)
                 }
             }
         }
@@ -106,7 +106,7 @@ struct DetailView: View {
         if !recording.isDemo {
             HStack {
                 Button(model.summaryID == recording.id ? "Génération…" : recording.summary == nil ? "Générer une synthèse" : "Régénérer") { model.generateSummary() }
-                    .buttonStyle(StudioButtonStyle(primary: true)).disabled(!model.summaryEnabled || model.summaryID != nil || recording.segments.isEmpty || model.processingID == recording.id)
+                    .buttonStyle(StudioButtonStyle(primary: true)).disabled(!model.summaryEnabled || model.modelWorkBusy || recording.segments.isEmpty)
                 if model.summaryID == recording.id { Button("Annuler") { model.cancelSummary() }.buttonStyle(StudioButtonStyle()) }
                 Spacer()
                 Button("Réglages du modèle") { model.settingsCategory = .summary; model.showSettings = true }.buttonStyle(StudioButtonStyle())

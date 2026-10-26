@@ -49,6 +49,7 @@ final class AppModel: ObservableObject {
     @Published var summaryEndpoint = UserDefaults.standard.string(forKey: "summary.endpoint") ?? "http://127.0.0.1:1234/v1"
     @Published var summaryModel = UserDefaults.standard.string(forKey: "summary.model") ?? ""
     @Published var summaryContextTokens = 32768
+    @Published var summaryReasoningDisabled = false
     @Published var summaryProgress: SummaryProgress?
     private var summaryTask: Task<Void, Never>?
     @Published var processingID: UUID?
@@ -59,6 +60,7 @@ final class AppModel: ObservableObject {
     @Published var isInstallingModel = false
     private let pipelineRunner = PipelineRunner()
     var pipelineBusy: Bool { processingID != nil || isInstallingModel || isInstallingDiarizer || voiceBusy }
+    var modelWorkBusy: Bool { pipelineBusy || summaryID != nil }
     @Published var savedAt: Date?
     @Published var hasUnsavedChanges = false
     @Published var appearancePreference: AppearancePreference = .system {
@@ -92,6 +94,7 @@ final class AppModel: ObservableObject {
         summaryEndpoint = preferences.string(forKey: "summary.endpoint") ?? "http://127.0.0.1:1234/v1"
         summaryModel = preferences.string(forKey: "summary.model") ?? ""
         summaryContextTokens = preferences.integer(forKey: "summary.contextTokens") == 0 ? 32768 : preferences.integer(forKey: "summary.contextTokens")
+        summaryReasoningDisabled = preferences.bool(forKey: "summary.reasoningDisabled")
         appearancePreference = AppearancePreference(rawValue: preferences.string(forKey: "appearancePreference") ?? "") ?? .system
         dataDirectory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("HWYD")
         if appliesAppearance { NSApp.appearance = appearancePreference.appearance }
@@ -278,13 +281,13 @@ final class AppModel: ObservableObject {
         notice = isDemoMode ? "Simulation terminée. Les notes restent disponibles." : (chunks.isEmpty ? "Aucun audio reçu. Vos notes sont conservées." : "Audio et notes conservés. La transcription locale va démarrer.")
         showWindow?()
         if !isDemoMode, !chunks.isEmpty {
-            if pipelineBusy { notice = "Audio conservé. Un traitement est déjà en cours ; lancez la transcription depuis cette session ensuite." }
+            if modelWorkBusy { notice = "Audio conservé. Un traitement est déjà en cours ; lancez la transcription depuis cette session ensuite." }
             else { transcribe(id) }
         }
     }
     func cancelProcessing() { pipelineRunner.cancel(); voiceRunner.cancel() }
     func installSpeechModel() {
-        guard !pipelineBusy, !isDemoMode else { return }
+        guard !modelWorkBusy, !isDemoMode else { return }
         pipelineRunner.prepare()
         isInstallingModel = true
         Task {
@@ -298,7 +301,7 @@ final class AppModel: ObservableObject {
         }
     }
     func installDiarizer() {
-        guard !pipelineBusy, !isDemoMode else { return }
+        guard !modelWorkBusy, !isDemoMode else { return }
         pipelineRunner.prepare(); isInstallingDiarizer = true
         Task {
             defer { isInstallingDiarizer = false }
@@ -312,7 +315,7 @@ final class AppModel: ObservableObject {
         }
     }
     func transcribe(_ id: UUID) {
-        guard !isDemoMode, !pipelineBusy, let item = recordings.first(where: { $0.id == id }), item.state != .recording, !item.audioChunks.isEmpty else { return }
+        guard !isDemoMode, !modelWorkBusy, let item = recordings.first(where: { $0.id == id }), item.state != .recording, !item.audioChunks.isEmpty else { return }
         pipelineRunner.prepare()
         processingID = id
         let originalVersion = item.transcriptVersion
@@ -421,7 +424,7 @@ final class AppModel: ObservableObject {
         }
     }
     func runVoice(command: String, speakerID: UUID? = nil, person: VoicePerson? = nil, channel: VoiceChannel = .room) {
-        guard !isDemoMode, !pipelineBusy, let store else { return }
+        guard !isDemoMode, !modelWorkBusy, let store else { return }
         let item = selected ?? Recording(title: "Gestion des voix")
         voiceBusy = true; voiceRunner.prepare()
         Task {
@@ -483,20 +486,22 @@ final class AppModel: ObservableObject {
         preferences.set(summaryEndpoint, forKey: "summary.endpoint")
         preferences.set(summaryModel, forKey: "summary.model")
         preferences.set(summaryContextTokens, forKey: "summary.contextTokens")
+        preferences.set(summaryReasoningDisabled, forKey: "summary.reasoningDisabled")
     }
     func cancelSummary() { summaryTask?.cancel() }
     func generateSummary() {
-        guard summaryEnabled, summaryID == nil, !isDemoMode, let item = selected, let store else { return }
+        guard summaryEnabled, !modelWorkBusy, !isDemoMode, let item = selected, let store else { return }
         summaryID = item.id
         summaryTask = Task {
             defer { summaryID = nil; summaryTask = nil; summaryProgress = nil }
             do {
                 guard let url = URL(string: summaryEndpoint) else { throw SummaryFailure.invalidEndpoint }
-                let provider = try LocalLLMProvider(endpoint: url, model: summaryModel)
+                let provider = try LocalLLMProvider(endpoint: url, model: summaryModel,
+                    reasoningEffort: summaryReasoningDisabled ? "none" : nil)
                 let result = try await SummaryPipeline.run(item, provider: provider, model: summaryModel,
                     inputCharacterLimit: max(12_000, (summaryContextTokens - 10_000) * 2),
                     cacheDirectory: dataDirectory.appendingPathComponent("cache/summaries/" + item.id.uuidString), reuseCache: item.summary == nil,
-                    providerIdentity: url.absoluteString) { value in
+                    providerIdentity: url.absoluteString + "|reasoning=" + (summaryReasoningDisabled ? "none" : "server-default")) { value in
                         await MainActor.run { self.summaryProgress = value }
                     }
                 try Task.checkCancellation()

@@ -76,13 +76,13 @@ struct SettingsView: View {
                 Text("Français · Apple Speech · traitement local").font(.system(size: 12))
                 Text("L’installation peut télécharger le modèle Apple. Aucun audio n’est envoyé pour la transcription.").font(.system(size: 11)).foregroundStyle(Studio.muted).fixedSize(horizontal: false, vertical: true)
                 Button(model.isInstallingModel ? "Installation en cours…" : "Installer le modèle français") { model.installSpeechModel() }
-                    .buttonStyle(StudioButtonStyle()).disabled(model.pipelineBusy || model.isDemoMode)
+                    .buttonStyle(StudioButtonStyle()).disabled(model.modelWorkBusy || model.isDemoMode)
             }
             section("SÉPARATION DES VOIX", symbol: "person.2.wave.2") {
-                Toggle("Séparer les voix après transcription", isOn: $model.diarizationEnabled).disabled(model.pipelineBusy || model.isDemoMode)
+                Toggle("Séparer les voix après transcription", isOn: $model.diarizationEnabled).disabled(model.modelWorkBusy || model.isDemoMode)
                 Text("Community-1 · traitement local par piste. Les modèles se téléchargent une fois ; aucune empreinte personnelle n’est créée sans enrôlement explicite.").font(.system(size: 11)).foregroundStyle(Studio.muted).fixedSize(horizontal: false, vertical: true)
                 Button(model.isInstallingDiarizer ? "Installation des voix…" : "Installer les modèles de voix") { model.installDiarizer() }
-                    .buttonStyle(StudioButtonStyle()).disabled(model.pipelineBusy || model.isDemoMode)
+                    .buttonStyle(StudioButtonStyle()).disabled(model.modelWorkBusy || model.isDemoMode)
             }
         case .summary:
             section("SYNTHÈSE LOCALE", symbol: "sparkles") {
@@ -91,13 +91,16 @@ struct SettingsView: View {
                 TextField("http://127.0.0.1:1234/v1", text: $model.summaryEndpoint).textFieldStyle(.roundedBorder)
                 Text("Modèle chargé").font(.system(size: 12, weight: .medium))
                 TextField("Identifiant du modèle", text: $model.summaryModel).textFieldStyle(.roundedBorder)
+                Toggle("Désactiver le raisonnement étendu", isOn: $model.summaryReasoningDisabled)
+                Text("Peut réduire le temps de génération. À activer si le modèle ne renvoie pas de synthèse avec les sorties structurées. Le serveur doit accepter cette option.").font(.caption).foregroundStyle(Studio.muted)
                 Picker("Contexte chargé dans le serveur", selection: $model.summaryContextTokens) {
                     Text("16k tokens").tag(16384)
                     Text("32k tokens").tag(32768)
                     Text("64k tokens").tag(65536)
                     Text("128k tokens").tag(131072)
                 }
-                Text("Choisissez le contexte réellement chargé dans LM Studio. Une grande fenêtre permet de rédiger l’échange entier à partir du plan global et limite les fusions intermédiaires. Les étapes validées sont conservées pour reprendre après une interruption.").font(.caption).foregroundStyle(Studio.muted)
+                Text("Indiquez le contexte chargé dans LM Studio. HWYD traite les longues sessions par portions bornées et rédige chaque sujet à partir de ses sources. Un grand contexte serveur n’augmente pas automatiquement la taille des requêtes. Les étapes validées sont conservées pour reprendre après une interruption.").font(.caption).foregroundStyle(Studio.muted)
+                Text("Pour limiter la mémoire, chargez un seul modèle et une seule requête à la fois dans le serveur. Ce réglage ne modifie pas la mémoire allouée par LM Studio.").font(.caption).foregroundStyle(Studio.muted)
                 Button("Enregistrer le modèle") { model.saveSummarySettings() }.buttonStyle(StudioButtonStyle())
                 Text("LM Studio ou Ollama, API OpenAI-compatible et JSON Schema requis. Seules les adresses de boucle locale sont acceptées. Chaque synthèse est lancée manuellement depuis la session.").font(.system(size: 11)).foregroundStyle(Studio.muted).fixedSize(horizontal: false, vertical: true)
             }.disabled(model.isDemoMode)
