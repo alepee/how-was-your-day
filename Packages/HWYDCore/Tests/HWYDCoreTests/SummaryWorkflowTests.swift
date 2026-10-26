@@ -187,3 +187,64 @@ private actor CancellationProvider: LLMProvider {
         return result
     }
 }
+
+extension SummaryWorkflowTests {
+    func testStageSystemsDoNotInheritReportWritingInstructions() {
+        for prefix in ["ROUTE:", "VERIFY_ACTIONS:", "VERIFY_DECISIONS:", "REPAIR:", "EXECUTIVE:"] {
+            let system = LocalLLMProvider.systemInstructions(for: prefix + "\n{}", planning: prefix == "ROUTE:")
+            XCTAssertNotEqual(system, SummaryPipeline.instructions)
+            XCTAssertNotEqual(system, SummaryPipeline.planningInstructions)
+            XCTAssertFalse(system.contains("Exemple complet, sur une autre session"))
+        }
+        XCTAssertTrue(LocalLLMProvider.systemInstructions(for: "VERIFY_ACTIONS:\n{}", planning: false).contains("decisions doit être []"))
+        XCTAssertTrue(LocalLLMProvider.systemInstructions(for: "VERIFY_DECISIONS:\n{}", planning: false).contains("action_items doit être []"))
+        XCTAssertEqual(LocalLLMProvider.systemInstructions(for: "WRITE_TOPIC:\n{\"text\":\"VERIFY_ACTIONS:\"}", planning: false), SummaryPipeline.instructions)
+    }
+    func testSameCountChangesRequireCitedCorrectionForTextOwnerAndDate() async throws {
+        let camille = Speaker(label: "Camille", confirmed: true), jordan = Speaker(label: "Jordan", confirmed: true)
+        let recording = Recording(title: "Atelier", speakers: [camille, jordan], segments: [
+            .init(start: 0, end: 20, speakerID: camille.id, source: .mic,
+                  text: "Camille prépare le guide final pour 2026-10-29. Jordan pourrait aider pour un brouillon le 2026-10-30, mais cela reste à confirmer.")
+        ])
+        for field in ["text", "owner", "date"] {
+            let provider = SameCountChangeProvider(field: field, explain: false)
+            do { _ = try await SummaryPipeline.run(recording, provider: provider, model: "fixture"); XCTFail("Unexplained change accepted: \(field)") }
+            catch SummaryFailure.unreliableContent {}
+        }
+        let provider = SameCountChangeProvider(field: "text", explain: true)
+        let result = try await SummaryPipeline.run(recording, provider: provider, model: "fixture")
+        XCTAssertEqual(result.structured.action_items.count, 1)
+        XCTAssertEqual(result.structured.action_items.first?.text, "Préparer le brouillon.")
+        XCTAssertFalse(result.structured.markdown.contains("VERSION_FINALE_ACTIVE"))
+        let repaired = await provider.repaired
+        XCTAssertTrue(repaired)
+    }
+}
+
+private actor SameCountChangeProvider: LLMProvider {
+    let field: String
+    let explain: Bool
+    var repaired = false
+    init(field: String, explain: Bool) { self.field = field; self.explain = explain }
+    func generate(prompt: String) async throws -> SummaryContent { throw SummaryFailure.invalidResponse }
+    func plan(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent { try await generate(prompt: prompt, evidenceIDs: evidenceIDs) }
+    func generate(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent {
+        let id = evidenceIDs[0]
+        var action = SummaryAction(text: "Préparer le guide final.", assignee_name: "Camille", assignee_person_id: nil, due_date: "2026-10-29", evidence_segment_ids: [id])
+        var result = SummaryContent(overview: "La préparation du guide est discutée.", decisions: [], action_items: [action], key_points: [],
+            details: [.init(title: "Guide", text: "VERSION_FINALE_ACTIVE", evidence_segment_ids: [id])])
+        if prompt.hasPrefix("VERIFY_ACTIONS:") {
+            if field == "text" { action.text = "Préparer le brouillon." }
+            if field == "owner" { action.assignee_name = "Jordan" }
+            if field == "date" { action.due_date = "2026-10-30" }
+            result.action_items = [action]
+            result.details = explain ? [.init(title: "Correction", text: "La formulation précédente doit être corrigée.", evidence_segment_ids: [id])] : []
+        }
+        if prompt.hasPrefix("REPAIR:") {
+            repaired = true; result.action_items = []
+            result.details = [.init(title: "Guide", text: "La rédaction concerne un brouillon.", evidence_segment_ids: [id])]
+        }
+        if prompt.hasPrefix("EXECUTIVE:") { result.action_items = []; result.details = [] }
+        return result
+    }
+}

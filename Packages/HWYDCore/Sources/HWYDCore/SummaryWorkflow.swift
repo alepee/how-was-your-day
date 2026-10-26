@@ -57,7 +57,7 @@ extension SummaryPipeline {
         let windows = try split(recording.segments, budget: min(12_000, limit - 4_000))
         var total = windows.count + 1, completed = 0
         let promptVersion = "summary-v6-bounded-evidence"
-        let promptHash = SHA256.hash(data: Data((instructions + planningInstructions + boundedInstructions).utf8)).map { String(format: "%02x", $0) }.joined()
+        let promptHash = SHA256.hash(data: Data((instructions + planningInstructions + boundedInstructions + LocalLLMProvider.stageInstructionVersion).utf8)).map { String(format: "%02x", $0) }.joined()
         func generate(_ prompt: String, segments: [TranscriptSegment], planning: Bool, stage: String) async throws -> SummaryContent {
             try Task.checkCancellation()
             guard prompt.count <= limit else { throw SummaryFailure.contextTooSmall }
@@ -183,6 +183,11 @@ extension SummaryPipeline {
             for decision in value.decisions where seenDecisions.insert(normalized(decision.text)).inserted { decisions.append(decision) }
             for action in value.action_items where seenActions.insert(normalized(action.text) + "|" + (action.assignee_name ?? "")).inserted { actions.append(action) }
         }
+        func commitmentSignatures(_ value: SummaryContent) -> [String] {
+            let decisions = value.decisions.map { "decision|" + normalized($0.text) }
+            let actions = value.action_items.map { "action|" + normalized($0.text) + "|" + normalized($0.assignee_name ?? "") + "|" + ($0.due_date ?? "") }
+            return (decisions + actions).sorted()
+        }
         struct Claims { var decisions: [SummaryDecision] = []; var actions: [SummaryAction] = [] }
         func claimIDs(_ value: Claims) -> Set<UUID> { Set(value.decisions.flatMap(\.evidence_segment_ids) + value.actions.flatMap(\.evidence_segment_ids)) }
         var claimGroups: [String: Claims] = [:], groupOrder: [String] = []
@@ -240,7 +245,7 @@ extension SummaryPipeline {
             var candidate = SummaryContent(overview: "Vérification des engagements.", decisions: claims.decisions, action_items: claims.actions)
             var corrections: [SummaryTopic] = []
             func verificationPrompt(_ sources: [TranscriptSegment], candidate: SummaryContent) throws -> String {
-                let prefix = (claims.actions.isEmpty ? "VERIFY_DECISIONS: conserve les décisions dans decisions, action_items doit rester vide. " : "VERIFY_ACTIONS: conserve les tâches dans action_items, decisions doit rester vide. ") + "Vérifie ces engagements proposés dans leurs paroles originales et cette portion de contexte. Conserve uniquement les choix adoptés et tâches explicitement promises, avec leurs vrais responsables. Si un passage ultérieur annule ou remplace un engagement, retire ou corrige celui-ci. Une absence de mention dans cette portion ne l'annule pas. Regroupe les formulations du même engagement. N'ajoute aucun autre engagement. Si tu retires ou corriges un engagement, explique obligatoirement le changement dans details avec les références des paroles qui le justifient. Sinon details=[]. key_points=[]. Rédige en français.\n"
+                let prefix = (claims.actions.isEmpty ? "VERIFY_DECISIONS: conserve les décisions dans decisions, action_items doit rester vide. " : "VERIFY_ACTIONS: conserve les tâches dans action_items, decisions doit rester vide. ") + "Vérifie ces engagements proposés dans leurs paroles originales et cette portion de contexte. Conserve uniquement les choix adoptés et tâches explicitement promises, avec leurs vrais responsables. Si un passage ultérieur annule ou remplace un engagement, retire ou corrige celui-ci. Une absence de mention dans cette portion ne l'annule pas. Regroupe les formulations du même engagement. Si un candidat est correct, recopie exactement son texte, son responsable et sa date. N'ajoute aucun autre engagement. Si tu retires ou corriges un engagement, explique obligatoirement le changement dans details avec les références des paroles qui le justifient. Sinon details=[]. key_points=[]. Rédige en français.\n"
                 let object: [String: Any] = ["candidate": try JSONSerialization.jsonObject(with: encoder.encode(candidate)),
                     "original_transcript": try JSONSerialization.jsonObject(with: Data(source(sources).utf8))]
                 return prefix + String(decoding: try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]), as: UTF8.self)
@@ -260,7 +265,7 @@ extension SummaryPipeline {
                 candidate = try await generate(verificationPrompt(sources, candidate: candidate), segments: sources, planning: false, stage: "Vérification des engagements")
                 guard claims.actions.isEmpty ? candidate.action_items.isEmpty : candidate.decisions.isEmpty else { throw SummaryFailure.invalidResponse }
                 guard candidate.decisions.count + candidate.action_items.count <= previous.decisions.count + previous.action_items.count else { throw SummaryFailure.invalidResponse }
-                if candidate.decisions.count + candidate.action_items.count < previous.decisions.count + previous.action_items.count,
+                if commitmentSignatures(candidate) != commitmentSignatures(previous),
                    (candidate.details ?? []).isEmpty { throw SummaryFailure.unreliableContent }
                 corrections += candidate.details ?? []
                 candidate.details = []
