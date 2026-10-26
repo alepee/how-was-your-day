@@ -179,12 +179,27 @@ final class AppModel: ObservableObject {
         guard let id = activeCaptureID else { return }
         update(id) { $0.noteEntries.append(.init(offset: elapsed)) }
     }
-    func beginSpeakerEdit(_ speaker: Speaker) { editingSpeakerID = speaker.id; speakerName = speaker.confirmed ? speaker.label : "" }
+    func beginSpeakerEdit(_ speaker: Speaker) { editingSpeakerID = speaker.id; speakerName = speaker.confirmed || speaker.proposedIdentity != nil ? speaker.label : "" }
+    func rememberSpeaker(name: String, speakerID: UUID, channel: VoiceChannel) {
+        guard let item = selected, !pipelineBusy else { return }
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, name.count <= 120 else { errorMessage = "Le nom doit contenir entre 1 et 120 caractères."; return }
+        var person = people.first { $0.name.compare(name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame } ?? VoicePerson(name: name)
+        guard !person.opposed else { errorMessage = "Cette personne est exclue de la reconnaissance."; return }
+        person.enrollmentRequestedAt = Date()
+        editingSpeakerID = speakerID; speakerName = name; confirmSpeaker()
+        guard selectedID == item.id, editingSpeakerID == nil else { return }
+        runVoice(command: "enroll-voice", speakerID: speakerID, person: person, channel: channel)
+    }
     func confirmSpeaker() {
         guard let id = selectedID, id != processingID, let speakerID = editingSpeakerID else { return }
         do {
             guard var item = selected else { return }
+            let proposal = item.speakers.first { $0.id == speakerID }?.proposedIdentity
             try item.renameSpeaker(speakerID, to: speakerName)
+            if let proposal, let person = people.first(where: { $0.id == proposal.personID && $0.recognitionEnabled }),
+               person.name == speakerName.trimmingCharacters(in: .whitespacesAndNewlines),
+               let index = item.speakers.firstIndex(where: { $0.id == speakerID }) { item.speakers[index].personID = person.id }
             update(id) { $0 = item }; editingSpeakerID = nil
             notice = "Voix corrigée dans toute cette session. Aucune empreinte vocale créée."
         } catch { errorMessage = error.localizedDescription }
@@ -317,6 +332,7 @@ final class AppModel: ObservableObject {
                 await flush()
                 if !hasUnsavedChanges { try? FileManager.default.removeItem(at: job) }
                 notice = result.segments.isEmpty ? "Traitement terminé : aucune parole reconnue." : (result.diarizationEngine == nil ? "Transcript disponible. Les voix ne sont pas séparées." : "Transcript disponible. Les voix détectées peuvent être nommées dans cette session.")
+                if let warning = result.identityWarning { notice = "Transcript disponible. " + warning }
             } catch {
                 update(id) { $0.transcriptState = .failed }
                 errorMessage = "Transcription : \(error.localizedDescription)"
@@ -420,12 +436,31 @@ final class AppModel: ObservableObject {
                     guard recordings.first(where: { $0.id == item.id })?.transcriptVersion == item.transcriptVersion else { throw StoreError.conflict }
                     update(item.id) { current in
                         for index in current.speakers.indices {
-                            if let match = matches[current.speakers[index].id.uuidString] { current.speakers[index].proposedIdentity = match }
+                            if let match = matches[current.speakers[index].id.uuidString] {
+                                current.speakers[index].proposedIdentity = match
+                                if !current.speakers[index].confirmed, let person = people.first(where: { $0.id == match.personID }) { current.speakers[index].label = person.name }
+                            }
                         }
                     }
                     notice = "\(matches.count) correspondance(s) proposée(s), à confirmer."
                     await flush()
-                } else { notice = command == "enroll-voice" ? "Empreinte enregistrée dans le trousseau." : "Empreintes supprimées. Opposition enregistrée." }
+                } else {
+                    people = try await store.people()
+                    if command == "enroll-voice", let person, let speakerID,
+                       recordings.first(where: { $0.id == item.id })?.transcriptVersion == item.transcriptVersion {
+                        update(item.id) { current in
+                            if let index = current.speakers.firstIndex(where: { $0.id == speakerID }) {
+                                current.speakers[index].personID = person.id
+                                current.speakers[index].label = person.name
+                                current.speakers[index].confirmed = true
+                                current.speakers[index].proposedIdentity = nil
+                                current.transcriptVersion += 1; current.summary = nil
+                            }
+                        }
+                        await flush()
+                    }
+                    notice = command == "enroll-voice" ? "Empreinte mémorisée. Cette voix sera recherchée dans les prochaines transcriptions." : "Empreintes supprimées. Opposition enregistrée."
+                }
             } catch { errorMessage = "Identité vocale : \(error.localizedDescription)" }
         }
     }

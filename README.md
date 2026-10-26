@@ -30,7 +30,7 @@ brew upgrade --cask how-was-your-day
 - Calendar context and explicit meeting reminders through macOS accounts, including Google and Microsoft accounts configured in Calendar.
 - Light, dark and system appearance, menu bar access and a floating notepad.
 - Versioned Markdown/JSON exports and a standalone stdio MCP server.
-- Optional voice enrollment with explicit consent. Voice vectors stay in the macOS keychain, never in exports.
+- Explicit local voice enrollment from the speaker editor, with automatic name suggestions after diarization. Voice vectors stay in the macOS keychain, never in exports.
 
 ## Current limitations
 
@@ -42,7 +42,7 @@ There is no automatic audio purge, app-level encryption, Sparkle updater or logi
 
 ## Data and consent
 
-Data lives in `~/Library/Application Support/HWYD`. Recording starts only on an explicit action. Inform participants and obtain the consent required for your use case. Renaming a speaker does not enroll their voice. Agents consuming your exports or MCP data may send that data elsewhere according to their own configuration.
+Data lives in `~/Library/Application Support/HWYD`. Recording starts only on an explicit action. Inform participants and obtain the consent required for your use case. “Name only” changes the transcript; “Name and remember” also creates a local voice fingerprint. Suggested names require confirmation. Agents consuming your exports or MCP data may send that data elsewhere according to their own configuration.
 
 First-run model downloads are explicit. Audio is processed locally. No real recordings or transcripts are included in this repository.
 

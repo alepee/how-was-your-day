@@ -41,6 +41,24 @@ import HWYDCore
                 result.echoCancellationEngine = prepared.engine
                 if request.diarize == true {
                     result = try await DiarizationStage.run(result, store: store, workingDirectory: URL(fileURLWithPath: args[3]).deletingLastPathComponent(), diagnosticURL: command == "transcribe-calibration" ? URL(fileURLWithPath: args[3] + ".alignment.json") : nil, microphoneOverride: prepared.microphone)
+                    let people = try await store.people().filter(\.recognitionEnabled)
+                    if !people.isEmpty {
+                        var recording = Recording(id: request.recordingID, title: "Voice identification", speakers: result.speakers ?? [], segments: result.segments)
+                        recording.audioChunks = request.chunks
+                        do {
+                            let matches = try await VoiceStage.identify(recording: recording, store: store, audioOverrides: prepared.chunks)
+                            result.speakers = recording.speakers.map { speaker in
+                                var speaker = speaker
+                                if let match = matches[speaker.id.uuidString], let person = people.first(where: { $0.id == match.personID }) {
+                                    speaker.proposedIdentity = match; speaker.label = person.name
+                                }
+                                return speaker
+                            }
+                        } catch {
+                            // A locked keychain must not discard a successfully transcribed session.
+                            result.identityWarning = "Reconnaissance vocale indisponible : \(error.localizedDescription)"
+                        }
+                    }
                 }
                 try JSONEncoder().encode(result).write(to: URL(fileURLWithPath: args[3]), options: .atomic)
             case "echo-diagnostic" where args.count == 4:

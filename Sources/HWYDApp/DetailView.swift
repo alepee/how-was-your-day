@@ -99,7 +99,7 @@ struct DetailView: View {
                     onAssign: { model.assignSpeaker($0, to: segment.id, recordingID: recording.id) },
                     onSplit: { splittingSegment = segment }).equatable()
             }
-            Label(recording.transcription?.echoCancellationEngine != nil ? "Écho du système atténué sur le micro avant transcription. Audio original conservé. Aucun enrôlement vocal." : recording.transcription?.diarizationEngine != nil ? "Voix séparées par piste. Rejet d’écho non appliqué. Aucun enrôlement vocal." : recording.speakers.isEmpty ? "Diarisation et rejet d’écho non appliqués à ce transcript." : "Nommer une voix ne crée pas d’empreinte vocale.", systemImage: "hand.raised").font(.system(size: 11)).foregroundStyle(Studio.muted).padding(.top, 6)
+            Label(recording.transcription?.echoCancellationEngine != nil ? "Écho du système atténué sur le micro avant transcription. Audio original conservé. Les empreintes mémorisées restent sur ce Mac." : recording.transcription?.diarizationEngine != nil ? "Voix séparées par piste. Rejet d’écho non appliqué. Les empreintes mémorisées restent sur ce Mac." : recording.speakers.isEmpty ? "Diarisation et rejet d’écho non appliqués à ce transcript." : "Nommer une voix ne crée pas d’empreinte vocale.", systemImage: "hand.raised").font(.system(size: 11)).foregroundStyle(Studio.muted).padding(.top, 6)
         }
     }
     @ViewBuilder private var summary: some View {
@@ -222,10 +222,10 @@ private struct TranscriptRow: View, Equatable {
                             Button { onEdit(speaker) } label: {
                                 HStack(spacing: 6) {
                                     Text(speaker.label)
-                                    if !speaker.confirmed { Image(systemName: "pencil"); Text("à nommer") }
+                                    if !speaker.confirmed { Image(systemName: "pencil"); Text(speaker.proposedIdentity == nil ? "à nommer" : "à confirmer") }
                                     else { Text("· \(speaker.source == .mic ? "micro" : "système")").foregroundStyle(Studio.muted) }
                                 }.font(.system(size: 11, weight: .medium)).foregroundStyle(speaker.confirmed ? Studio.mint : Studio.copper)
-                            }.buttonStyle(.plain).disabled(disabled).help("Corriger cette voix dans toute la session")
+                            }.buttonStyle(.plain).disabled(disabled).help("Corriger cette voix dans toute la session").accessibilityIdentifier("speaker-\(segment.id)")
                         }
                         if speaker == nil {
                             Text(segment.source == .mic ? "Micro · voix non attribuée" : "Système · voix non attribuée")

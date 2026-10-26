@@ -44,7 +44,7 @@ import HWYDCore
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 850), to: directory.appendingPathComponent("studio-capture.png"))
         render(NotepadWindow().environmentObject(model), size: .init(width: 500, height: 650), to: directory.appendingPathComponent("studio-notepad.png"))
         model.editingSpeakerID = model.selected?.speakers.first?.id
-        render(SpeakerEditor().environmentObject(model), size: .init(width: 440, height: 300), to: directory.appendingPathComponent("studio-speaker.png"))
+        render(SpeakerEditor().environmentObject(model), size: .init(width: 600, height: 360), to: directory.appendingPathComponent("studio-speaker.png"))
         model.editingSpeakerID = nil
         render(MenuContentView().environmentObject(model), size: .init(width: 340, height: 350), to: directory.appendingPathComponent("studio-menu.png"))
         model.calendar.enabled = true

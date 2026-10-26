@@ -27,6 +27,7 @@ public struct TranscriptionProvenance: Codable, Equatable, Sendable {
     public var createdAt: Date
 }
 public struct TranscriptionResult: Codable, Sendable {
+    public var identityWarning: String?
     public var request: TranscriptionRequest
     public var engine: String
     public var diarizationEngine: String?

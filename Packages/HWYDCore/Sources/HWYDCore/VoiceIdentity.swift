@@ -7,6 +7,11 @@ public struct VoicePerson: Codable, Identifiable, Equatable, Sendable {
     public var id: UUID
     public var name: String
     public var consentedAt: Date?
+    /// Explicit local enrollment action, distinct from a legal consent attestation.
+    public var enrollmentRequestedAt: Date?
+    public var enrolledChannels: [VoiceChannel]?
+    public var lastEnrolledAt: Date?
+    public var recognitionEnabled: Bool { !opposed && (consentedAt != nil || enrollmentRequestedAt != nil) }
     public var opposed: Bool
     public init(id: UUID = UUID(), name: String, consentedAt: Date? = nil, opposed: Bool = false) {
         self.id = id; self.name = name; self.consentedAt = consentedAt; self.opposed = opposed
@@ -34,7 +39,7 @@ public enum VoiceError: LocalizedError {
     case consentRequired, invalidVector, keychain(OSStatus), insufficientSpeech
     public var errorDescription: String? {
         switch self {
-        case .consentRequired: "Le consentement vocal explicite est requis et aucune opposition ne doit être active."
+        case .consentRequired: "La mémorisation de cette personne n’est pas activée ou une opposition est active."
         case .invalidVector: "Empreinte vocale invalide."
         case .keychain(let status): "Trousseau indisponible (\(status)). Aucune empreinte exportée."
         case .insufficientSpeech: "Il faut au moins 20 secondes de parole propre pour cette voix, sans chevauchement."

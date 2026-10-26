@@ -61,15 +61,30 @@ struct CaptureView: View {
 struct SpeakerEditor: View {
     @EnvironmentObject var model: AppModel
     @State private var name = ""
+    @State private var channel: VoiceChannel = .near
+    private var speaker: Speaker? { model.selected?.speakers.first { $0.id == model.editingSpeakerID } }
     private func confirm() { model.speakerName = name; model.confirmSpeaker() }
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 18) {
             Label("Nommer cette voix", systemImage: "person.crop.circle.badge.checkmark").font(.system(size: 20, weight: .medium))
-            Text("Le nom sera appliqué à tous les segments de cette voix dans cette session.").font(.system(size: 13)).foregroundStyle(Studio.muted).lineSpacing(4)
+            Text("Le nom s’applique à cette voix dans toute la session. Mémorisez-la pour la reconnaître dans les prochaines.").font(.system(size: 13)).foregroundStyle(Studio.muted)
             TextField("Nom de la personne", text: $name).textFieldStyle(.roundedBorder).onSubmit { confirm() }
-            Label("Aucune empreinte vocale ne sera créée.", systemImage: "hand.raised").font(.system(size: 11)).foregroundStyle(Studio.muted)
-            HStack { Spacer(); Button("Annuler") { model.editingSpeakerID = nil }.buttonStyle(StudioButtonStyle()); Button("Confirmer le nom") { confirm() }.buttonStyle(StudioButtonStyle(primary: true)).disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).keyboardShortcut(.defaultAction) }
-        }.padding(28).frame(width: 440).background(Studio.background).foregroundStyle(Studio.text).preferredColorScheme(model.appearancePreference.colorScheme)
-            .onAppear { name = model.speakerName }
+            if speaker?.source == .mic {
+                Picker("Microphone", selection: $channel) {
+                    Text("Proche · mon micro").tag(VoiceChannel.near)
+                    Text("Salle · voix éloignée").tag(VoiceChannel.room)
+                }
+            }
+            Text("L’empreinte utilise au moins 20 secondes de cette voix et reste dans le trousseau du Mac.").font(.caption).foregroundStyle(Studio.muted)
+            HStack {
+                Button("Annuler") { model.editingSpeakerID = nil }.buttonStyle(StudioButtonStyle())
+                Spacer()
+                Button("Nommer seulement") { confirm() }.buttonStyle(StudioButtonStyle()).disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button("Nommer et mémoriser") {
+                    if let speaker { model.rememberSpeaker(name: name, speakerID: speaker.id, channel: speaker.source == .system ? .remote : channel) }
+                }.buttonStyle(StudioButtonStyle(primary: true)).disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.pipelineBusy || model.isDemoMode)
+            }
+        }.padding(28).frame(width: 540).background(Studio.background).foregroundStyle(Studio.text).preferredColorScheme(model.appearancePreference.colorScheme)
+            .onAppear { name = model.speakerName; channel = speaker?.source == .system ? .remote : .near }
     }
 }
