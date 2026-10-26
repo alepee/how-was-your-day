@@ -112,8 +112,10 @@ struct DetailView: View {
                 Button("Réglages du modèle") { model.settingsCategory = .summary; model.showSettings = true }.buttonStyle(StudioButtonStyle())
             }
             if model.summaryID == recording.id, let progress = model.summaryProgress {
-                ProgressView(value: Double(progress.completed), total: Double(progress.total))
-                Text("\(progress.stage) · \(progress.completed)/\(progress.total) étapes" + (progress.cached ? " · reprise du cache" : "")).font(.caption).foregroundStyle(Studio.muted)
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("\(progress.stage) · \(progress.completed) étapes terminées" + (progress.cached ? " · reprise du cache" : "")).font(.caption).foregroundStyle(Studio.muted)
+                }
             }
             Text("Brouillon généré localement, à relire. Les décisions et actions gardent leurs références au transcript.").font(.system(size: 11)).foregroundStyle(Studio.muted)
             if let provenance = recording.summaryProvenance, recording.summary != nil {
