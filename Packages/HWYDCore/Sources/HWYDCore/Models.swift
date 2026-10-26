@@ -83,8 +83,14 @@ public struct Recording: Codable, Identifiable, Equatable, Sendable {
         self.summary = summary; self.transcriptState = segments.isEmpty ? .unavailable : .ready
         self.audioChunks = []; self.consentAnnounced = false; self.isDemo = isDemo
     }
+    /// One representative per confirmed person, while preserving all acoustic clusters.
+    /// Unlinked names remain distinct: equal labels do not prove equal identity.
+    public var participants: [Speaker] {
+        var seen = Set<UUID>()
+        return speakers.filter { $0.confirmed && seen.insert($0.personID ?? $0.id).inserted }
+    }
     public var participantNames: String {
-        let names = speakers.filter(\.confirmed).map(\.label)
+        let names = participants.map(\.label)
         let unknown = speakers.filter { !$0.confirmed }.count
         return (names + (unknown > 0 ? ["\(unknown) voix à nommer"] : [])).joined(separator: ", ")
     }

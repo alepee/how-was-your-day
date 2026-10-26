@@ -33,7 +33,7 @@ actor MCPService {
     struct Cursor: Codable { var method: String; var filter: String; var sequence: Int; var offset: Int; var expires: Double }
     init(store: SessionStore, writes: Bool, schemaData: Data) { self.store = store; self.writes = writes; self.schemaData = schemaData }
     func metadata(_ r: Recording) -> [String: Any] {
-        ["id": r.id.uuidString, "revision": r.revision, "title": r.title, "kind": r.kind.rawValue, "started_at": r.startedAt.ISO8601Format(), "duration_us": Int64(r.duration * 1e6), "status": r.state == .recording ? "capturing" : r.transcriptState == .ready ? "complete" : "partial", "participants": r.speakers.filter(\.confirmed).map { ["id": ($0.personID ?? $0.id).uuidString, "name": $0.label, "alias": NSNull(), "status": "named"] as [String: Any] }]
+        ["id": r.id.uuidString, "revision": r.revision, "title": r.title, "kind": r.kind.rawValue, "started_at": r.startedAt.ISO8601Format(), "duration_us": Int64(r.duration * 1e6), "status": r.state == .recording ? "capturing" : r.transcriptState == .ready ? "complete" : "partial", "participants": r.participants.map { ["id": ($0.personID ?? $0.id).uuidString, "name": $0.label, "alias": NSNull(), "status": "named"] as [String: Any] }]
     }
     func cursor(_ method: String, _ hash: String, _ seq: Int, _ offset: Int) throws -> String {
         let data = try JSONEncoder().encode(Cursor(method: method, filter: hash, sequence: seq, offset: offset, expires: Date().timeIntervalSince1970 + 900))
