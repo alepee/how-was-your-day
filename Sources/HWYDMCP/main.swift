@@ -163,7 +163,7 @@ if args.contains("--help") {
             return try Tool(name: name, description: toolSchemas[name]!["description"] as? String ?? name, inputSchema: value(input), annotations: .init(readOnlyHint: !["set_notes", "rename_speaker"].contains(name), destructiveHint: false, idempotentHint: true, openWorldHint: false), outputSchema: value(output))
         }
         let service = MCPService(store: store, writes: writes, schemaData: schemaData)
-        let server = Server(name: "hwyd", version: "0.3.0", capabilities: .init(resources: .init(subscribe: false, listChanged: false), tools: .init(listChanged: false)))
+        let server = Server(name: "hwyd", version: "0.4.0", capabilities: .init(resources: .init(subscribe: false, listChanged: false), tools: .init(listChanged: false)))
         await server.withMethodHandler(ListTools.self) { _ in .init(tools: toolList) }
         await server.withMethodHandler(CallTool.self) { params in
             do {

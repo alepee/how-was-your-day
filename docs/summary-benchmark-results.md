@@ -4,7 +4,7 @@ Date: 2026-10-26. Workflow: `summary-v7-grounded-writing`.
 
 **No model is recommended yet.** Every tested configuration failed at least one fidelity requirement. Lower memory usage or successful JSON generation does not compensate for missing decisions, invented tasks or unsupported explanations.
 
-These results use only the public [synthetic fixtures](../benchmarks/summary/synthetic/). They contain no real meeting content. Long-session quality and scaling are not established by this benchmark.
+The comparison table uses the public [synthetic fixtures](../benchmarks/summary/synthetic/). A separate long-session failure is reported below without publishing any real meeting content. End-to-end long-session quality and scaling are not established by these runs.
 
 ## Method
 
@@ -74,6 +74,14 @@ Qwen 4B had the lowest time and memory measurements here and preserved both task
 - No result here establishes fit or responsiveness on a 16 GB Mac, or quality over a 90-minute transcript.
 
 The next acceptance step is repeated evaluation on a broader bilingual corpus, including long conversations and corrections across window boundaries. Required gates remain: recover explicit decisions and commitments, preserve their final status and owners, add no unsupported task or deadline, and keep memory bounded in measured long-session runs.
+
+## Long-session follow-up
+
+A separate Qwen 4B run used an isolated copy of a 90-minute French transcript, with 854 segments and the same input ceiling. It stopped before thematic writing after 567.6 seconds. The sampled server physical-footprint peak was 8.77 GiB. A verification response changed a proposed task's owner without the required cited explanation, so the workflow rejected it.
+
+This exposed a recovery defect: a structurally valid response had been cached before stage-specific validation. The fix validates verification responses before caching or reuse, removes rejected entries, and permits exactly one targeted retry with the same candidates and source passages. A resumed run reused valid checkpoints but rejected the retry too. No final report was produced, and the original recording was unchanged.
+
+The measured peak covers only the stages reached. It is **not** a successful full-session memory bound or completion-time measurement. Qwen 4B remains an experimental candidate, not an accepted solution for long meetings.
 
 ## Reproduce
 
