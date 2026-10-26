@@ -48,6 +48,8 @@ final class AppModel: ObservableObject {
     @Published var summaryEnabled = UserDefaults.standard.bool(forKey: "summary.enabled")
     @Published var summaryEndpoint = UserDefaults.standard.string(forKey: "summary.endpoint") ?? "http://127.0.0.1:1234/v1"
     @Published var summaryModel = UserDefaults.standard.string(forKey: "summary.model") ?? ""
+    @Published var summaryContextTokens = 32768
+    @Published var summaryProgress: SummaryProgress?
     private var summaryTask: Task<Void, Never>?
     @Published var processingID: UUID?
     @Published var isInstallingDiarizer = false
@@ -89,6 +91,7 @@ final class AppModel: ObservableObject {
         summaryEnabled = preferences.bool(forKey: "summary.enabled")
         summaryEndpoint = preferences.string(forKey: "summary.endpoint") ?? "http://127.0.0.1:1234/v1"
         summaryModel = preferences.string(forKey: "summary.model") ?? ""
+        summaryContextTokens = preferences.integer(forKey: "summary.contextTokens") == 0 ? 32768 : preferences.integer(forKey: "summary.contextTokens")
         appearancePreference = AppearancePreference(rawValue: preferences.string(forKey: "appearancePreference") ?? "") ?? .system
         dataDirectory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("HWYD")
         if appliesAppearance { NSApp.appearance = appearancePreference.appearance }
@@ -479,20 +482,28 @@ final class AppModel: ObservableObject {
         preferences.set(summaryEnabled, forKey: "summary.enabled")
         preferences.set(summaryEndpoint, forKey: "summary.endpoint")
         preferences.set(summaryModel, forKey: "summary.model")
+        preferences.set(summaryContextTokens, forKey: "summary.contextTokens")
     }
     func cancelSummary() { summaryTask?.cancel() }
     func generateSummary() {
-        guard summaryEnabled, summaryID == nil, !isDemoMode, let item = selected else { return }
+        guard summaryEnabled, summaryID == nil, !isDemoMode, let item = selected, let store else { return }
         summaryID = item.id
         summaryTask = Task {
-            defer { summaryID = nil; summaryTask = nil }
+            defer { summaryID = nil; summaryTask = nil; summaryProgress = nil }
             do {
                 guard let url = URL(string: summaryEndpoint) else { throw SummaryFailure.invalidEndpoint }
                 let provider = try LocalLLMProvider(endpoint: url, model: summaryModel)
-                let result = try await SummaryPipeline.run(item, provider: provider, model: summaryModel)
+                let result = try await SummaryPipeline.run(item, provider: provider, model: summaryModel,
+                    inputCharacterLimit: max(12_000, (summaryContextTokens - 10_000) * 2),
+                    cacheDirectory: dataDirectory.appendingPathComponent("cache/summaries/" + item.id.uuidString), reuseCache: item.summary == nil,
+                    providerIdentity: url.absoluteString) { value in
+                        await MainActor.run { self.summaryProgress = value }
+                    }
                 try Task.checkCancellation()
                 guard let latest = recordings.first(where: { $0.id == item.id }), latest.transcriptVersion == item.transcriptVersion,
                     try SummaryPipeline.inputHash(latest) == result.inputHash else { throw SummaryFailure.stale }
+                let persisted = try await store.recording(item.id)
+                guard persisted.revision == item.revision else { throw SummaryFailure.stale }
                 update(item.id) { $0.summary = result.structured.markdown; $0.summaryProvenance = result }
                 await flush()
             } catch is CancellationError { notice = "Synthèse annulée." }

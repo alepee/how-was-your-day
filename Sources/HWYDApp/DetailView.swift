@@ -111,6 +111,10 @@ struct DetailView: View {
                 Spacer()
                 Button("Réglages du modèle") { model.settingsCategory = .summary; model.showSettings = true }.buttonStyle(StudioButtonStyle())
             }
+            if model.summaryID == recording.id, let progress = model.summaryProgress {
+                ProgressView(value: Double(progress.completed), total: Double(progress.total))
+                Text("\(progress.stage) · \(progress.completed)/\(progress.total) étapes" + (progress.cached ? " · reprise du cache" : "")).font(.caption).foregroundStyle(Studio.muted)
+            }
             Text("Brouillon généré localement, à relire. Les décisions et actions gardent leurs références au transcript.").font(.system(size: 11)).foregroundStyle(Studio.muted)
             if let provenance = recording.summaryProvenance, recording.summary != nil {
                 Text("\(provenance.model) · \(provenance.promptVersion) · transcript v\(provenance.transcriptVersion)").font(.system(size: 10)).foregroundStyle(Studio.muted)
@@ -254,6 +258,11 @@ private struct TranscriptRow: View, Equatable {
                         .menuStyle(.borderlessButton).fixedSize()
                         .disabled(disabled)
                         .help("Changer le locuteur de ce passage sans modifier les autres passages")
+                        if segment.echoSuspect == true {
+                            Label("Écho possible · à vérifier", systemImage: "exclamationmark.triangle")
+                                .font(.system(size: 10)).foregroundStyle(Studio.copper)
+                                .help("Ce passage ressemble à la piste système voisine. Le texte et son attribution sont conservés.")
+                        }
                         Text(segment.text).font(.system(size: 13)).lineSpacing(6).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }.padding(17).frame(maxWidth: .infinity, alignment: .leading).background(Studio.surface, in: RoundedRectangle(cornerRadius: 7))

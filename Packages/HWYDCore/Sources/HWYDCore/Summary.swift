@@ -47,16 +47,19 @@ public struct SummaryProvenance: Codable, Equatable, Sendable {
     public var structured: SummaryContent
 }
 public protocol LLMProvider: Sendable {
+    func plan(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent
     func generate(prompt: String) async throws -> SummaryContent
     func generate(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent
 }
 extension LLMProvider {
+    public func plan(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent { try await generate(prompt: prompt, evidenceIDs: evidenceIDs) }
     public func generate(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent { try await generate(prompt: prompt) }
 }
 public enum SummaryFailure: LocalizedError {
-    case invalidEndpoint, invalidResponse, noTranscript, stale, authenticationRequired, serverError(Int), outputTruncated, incompatibleSchema, unreliableContent
+    case contextTooSmall, invalidEndpoint, invalidResponse, noTranscript, stale, authenticationRequired, serverError(Int), outputTruncated, incompatibleSchema, unreliableContent
     public var errorDescription: String? {
         switch self {
+        case .contextTooSmall: "Le plan et ses sources dépassent le budget de contexte. Augmentez le contexte chargé dans le serveur et le réglage HWYD correspondant."
         case .unreliableContent: "La synthèse contient des copies de passages ou des références internes. Elle n’a pas été enregistrée. Essayez un autre modèle local."
         case .invalidEndpoint: "Configurez un modèle et une URL HTTP locale (localhost, 127.0.0.1 ou ::1)."
         case .authenticationRequired: "Le serveur local exige un token d’authentification. Cette version ne sait pas encore le transmettre."
@@ -83,7 +86,13 @@ public struct LocalLLMProvider: LLMProvider {
         ["http", "https"].contains(url.scheme?.lowercased() ?? "") && ["localhost", "127.0.0.1", "[::1]", "::1"].contains(url.host?.lowercased() ?? "") && url.user == nil && url.password == nil && url.query == nil && url.fragment == nil
     }
     public func generate(prompt: String) async throws -> SummaryContent { try await generate(prompt: prompt, evidenceIDs: []) }
+    public func plan(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent {
+        try await generate(prompt: prompt, evidenceIDs: evidenceIDs, system: SummaryPipeline.planningInstructions, outputTokens: 3000)
+    }
     public func generate(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent {
+        try await generate(prompt: prompt, evidenceIDs: evidenceIDs, system: SummaryPipeline.instructions, outputTokens: 6000)
+    }
+    private func generate(prompt: String, evidenceIDs: [UUID], system: String, outputTokens: Int) async throws -> SummaryContent {
         let references = Dictionary(uniqueKeysWithValues: evidenceIDs.enumerated().map { ("S\($0.offset + 1)", $0.element.uuidString) })
         var input = prompt
         for (reference, id) in references { input = input.replacingOccurrences(of: id, with: reference) }
@@ -110,16 +119,16 @@ public struct LocalLLMProvider: LLMProvider {
         let schema: [String: Any] = ["type": "object", "additionalProperties": false, "required": ["overview", "key_points", "decisions", "action_items", "details"], "properties": [
             "overview": ["type": "string"],
             "key_points": ["type": "array", "maxItems": 4, "items": topic],
-            "details": ["type": "array", "maxItems": 16, "items": topic],
-            "decisions": ["type": "array", "items": ["type": "object", "additionalProperties": false, "required": ["text", "evidence_segment_ids"], "properties": ["text": ["type": "string"], "evidence_segment_ids": evidence]]],
-            "action_items": ["type": "array", "items": ["type": "object", "additionalProperties": false, "required": ["text", "assignee_name", "assignee_person_id", "due_date", "evidence_segment_ids"], "properties": ["text": ["type": "string"], "assignee_name": assigneeSchema, "assignee_person_id": ["type": "null"], "due_date": dateSchema, "evidence_segment_ids": evidence]]]
+            "details": ["type": "array", "maxItems": system == SummaryPipeline.planningInstructions ? 8 : 16, "items": topic],
+            "decisions": ["type": "array", "maxItems": 32, "items": ["type": "object", "additionalProperties": false, "required": ["text", "evidence_segment_ids"], "properties": ["text": ["type": "string"], "evidence_segment_ids": evidence]]],
+            "action_items": ["type": "array", "maxItems": 64, "items": ["type": "object", "additionalProperties": false, "required": ["text", "assignee_name", "assignee_person_id", "due_date", "evidence_segment_ids"], "properties": ["text": ["type": "string"], "assignee_name": assigneeSchema, "assignee_person_id": ["type": "null"], "due_date": dateSchema, "evidence_segment_ids": evidence]]]
         ]]
         var request = URLRequest(url: endpoint.appendingPathComponent("chat/completions"))
         request.httpMethod = "POST"; request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: ["model": model, "temperature": 0, "max_tokens": 6000, "stream": false,
-            "messages": [["role": "system", "content": SummaryPipeline.instructions], ["role": "user", "content": input]],
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["model": model, "temperature": 0, "max_tokens": outputTokens, "stream": false,
+            "messages": [["role": "system", "content": system], ["role": "user", "content": input]],
             "response_format": ["type": "json_schema", "json_schema": ["name": "session_summary", "strict": true, "schema": schema]]], options: [.sortedKeys])
-        let config = URLSessionConfiguration.ephemeral; config.timeoutIntervalForRequest = 180; config.timeoutIntervalForResource = 300
+        let config = URLSessionConfiguration.ephemeral; config.timeoutIntervalForRequest = 600; config.timeoutIntervalForResource = 900
         config.connectionProxyDictionary = [:]
         let session = URLSession(configuration: config, delegate: NoRedirects(), delegateQueue: nil)
         defer { session.invalidateAndCancel() }
@@ -191,59 +200,7 @@ public enum SummaryPipeline {
     """
     public static func inputHash(_ recording: Recording) throws -> String {
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
-        return SHA256.hash(data: try encoder.encode(recording.segments)).map { String(format: "%02x", $0) }.joined()
-    }
-    public static func run(_ recording: Recording, provider: any LLMProvider, model: String) async throws -> SummaryProvenance {
-        guard !recording.segments.isEmpty else { throw SummaryFailure.noTranscript }
-        var windows: [[TranscriptSegment]] = []; var current: [TranscriptSegment] = []; var count = 0
-        for segment in recording.segments {
-            guard segment.text.count <= 12_000 else { throw SummaryFailure.invalidResponse }
-            if count + segment.text.count > 12_000 && !current.isEmpty { windows.append(current); current = []; count = 0 }
-            current.append(segment); count += segment.text.count + 100
-        }
-        if !current.isEmpty { windows.append(current) }
-        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
-        var results: [SummaryContent] = []
-        for window in windows {
-            try Task.checkCancellation()
-            let data = try encoder.encode(window.map { segment in ["id": segment.id.uuidString, "text": segment.text, "speaker": recording.speakers.first(where: { $0.id == segment.speakerID })?.label ?? "Voix non identifiée", "start": timeLabel(segment.start), "source": segment.source.rawValue] })
-            var result = try await provider.generate(prompt: "Transcription à résumer :\n" + String(decoding: data, as: UTF8.self), evidenceIDs: window.map(\.id))
-            try validate(result, segments: window, speakers: recording.speakers)
-            try Task.checkCancellation()
-            // Isolate commitments from narrative generation to avoid losing explicit decisions.
-            var commitments = try await provider.generate(prompt: "Passe spécialisée : extrais tous les choix explicitement validés dans decisions et toutes les tâches promises dans action_items. Les expressions « on valide », « nous validons », « on décide » signalent des choix actés. Ne prends pas les suggestions pour des engagements. Renseigne le responsable s'il est connu. Pour cette passe, overview est une seule phrase, key_points = [] et details = []. Source :\n" + String(decoding: data, as: UTF8.self), evidenceIDs: window.map(\.id))
-            // This pass supplies only decisions/actions; its narrative fields are unused.
-            commitments.overview = result.overview
-            commitments.key_points = []; commitments.details = []
-            try validate(commitments, segments: window, speakers: recording.speakers)
-            result.decisions = commitments.decisions
-            result.action_items = commitments.action_items
-            results.append(result)
-        }
-        // Pairwise reduction bounds each request and creates one coherent report.
-        while results.count > 1 {
-            var merged: [SummaryContent] = []
-            for index in stride(from: 0, to: results.count, by: 2) {
-                try Task.checkCancellation()
-                guard index + 1 < results.count else { merged.append(results[index]); continue }
-                let pair = Array(results[index...index + 1])
-                var referenced = Set<UUID>()
-                for content in pair {
-                    referenced.formUnion(content.decisions.flatMap(\.evidence_segment_ids))
-                    referenced.formUnion(content.action_items.flatMap(\.evidence_segment_ids))
-                    referenced.formUnion((content.key_points ?? []).flatMap(\.evidence_segment_ids))
-                    referenced.formUnion((content.details ?? []).flatMap(\.evidence_segment_ids))
-                }
-                let segments = recording.segments.filter { referenced.contains($0.id) }
-                let data = try encoder.encode(pair)
-                let result = try await provider.generate(prompt: "Fusionne ces comptes rendus successifs en un seul. Déduplique les sujets et actions. Préserve les détails utiles, les désaccords, les engagements et leurs références. Ne transforme pas une proposition en décision.\n" + String(decoding: data, as: UTF8.self), evidenceIDs: segments.map(\.id))
-                try validate(result, segments: segments, speakers: recording.speakers)
-                merged.append(result)
-            }
-            results = merged
-        }
-        let combined = results[0]
-        return SummaryProvenance(provider: "local-openai-compatible", model: model, promptVersion: "summary-v4", promptHash: SHA256.hash(data: Data(instructions.utf8)).map { String(format: "%02x", $0) }.joined(), generatedAt: Date(), transcriptVersion: recording.transcriptVersion, inputHash: try inputHash(recording), structured: combined)
+        return SHA256.hash(data: try encoder.encode(SummaryInputFingerprint(title: recording.title, notes: recording.notes, segments: recording.segments, speakers: recording.speakers))).map { String(format: "%02x", $0) }.joined()
     }
     /// Heuristics reject known failure modes, not a proof of semantic faithfulness.
     static func validateQuality(_ result: SummaryContent, segments: [TranscriptSegment]) throws {
@@ -252,7 +209,7 @@ public enum SummaryPipeline {
                 .components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }.joined(separator: " ")
         }
         let fields = [result.overview] + result.decisions.map(\.text) + result.action_items.map(\.text) + ((result.key_points ?? []) + (result.details ?? [])).flatMap { [$0.title, $0.text] }
-        guard result.overview.count <= 2500, result.decisions.count <= 8, result.action_items.count <= 8,
+        guard result.overview.count <= 2500, result.decisions.count <= 32, result.action_items.count <= 64,
               !fields.contains(where: { $0.range(of: #"(?i)\bsegments?\s+S[0-9]+\b"#, options: .regularExpression) != nil }) else { throw SummaryFailure.unreliableContent }
         for action in result.action_items {
             let text = normalized(action.text)
@@ -289,4 +246,11 @@ public enum SummaryPipeline {
             }
         }
     }
+}
+
+private struct SummaryInputFingerprint: Encodable {
+    let title: String
+    let notes: String
+    let segments: [TranscriptSegment]
+    let speakers: [Speaker]
 }

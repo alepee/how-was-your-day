@@ -91,6 +91,13 @@ struct SettingsView: View {
                 TextField("http://127.0.0.1:1234/v1", text: $model.summaryEndpoint).textFieldStyle(.roundedBorder)
                 Text("Modèle chargé").font(.system(size: 12, weight: .medium))
                 TextField("Identifiant du modèle", text: $model.summaryModel).textFieldStyle(.roundedBorder)
+                Picker("Contexte chargé dans le serveur", selection: $model.summaryContextTokens) {
+                    Text("16k tokens").tag(16384)
+                    Text("32k tokens").tag(32768)
+                    Text("64k tokens").tag(65536)
+                    Text("128k tokens").tag(131072)
+                }
+                Text("Choisissez le contexte réellement chargé dans LM Studio. Une grande fenêtre permet de rédiger l’échange entier à partir du plan global et limite les fusions intermédiaires. Les étapes validées sont conservées pour reprendre après une interruption.").font(.caption).foregroundStyle(Studio.muted)
                 Button("Enregistrer le modèle") { model.saveSummarySettings() }.buttonStyle(StudioButtonStyle())
                 Text("LM Studio ou Ollama, API OpenAI-compatible et JSON Schema requis. Seules les adresses de boucle locale sont acceptées. Chaque synthèse est lancée manuellement depuis la session.").font(.system(size: 11)).foregroundStyle(Studio.muted).fixedSize(horizontal: false, vertical: true)
             }.disabled(model.isDemoMode)
