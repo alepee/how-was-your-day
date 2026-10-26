@@ -8,7 +8,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         assert body['response_format']['type']=='json_schema'
         due=body['response_format']['json_schema']['schema']['properties']['action_items']['items']['properties']['due_date']
         assert due == {'type':'null'}, due
-        segments=json.loads(body['messages'][1]['content'].split('\n',1)[1])
+        prompt, payload = body['messages'][1]['content'].split('\n', 1)
+        payload = json.loads(payload)
+        if prompt.startswith('EXTRACT:'):
+            segments = payload
+        else:
+            assert prompt.startswith('WRITE_TOPIC:'), prompt
+            segments = payload['original_transcript']
+        assert segments and all('id' in segment for segment in segments)
         summary={'overview':'Synthèse HTTP synthétique','decisions':[{'text':'Décision fictive','evidence_segment_ids':[segments[0]['id']]}],'action_items':[], 'key_points':[], 'details':[{'title':'Contexte', 'text':'Discussion synthétique.', 'evidence_segment_ids':[segments[0]['id']]}]}
         data=json.dumps({'choices':[{'message':{'content':json.dumps(summary)}}]}).encode()
         self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',len(data)); self.end_headers(); self.wfile.write(data)
