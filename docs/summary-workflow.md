@@ -40,6 +40,8 @@ Verification adds calls and can become expensive when a meeting contains many co
 
 Validated steps are written atomically to the local `cache/summaries/<recording-id>/` directory. Cache keys include input content, speaker labels and identities, endpoint identity, model, prompt version, instructions and stage prompt. The caller includes generation options such as reasoning mode in the provider identity. Stable synthetic card IDs make routing resumable.
 
+Verification constraints are checked before a response becomes a checkpoint, including when loading an existing checkpoint. An invalid legacy verification checkpoint is removed. An unexplained commitment change, category change or increase in candidate count gets one targeted retry with precise feedback and the same candidate and source passages. A second invalid answer fails the run. An accepted retry uses the original checkpoint key, so unrelated completed steps remain reusable.
+
 Cancellation preserves completed checkpoints. Cache writes are best effort. Regenerating a saved final summary forces fresh inference; resuming a failed or missing result reuses matching checkpoints. The application saves a final report only after validation and a stale-input check. Cache files contain private derived text and are not exports.
 
 ## Validation and benchmark

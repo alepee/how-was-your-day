@@ -59,22 +59,32 @@ extension SummaryPipeline {
         var total = windows.count + 1, completed = 0
         let promptVersion = "summary-v7-grounded-writing"
         let promptHash = SHA256.hash(data: Data((instructions + planningInstructions + boundedInstructions + LocalLLMProvider.stageInstructionVersion).utf8)).map { String(format: "%02x", $0) }.joined()
-        func generate(_ prompt: String, segments: [TranscriptSegment], planning: Bool, stage: String) async throws -> SummaryContent {
+        func generate(_ prompt: String, segments: [TranscriptSegment], planning: Bool, stage: String,
+                      cachePrompt: String? = nil,
+                      validateStage: (SummaryContent) throws -> Void = { _ in }) async throws -> SummaryContent {
             try Task.checkCancellation()
             guard prompt.count <= limit else { throw SummaryFailure.contextTooSmall }
             total = max(total, completed + 1)
             await progress(.init(stage: stage, completed: completed, total: total, cached: false))
-            let key = [fingerprint, providerIdentity, model, promptVersion, promptHash, planning.description, prompt].joined(separator: "\n")
+            let key = [fingerprint, providerIdentity, model, promptVersion, promptHash, planning.description, cachePrompt ?? prompt].joined(separator: "\n")
             let hash = SHA256.hash(data: Data(key.utf8)).map { String(format: "%02x", $0) }.joined()
             let file = cacheDirectory?.appendingPathComponent(hash + ".json")
             let result: SummaryContent
             var cached = false
             if reuseCache, let file, let data = try? Data(contentsOf: file), let value = try? JSONDecoder().decode(SummaryContent.self, from: data),
                (try? validate(value, segments: segments, speakers: recording.speakers, maximumEvidenceReferences: planning ? 64 : 3)) != nil {
+                do { try validateStage(value) }
+                catch {
+                    // Old checkpoints may predate a stage-specific check. Remove them before
+                    // surfacing the error, otherwise every resumption repeats the same failure.
+                    try? FileManager.default.removeItem(at: file)
+                    throw error
+                }
                 result = value; cached = true
             } else {
                 result = try await planning ? provider.plan(prompt: prompt, evidenceIDs: segments.map(\.id)) : provider.generate(prompt: prompt, evidenceIDs: segments.map(\.id))
                 try validate(result, segments: segments, speakers: recording.speakers, maximumEvidenceReferences: planning ? 64 : 3)
+                try validateStage(result)
                 try Task.checkCancellation()
                 if let file {
                     try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
@@ -243,11 +253,41 @@ extension SummaryPipeline {
                 guard consumed > 0 else { throw SummaryFailure.contextTooSmall }
                 let sources = recording.segments.filter { chosenIDs.contains($0.id) }
                 let previous = candidate
-                candidate = try await generate(verificationPrompt(sources, candidate: candidate), segments: sources, planning: false, stage: "Vérification des engagements")
-                guard claims.actions.isEmpty ? candidate.action_items.isEmpty : candidate.decisions.isEmpty else { throw SummaryFailure.invalidResponse }
-                guard candidate.decisions.count + candidate.action_items.count <= previous.decisions.count + previous.action_items.count else { throw SummaryFailure.invalidResponse }
-                if commitmentSignatures(candidate) != commitmentSignatures(previous),
-                   (candidate.details ?? []).isEmpty { throw SummaryFailure.unreliableContent }
+                func validateVerification(_ value: SummaryContent) throws {
+                    guard claims.actions.isEmpty ? value.action_items.isEmpty : value.decisions.isEmpty else {
+                        throw VerificationValidationFailure(feedback: "Tu as changé la catégorie d'un candidat. Conserve les tâches dans action_items et les choix collectifs dans decisions, comme dans candidate.")
+                    }
+                    guard value.decisions.count + value.action_items.count <= previous.decisions.count + previous.action_items.count else {
+                        throw VerificationValidationFailure(feedback: "Tu as ajouté des candidats. Vérifie uniquement les candidats fournis et ne produis pas plus d'engagements que candidate.")
+                    }
+                    if commitmentSignatures(value) != commitmentSignatures(previous), (value.details ?? []).isEmpty {
+                        var fields: [String] = []
+                        if Set(value.decisions.map(\.text)) != Set(previous.decisions.map(\.text)) { fields.append("decisions.text") }
+                        if Set(value.action_items.map(\.text)) != Set(previous.action_items.map(\.text)) { fields.append("action_items.text") }
+                        for action in value.action_items {
+                            if let old = previous.action_items.first(where: { $0.text == action.text }) {
+                                if action.assignee_name != old.assignee_name { fields.append("assignee_name") }
+                                if action.due_date != old.due_date { fields.append("due_date") }
+                            }
+                        }
+                        let changed = fields.isEmpty ? "les candidats" : Set(fields).sorted().joined(separator: ", ")
+                        throw VerificationValidationFailure(feedback: "Tu as modifié \(changed) sans note de correction. Si le candidat est exact, recopie son texte, son responsable et sa date sans modification. Sinon ajoute dans details une explication précise, avec les IDs des paroles qui justifient chaque changement ou suppression. Une référence valide ne suffit pas à justifier un autre responsable.")
+                    }
+                }
+                let prompt = try verificationPrompt(sources, candidate: previous)
+                do {
+                    candidate = try await generate(prompt, segments: sources, planning: false, stage: "Vérification des engagements", validateStage: validateVerification)
+                } catch let failure as VerificationValidationFailure {
+                    // Exactly one targeted retry. Keep the original candidate and all original
+                    // sources. A shorter first line adds feedback without increasing the budget.
+                    let newline = prompt.firstIndex(of: "\n")!
+                    let stage = claims.actions.isEmpty ? "VERIFY_DECISIONS:" : "VERIFY_ACTIONS:"
+                    let retry = stage + " NOUVEL ESSAI : " + failure.feedback + " Applique toutes les règles du système.\n" + prompt[prompt.index(after: newline)...]
+                    do {
+                        candidate = try await generate(retry, segments: sources, planning: false, stage: "Vérification des engagements, nouvel essai",
+                                                       cachePrompt: prompt, validateStage: validateVerification)
+                    } catch is VerificationValidationFailure { throw SummaryFailure.unreliableContent }
+                }
                 corrections += candidate.details ?? []
                 candidate.details = []
                 pending.removeFirst(consumed)
@@ -340,4 +380,8 @@ extension SummaryPipeline {
     private static let boundedInstructions = """
     WRITE_TOPIC: rédige ce thème du compte rendu depuis les paroles originales. La carte des thèmes et extraction_map servent uniquement d'orientation. verified_context indique les engagements vérifiés avant rédaction et les changements constatés, avec leurs paroles justificatives présentes dans original_transcript. Utilise ces sources pour expliquer la chronologie et la position finale. Une suppression de doublon dans une liste ne signifie pas que le fait est annulé. Ne transforme pas une proposition non validée en proposition retirée. Le routage est approximatif : si la source aborde un autre sujet, conserve-le dans un détail distinct. Comprends le français et l'anglais et leur alternance, mais rédige en français naturel. Préserve faits, chiffres, arguments, désaccords, évolutions de position et questions ouvertes. N'invente pas les liens entre passages éloignés. Les horodatages donnent leur ordre. Développe les thèmes en paragraphes concrets sans recopier le verbatim. Les engagements explicites doivent apparaître aussi dans decisions et action_items. Une proposition n'est pas une décision. Un écho suspect n'est pas une preuve d'engagement. Toutes les références doivent pointer vers les paroles fournies ici. Réponds selon le schéma JSON.
     """
+}
+
+private struct VerificationValidationFailure: Error {
+    let feedback: String
 }

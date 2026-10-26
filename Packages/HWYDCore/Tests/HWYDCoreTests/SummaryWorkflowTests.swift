@@ -1,4 +1,5 @@
 import XCTest
+import CryptoKit
 @testable import HWYDCore
 
 private actor WorkflowProvider: LLMProvider {
@@ -231,7 +232,10 @@ private actor SameCountChangeProvider: LLMProvider {
     let field: String
     let explain: Bool
     var repaired = false
-    init(field: String, explain: Bool) { self.field = field; self.explain = explain }
+    var verificationCalls = 0
+    var verificationPrompts: [String] = []
+    let acceptRetry: Bool
+    init(field: String, explain: Bool, acceptRetry: Bool = false) { self.field = field; self.explain = explain; self.acceptRetry = acceptRetry }
     func generate(prompt: String) async throws -> SummaryContent { throw SummaryFailure.invalidResponse }
     func plan(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent { try await generate(prompt: prompt, evidenceIDs: evidenceIDs) }
     func generate(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent {
@@ -249,6 +253,11 @@ private actor SameCountChangeProvider: LLMProvider {
             result.details = [.init(title: "Contexte", text: "Le contexte du projet est discuté.", evidence_segment_ids: [id])]
         }
         if prompt.hasPrefix("VERIFY_ACTIONS:") {
+            verificationCalls += 1; verificationPrompts.append(prompt)
+            if acceptRetry && prompt.contains("NOUVEL ESSAI") {
+                result.details = []
+                return result
+            }
             if field == "text" { action.text = "Préparer le brouillon." }
             if field == "owner" { action.assignee_name = "Jordan" }
             if field == "date" { action.due_date = "2026-10-30" }
@@ -288,5 +297,73 @@ extension SummaryWorkflowTests {
         XCTAssertTrue(contract.contains("evidence_segment_ids"))
         XCTAssertTrue(contract.contains("Une échéance en langage naturel reste dans text"))
         XCTAssertLessThan(contract.count, 1800)
+    }
+}
+
+extension SummaryWorkflowTests {
+    private func retryRecording() -> Recording {
+        let camille = Speaker(label: "Camille", confirmed: true), jordan = Speaker(label: "Jordan", confirmed: true)
+        let padding = String(repeating: "Contexte complémentaire sur le projet. ", count: 80)
+        return Recording(title: "Retry fixture", speakers: [camille, jordan], segments: [
+            .init(start: 0, end: 20, speakerID: camille.id, source: .mic,
+                  text: "GENUINE_PROMISE Camille prépare le guide final pour 2026-10-29. Jordan pourrait aider pour un brouillon le 2026-10-30, mais cela reste à confirmer. " + padding),
+            .init(start: 20, end: 40, speakerID: camille.id, source: .mic, text: padding),
+            .init(start: 40, end: 60, speakerID: camille.id, source: .mic, text: padding)
+        ])
+    }
+    private func checkpointFiles(_ directory: URL) throws -> [URL] {
+        try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil).filter { $0.pathExtension == "json" }
+    }
+    func testVerificationRetryCachesOnlyAcceptedResponseAndResumes() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let recording = retryRecording(), provider = SameCountChangeProvider(field: "owner", explain: false, acceptRetry: true)
+        _ = try await SummaryPipeline.run(recording, provider: provider, model: "fixture", inputCharacterLimit: 12_000, cacheDirectory: directory)
+        let prompts = await provider.verificationPrompts
+        XCTAssertEqual(prompts.count, 2)
+        XCTAssertFalse(prompts[0].contains("NOUVEL ESSAI"))
+        XCTAssertTrue(prompts[1].contains("assignee_name"))
+        XCTAssertEqual(prompts[0].split(separator: "\n", maxSplits: 1).last, prompts[1].split(separator: "\n", maxSplits: 1).last)
+        for file in try checkpointFiles(directory) {
+            let value = try JSONDecoder().decode(SummaryContent.self, from: Data(contentsOf: file))
+            XCTAssertFalse(value.action_items.contains { $0.assignee_name == "Jordan" })
+        }
+        let resumed = SameCountChangeProvider(field: "owner", explain: false)
+        _ = try await SummaryPipeline.run(recording, provider: resumed, model: "fixture", inputCharacterLimit: 12_000, cacheDirectory: directory)
+        let calls = await resumed.verificationCalls
+        XCTAssertEqual(calls, 0, "The accepted retry must be reusable under the original checkpoint key")
+    }
+    func testRejectedVerificationNeverBecomesCheckpoint() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let provider = SameCountChangeProvider(field: "owner", explain: false)
+        do { _ = try await SummaryPipeline.run(retryRecording(), provider: provider, model: "fixture", inputCharacterLimit: 12_000, cacheDirectory: directory); XCTFail("Both invalid responses must fail") }
+        catch SummaryFailure.unreliableContent {}
+        let calls = await provider.verificationCalls
+        XCTAssertEqual(calls, 2)
+        for file in try checkpointFiles(directory) {
+            let value = try JSONDecoder().decode(SummaryContent.self, from: Data(contentsOf: file))
+            XCTAssertFalse(value.action_items.contains { $0.assignee_name == "Jordan" }, "Rejected owner change leaked into cache")
+        }
+    }
+    func testLegacyInvalidCheckpointIsRemovedBeforeSingleRetry() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let recording = retryRecording(), provider = SameCountChangeProvider(field: "owner", explain: false, acceptRetry: true)
+        let result = try await SummaryPipeline.run(recording, provider: provider, model: "fixture", inputCharacterLimit: 12_000, cacheDirectory: directory)
+        let originalPrompt = await provider.verificationPrompts[0]
+        let key = [result.inputHash, "local-openai-compatible", "fixture", result.promptVersion, result.promptHash, "false", originalPrompt].joined(separator: "\n")
+        let hash = SHA256.hash(data: Data(key.utf8)).map { String(format: "%02x", $0) }.joined()
+        let file = directory.appendingPathComponent(hash + ".json")
+        var invalid = try JSONDecoder().decode(SummaryContent.self, from: Data(contentsOf: file))
+        invalid.action_items[0].assignee_name = "Jordan"; invalid.details = []
+        try JSONEncoder().encode(invalid).write(to: file, options: .atomic)
+        let rejected = SameCountChangeProvider(field: "owner", explain: false)
+        do { _ = try await SummaryPipeline.run(recording, provider: rejected, model: "fixture", inputCharacterLimit: 12_000, cacheDirectory: directory); XCTFail("An invalid old checkpoint and invalid retry must fail") }
+        catch SummaryFailure.unreliableContent {}
+        let prompts = await rejected.verificationPrompts
+        XCTAssertEqual(prompts.count, 1)
+        XCTAssertTrue(prompts[0].contains("NOUVEL ESSAI"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
     }
 }
