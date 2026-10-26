@@ -29,14 +29,14 @@ brew upgrade --cask how-was-your-day
 - Optional local summaries through an OpenAI-compatible server such as LM Studio. Reports include an overview, decisions, next steps and topic details with source references.
 - Calendar context and explicit meeting reminders through macOS accounts, including Google and Microsoft accounts configured in Calendar.
 - Light, dark and system appearance, menu bar access and a floating notepad.
-- Versioned Markdown/JSON exports and a standalone stdio MCP server.
+- Versioned Markdown/JSON exports and a standalone stdio MCP server with segment-aware pagination, structured transcripts and time/speaker/track filters.
 - Explicit local voice enrollment from the speaker editor, with automatic name suggestions after diarization. Voice vectors stay in the macOS keychain, never in exports.
 
 ## Current limitations
 
-Capture and speaker identity are experimental. Development builds apply experimental offline acoustic echo cancellation to a temporary microphone copy for dual-track transcriptions before speech recognition and diarization. Original playback audio is unchanged. Residual echo and simultaneous speech still require review. Existing transcripts need reprocessing. Changing audio devices stops the recording. Transcription runs after capture, with a fixed French locale; code-switching quality is not established.
+Capture and speaker identity are experimental. HWYD applies experimental offline acoustic echo cancellation to a temporary microphone copy for dual-track transcriptions before speech recognition and diarization. Original playback audio is unchanged. Residual echo and simultaneous speech still require review. Existing transcripts need reprocessing. Changing audio devices stops the recording. Transcription runs after capture, with a fixed French locale; code-switching quality is not established.
 
-Summaries require a separately running local server. Embedded MLX inference and remote API providers are not implemented. Structured output and source references do not guarantee accuracy: small models can omit decisions or distort details. Longer sessions use windowed generation and reduction, which also needs broader evaluation.
+Summaries require a separately running local server. Embedded MLX inference and remote API providers are not implemented. Structured output and source references do not guarantee accuracy: small models can omit decisions or distort details. The summary workflow maps topics before writing from the original words, with local checkpoints and stage progress. Set the context to match the model actually loaded in the server. Long-context support alone does not guarantee complete coverage; the local model still needs review. See [summary workflow](docs/summary-workflow.md).
 
 There is no automatic audio purge, app-level encryption, Sparkle updater or login item yet. Retention settings are not enforced. Uninstalling does not delete recordings or keychain entries. Voice matching thresholds are not calibrated on a representative corpus.
 
