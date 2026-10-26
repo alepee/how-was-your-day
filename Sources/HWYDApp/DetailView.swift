@@ -48,7 +48,7 @@ struct DetailView: View {
                 }.overlay(alignment: .bottom) { Rectangle().fill(Studio.line).frame(height: 0.5) }
             }.padding(.horizontal, 32).padding(.top, 28)
             ScrollView {
-                VStack(alignment: .leading, spacing: 15) {
+                LazyVStack(alignment: .leading, spacing: 15) {
                     switch model.activeTab {
                     case .transcript: transcript
                     case .notes: NotesEditor(recording: recording)
@@ -91,48 +91,13 @@ struct DetailView: View {
         } else {
             ForEach(recording.segments) { segment in
                 let speaker = recording.speakers.first { $0.id == segment.speakerID }
-                HStack(alignment: .top, spacing: 16) {
-                    Button(timeLabel(segment.start)) { model.play(at: segment.start) }.buttonStyle(.plain).font(.system(size: 10, design: .monospaced)).foregroundStyle(Studio.muted).frame(width: 42).padding(.top, 6)
-                    VStack(alignment: .leading, spacing: 9) {
-                        if let speaker {
-                            Button { model.beginSpeakerEdit(speaker) } label: {
-                                HStack(spacing: 6) {
-                                    Text(speaker.label)
-                                    if !speaker.confirmed { Image(systemName: "pencil"); Text("à nommer") }
-                                    else { Text("· \(speaker.source == .mic ? "micro" : "système")").foregroundStyle(Studio.muted) }
-                                }.font(.system(size: 11, weight: .medium)).foregroundStyle(speaker.confirmed ? Studio.mint : Studio.copper)
-                            }.buttonStyle(.plain).disabled(model.processingID == recording.id).help("Corriger cette voix dans toute la session")
-                        }
-                        if speaker == nil {
-                            Text(segment.source == .mic ? "Micro · voix non attribuée" : "Système · voix non attribuée")
-                                .font(.system(size: 11, weight: .medium)).foregroundStyle(Studio.muted)
-                        }
-                        Menu {
-                            Text("Attribuer ce passage")
-                            ForEach(recording.speakers.filter { $0.source == segment.source }) { candidate in
-                                Button {
-                                    model.assignSpeaker(candidate.id, to: segment.id, recordingID: recording.id)
-                                } label: {
-                                    if segment.speakerID == candidate.id { Label(candidate.label, systemImage: "checkmark") }
-                                    else { Text(candidate.label) }
-                                }
-                            }
-                            Divider()
-                            Button("Découper le passage…") { splittingSegment = segment }
-                                .disabled(segment.splitIndices.isEmpty)
-                            Button("Voix non attribuée") {
-                                model.assignSpeaker(nil, to: segment.id, recordingID: recording.id)
-                            }.disabled(segment.speakerID == nil)
-                        } label: {
-                            Label("Corriger ce passage", systemImage: "person.crop.circle.badge.questionmark")
-                                .font(.system(size: 10)).foregroundStyle(Studio.muted)
-                        }
-                        .menuStyle(.borderlessButton).fixedSize()
-                        .disabled(model.processingID == recording.id || recording.state == .recording)
-                        .help("Changer le locuteur de ce passage sans modifier les autres passages")
-                        Text(segment.text).font(.system(size: 13)).lineSpacing(6).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }.padding(17).frame(maxWidth: .infinity, alignment: .leading).background(Studio.surface, in: RoundedRectangle(cornerRadius: 7))
+                TranscriptRow(segment: segment, speaker: speaker,
+                    candidates: recording.speakers.filter { $0.source == segment.source },
+                    disabled: model.processingID == recording.id || recording.state == .recording,
+                    onPlay: { model.play(at: segment.start) },
+                    onEdit: { model.beginSpeakerEdit($0) },
+                    onAssign: { model.assignSpeaker($0, to: segment.id, recordingID: recording.id) },
+                    onSplit: { splittingSegment = segment }).equatable()
             }
             Label(recording.transcription?.echoCancellationEngine != nil ? "Écho du système atténué sur le micro avant transcription. Audio original conservé. Aucun enrôlement vocal." : recording.transcription?.diarizationEngine != nil ? "Voix séparées par piste. Rejet d’écho non appliqué. Aucun enrôlement vocal." : recording.speakers.isEmpty ? "Diarisation et rejet d’écho non appliqués à ce transcript." : "Nommer une voix ne crée pas d’empreinte vocale.", systemImage: "hand.raised").font(.system(size: 11)).foregroundStyle(Studio.muted).padding(.top, 6)
         }
@@ -233,5 +198,64 @@ struct NotesEditor: View {
                 .font(.system(size: 14)).lineSpacing(7).scrollContentBackground(.hidden).padding(12).frame(minHeight: 220)
                 .background(Studio.inset, in: RoundedRectangle(cornerRadius: 7)).overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Studio.line)).accessibilityLabel("Notes manuelles de la session")
         }
+    }
+}
+
+// Playback ticks do not need to rebuild menus and selectable text for unchanged rows.
+private struct TranscriptRow: View, Equatable {
+    let segment: TranscriptSegment
+    let speaker: Speaker?
+    let candidates: [Speaker]
+    let disabled: Bool
+    let onPlay: () -> Void
+    let onEdit: (Speaker) -> Void
+    let onAssign: (UUID?) -> Void
+    let onSplit: () -> Void
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.segment == rhs.segment && lhs.speaker == rhs.speaker && lhs.candidates == rhs.candidates && lhs.disabled == rhs.disabled
+    }
+    var body: some View {
+                HStack(alignment: .top, spacing: 16) {
+                    Button(timeLabel(segment.start)) { onPlay() }.buttonStyle(.plain).font(.system(size: 10, design: .monospaced)).foregroundStyle(Studio.muted).frame(width: 42).padding(.top, 6)
+                    VStack(alignment: .leading, spacing: 9) {
+                        if let speaker {
+                            Button { onEdit(speaker) } label: {
+                                HStack(spacing: 6) {
+                                    Text(speaker.label)
+                                    if !speaker.confirmed { Image(systemName: "pencil"); Text("à nommer") }
+                                    else { Text("· \(speaker.source == .mic ? "micro" : "système")").foregroundStyle(Studio.muted) }
+                                }.font(.system(size: 11, weight: .medium)).foregroundStyle(speaker.confirmed ? Studio.mint : Studio.copper)
+                            }.buttonStyle(.plain).disabled(disabled).help("Corriger cette voix dans toute la session")
+                        }
+                        if speaker == nil {
+                            Text(segment.source == .mic ? "Micro · voix non attribuée" : "Système · voix non attribuée")
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(Studio.muted)
+                        }
+                        Menu {
+                            Text("Attribuer ce passage")
+                            ForEach(candidates) { candidate in
+                                Button {
+                                    onAssign(candidate.id)
+                                } label: {
+                                    if segment.speakerID == candidate.id { Label(candidate.label, systemImage: "checkmark") }
+                                    else { Text(candidate.label) }
+                                }
+                            }
+                            Divider()
+                            Button("Découper le passage…") { onSplit() }
+                                .disabled(segment.splitIndices.isEmpty)
+                            Button("Voix non attribuée") {
+                                onAssign(nil)
+                            }.disabled(segment.speakerID == nil)
+                        } label: {
+                            Label("Corriger ce passage", systemImage: "person.crop.circle.badge.questionmark")
+                                .font(.system(size: 10)).foregroundStyle(Studio.muted)
+                        }
+                        .menuStyle(.borderlessButton).fixedSize()
+                        .disabled(disabled)
+                        .help("Changer le locuteur de ce passage sans modifier les autres passages")
+                        Text(segment.text).font(.system(size: 13)).lineSpacing(6).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }.padding(17).frame(maxWidth: .infinity, alignment: .leading).background(Studio.surface, in: RoundedRectangle(cornerRadius: 7))
     }
 }

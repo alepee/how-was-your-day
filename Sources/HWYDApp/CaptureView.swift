@@ -60,13 +60,16 @@ struct CaptureView: View {
 }
 struct SpeakerEditor: View {
     @EnvironmentObject var model: AppModel
+    @State private var name = ""
+    private func confirm() { model.speakerName = name; model.confirmSpeaker() }
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Label("Nommer cette voix", systemImage: "person.crop.circle.badge.checkmark").font(.system(size: 20, weight: .medium))
             Text("Le nom sera appliqué à tous les segments de cette voix dans cette session.").font(.system(size: 13)).foregroundStyle(Studio.muted).lineSpacing(4)
-            TextField("Nom de la personne", text: $model.speakerName).textFieldStyle(.roundedBorder).onSubmit { model.confirmSpeaker() }
+            TextField("Nom de la personne", text: $name).textFieldStyle(.roundedBorder).onSubmit { confirm() }
             Label("Aucune empreinte vocale ne sera créée.", systemImage: "hand.raised").font(.system(size: 11)).foregroundStyle(Studio.muted)
-            HStack { Spacer(); Button("Annuler") { model.editingSpeakerID = nil }.buttonStyle(StudioButtonStyle()); Button("Confirmer le nom") { model.confirmSpeaker() }.buttonStyle(StudioButtonStyle(primary: true)).disabled(model.speakerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).keyboardShortcut(.defaultAction) }
+            HStack { Spacer(); Button("Annuler") { model.editingSpeakerID = nil }.buttonStyle(StudioButtonStyle()); Button("Confirmer le nom") { confirm() }.buttonStyle(StudioButtonStyle(primary: true)).disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).keyboardShortcut(.defaultAction) }
         }.padding(28).frame(width: 440).background(Studio.background).foregroundStyle(Studio.text).preferredColorScheme(model.appearancePreference.colorScheme)
+            .onAppear { name = model.speakerName }
     }
 }

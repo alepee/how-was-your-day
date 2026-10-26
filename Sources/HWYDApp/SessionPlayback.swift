@@ -1,4 +1,5 @@
 import AVFoundation
+import CryptoKit
 import HWYDCore
 
 /// Both tracks share one engine and one host-clock start. CAF boundaries are scheduled ahead.
@@ -76,14 +77,34 @@ import HWYDCore
     }
 }
 
-struct TrackEnvelope: Sendable {
+struct TrackEnvelope: Codable, Sendable {
     var peaks: [Float]
     var available: Bool
 }
 
 /// Reads bounded PCM buffers away from the UI. Values are actual peaks, not decorative bars.
 actor WaveformReader {
+    private struct Cached: Codable {
+        var key: String
+        var envelopes: [AudioSource: TrackEnvelope]
+    }
+    private var memory: [String: [AudioSource: TrackEnvelope]] = [:]
+    private(set) var cacheHits = 0
     func read(chunks: [AudioChunk], store: SessionStore, duration: Double, bins: Int = 600) throws -> [AudioSource: TrackEnvelope] {
+        guard duration.isFinite, duration > 0, bins > 0, bins <= 10000 else { return [:] }
+        var identity = "waveform-v1|\(duration)|\(bins)"
+        for chunk in chunks {
+            let url = try store.audioURL(for: chunk)
+            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+            identity += "|\(url.path)|\(chunk.start)|\(chunk.duration)|\(attributes[.size] ?? 0)|\((attributes[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0)"
+        }
+        let key = SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
+        if let value = memory[key] { cacheHits += 1; return value }
+        let directory = store.directory.appendingPathComponent("cache/waveforms")
+        let file = directory.appendingPathComponent("\(chunks.first?.id.uuidString ?? "empty")-\(bins).json")
+        if let data = try? Data(contentsOf: file), let cached = try? JSONDecoder().decode(Cached.self, from: data), cached.key == key {
+            remember(cached.envelopes, key: key); cacheHits += 1; return cached.envelopes
+        }
         var result: [AudioSource: TrackEnvelope] = [:]
         for source in [AudioSource.mic, .system] {
             var peaks = [Float](repeating: 0, count: bins)
@@ -98,11 +119,13 @@ actor WaveformReader {
                     try file.read(into: buffer)
                     guard buffer.frameLength > 0, let samples = buffer.floatChannelData else { break }
                     available = true
+                    let rate = file.processingFormat.sampleRate
+                    let channels = Int(buffer.format.channelCount)
+                    let scale = Double(bins) / duration
                     for frame in 0..<Int(buffer.frameLength) {
-                        let time = chunk.start + Double(first + Int64(frame)) / file.processingFormat.sampleRate
-                        let bin = Int(time / max(duration, 0.001) * Double(bins))
+                        let bin = Int((chunk.start + Double(first + Int64(frame)) / rate) * scale)
                         guard bin >= 0 && bin < bins else { continue }
-                        for channel in 0..<Int(buffer.format.channelCount) {
+                        for channel in 0..<channels {
                             peaks[bin] = max(peaks[bin], abs(samples[channel][frame]))
                         }
                     }
@@ -110,6 +133,15 @@ actor WaveformReader {
             }
             result[source] = TrackEnvelope(peaks: peaks, available: available)
         }
+        try Task.checkCancellation()
+        remember(result, key: key)
+        // A full cache or read-only disk must not prevent playback.
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        if let data = try? JSONEncoder().encode(Cached(key: key, envelopes: result)) { try? data.write(to: file, options: .atomic) }
         return result
+    }
+    private func remember(_ value: [AudioSource: TrackEnvelope], key: String) {
+        if memory.count >= 8 { memory.removeAll(keepingCapacity: true) }
+        memory[key] = value
     }
 }

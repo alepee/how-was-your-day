@@ -335,7 +335,9 @@ final class AppModel: ObservableObject {
             lastRefresh = Date()
             refreshTask = Task {
                 defer { refreshTask = nil }
-                if let latest = try? await store.all(), !hasUnsavedChanges, activeCaptureID == nil, !pipelineBusy, summaryID == nil { recordings = latest }
+                if let revisions = try? await store.recordingRevisions(),
+                   revisions != Dictionary(uniqueKeysWithValues: recordings.map { ($0.id, $0.revision) }),
+                   let latest = try? await store.all(), !hasUnsavedChanges, activeCaptureID == nil, !pipelineBusy, summaryID == nil { recordings = latest }
             }
         }
         if let captureStart {

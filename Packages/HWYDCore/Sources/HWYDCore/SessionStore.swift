@@ -4,6 +4,16 @@ import GRDB
 
 /// Bootstrap UI schema. Production pipeline migrations remain a separate milestone.
 public actor SessionStore {
+    /// Lightweight polling for external MCP changes; do not decode transcripts on every tick.
+    public func recordingRevisions() throws -> [UUID: Int] {
+        try database.read { db in
+            var result: [UUID: Int] = [:]
+            for row in try Row.fetchAll(db, sql: "SELECT id, revision FROM ui_recordings") {
+                if let id = UUID(uuidString: row["id"]) { result[id] = row["revision"] }
+            }
+            return result
+        }
+    }
     let database: DatabaseQueue
     public nonisolated let directory: URL
     public init(directory: URL, readOnly: Bool = false, migrate: Bool = true) throws {

@@ -40,6 +40,16 @@ import HWYDCore
         guard envelopes[.mic]?.peaks == [0.2, 0.2, 0], envelopes[.system]?.peaks == [0, 0.4, 0] else {
             throw CaptureFailure(message: "Waveform alignment failed")
         }
+        let cachedReader = WaveformReader()
+        let cached = try await cachedReader.read(chunks: chunks, store: store, duration: 0.3, bins: 3)
+        let diskHits = await cachedReader.cacheHits
+        guard diskHits == 1, cached[.mic]?.peaks == envelopes[.mic]?.peaks else { throw CaptureFailure(message: "Persistent waveform cache miss") }
+        _ = try await cachedReader.read(chunks: chunks, store: store, duration: 0.3, bins: 3)
+        let memoryHits = await cachedReader.cacheHits
+        guard memoryHits == 2 else { throw CaptureFailure(message: "Memory waveform cache miss") }
+        _ = try chunk("mic1.caf", .mic, 0, 0.7)
+        let changed = try await cachedReader.read(chunks: chunks, store: store, duration: 0.3, bins: 3)
+        guard changed[.mic]?.peaks.first == 0.7 else { throw CaptureFailure(message: "Stale waveform cache after audio change") }
         let model = AppModel(directory: directory, appliesAppearance: false)
         guard model.isTrackAudible(.mic), model.isTrackAudible(.system) else { throw CaptureFailure(message: "Default mix failed") }
         model.toggleSolo(.mic)
