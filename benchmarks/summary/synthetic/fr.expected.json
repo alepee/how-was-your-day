@@ -1,0 +1,77 @@
+{
+  "synthetic": true,
+  "input_language": "fr",
+  "output_language": "fr",
+  "review_required": true,
+  "decisions": [
+    {
+      "fact": "Only an internal pilot of twenty people, no customer data; no Friday public launch.",
+      "sources": [
+        "9B1A0CEF-1B0D-5CCF-8D2A-76BFCFF06479",
+        "A2FD0213-0507-531E-888C-45420D1008FB",
+        "304593B9-1C46-5033-AAAF-E5817FC557C4"
+      ]
+    },
+    {
+      "fact": "Pilot languages are English and French.",
+      "sources": [
+        "3B1837F7-57CB-59EA-9328-DFAED1A636C0"
+      ]
+    },
+    {
+      "fact": "Public announcement postponed until tests are validated; sender not assigned.",
+      "sources": [
+        "494CB93A-CE39-5A09-BFCC-E2A8EBDB2AFE"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "fact": "Fix revocation test and submit result.",
+      "assignee": "Jordan",
+      "deadline": "2026-10-30",
+      "sources": [
+        "E9F7D898-9F57-5239-8805-B79B91CC7BB9",
+        "3D0024F3-851A-51B9-9129-EB25DD059BDF"
+      ]
+    },
+    {
+      "fact": "Deliver a draft pilot guide, not the final guide.",
+      "assignee": "Camille",
+      "deadline": "2026-10-29",
+      "sources": [
+        "1D7E1405-5635-55D0-9B0E-F438F0E90A8E"
+      ]
+    }
+  ],
+  "unresolved": [
+    "Public release date",
+    "Final guide delivery date",
+    "Budget approval (12000 EUR is a proposal only)",
+    "Log retention period: 30 and 7 days discussed, neither decided",
+    "Owner for finance follow-up, Legal request and public announcement"
+  ],
+  "forbidden_claims": [
+    "Public launch approved for Friday",
+    "Final guide promised for October 29",
+    "Spanish translation assigned",
+    "Budget of 12000 EUR approved",
+    "Retention of 7 or 30 days approved",
+    "Twenty percent adoption",
+    "Camille owns customer training",
+    "An invented owner or deadline for Legal or Finance"
+  ],
+  "detail_checks": [
+    "Twenty active users; unknown denominator",
+    "Camille changed the deliverable from final guide to draft",
+    "Rejected proposals must remain distinguishable from decisions"
+  ],
+  "scoring": {
+    "decision_recall": "0..3 supported decisions covered",
+    "action_recall": "0..2 commitments with correct assignee and latest deliverable",
+    "false_commitments": "Count unsupported actions/owners/deadlines; target 0",
+    "contradictions": "Count forbidden claims; target 0",
+    "evidence": "Check every cited segment actually supports its claim",
+    "language": "French output preserves meaning of FR, EN or mixed source"
+  }
+}

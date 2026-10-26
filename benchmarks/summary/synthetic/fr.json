@@ -1,0 +1,178 @@
+{
+  "id": "AB6B5CF8-1DA6-5377-9E22-CD5E0CEC0E61",
+  "title": "Synthetic Atlas pilot review (fr)",
+  "kind": "meeting",
+  "startedAt": 814665600,
+  "duration": 360,
+  "state": "sealed",
+  "revision": 0,
+  "transcriptVersion": 1,
+  "notes": "",
+  "noteEntries": [],
+  "speakers": [
+    {
+      "id": "089CC882-D04C-5572-8049-6BAEEC5E8A47",
+      "personID": "7A3E1BA1-1447-5681-BDB1-E2ADC510C27D",
+      "label": "Camille",
+      "confirmed": true,
+      "source": "mic"
+    },
+    {
+      "id": "494B1728-2C22-51C0-9499-D3AF835DCC8C",
+      "personID": "80893E36-9E27-52DB-9840-D2F3D15B159C",
+      "label": "Jordan",
+      "confirmed": true,
+      "source": "system"
+    }
+  ],
+  "segments": [
+    {
+      "id": "4AE825C4-D843-5A73-AA37-853A68889D0C",
+      "start": 0,
+      "end": 18,
+      "speakerID": "089CC882-D04C-5572-8049-6BAEEC5E8A47",
+      "source": "mic",
+      "text": "Nous préparons le lancement du portail Atlas. Je propose de lancer vendredi pour tous les clients."
+    },
+    {
+      "id": "9B1A0CEF-1B0D-5CCF-8D2A-76BFCFF06479",
+      "start": 20,
+      "end": 38,
+      "speakerID": "494B1728-2C22-51C0-9499-D3AF835DCC8C",
+      "source": "system",
+      "text": "Je ne valide pas ce lancement général. Le test de révocation des accès a échoué."
+    },
+    {
+      "id": "A2FD0213-0507-531E-888C-45420D1008FB",
+      "start": 40,
+      "end": 58,
+      "speakerID": "089CC882-D04C-5572-8049-6BAEEC5E8A47",
+      "source": "mic",
+      "text": "D’accord, je retire ma proposition. Nous ne lançons pas vendredi. Nous gardons uniquement un pilote interne de vingt personnes, sans données clients."
+    },
+    {
+      "id": "304593B9-1C46-5033-AAAF-E5817FC557C4",
+      "start": 60,
+      "end": 78,
+      "speakerID": "494B1728-2C22-51C0-9499-D3AF835DCC8C",
+      "source": "system",
+      "text": "Oui, décision validée : pilote interne limité à vingt personnes. Le lancement public reste sans date."
+    },
+    {
+      "id": "5F937B8E-BF89-5A29-B127-C02BCDF278C6",
+      "start": 80,
+      "end": 98,
+      "speakerID": "089CC882-D04C-5572-8049-6BAEEC5E8A47",
+      "source": "mic",
+      "text": "Jordan, peux-tu corriger le test de révocation ?"
+    },
+    {
+      "id": "E9F7D898-9F57-5239-8805-B79B91CC7BB9",
+      "start": 100,
+      "end": 118,
+      "speakerID": "494B1728-2C22-51C0-9499-D3AF835DCC8C",
+      "source": "system",
+      "text": "Je m’en charge. Je déposerai le correctif et le résultat du test avant le 30 octobre 2026."
+    },
+    {
+      "id": "4022F32E-C2DE-5F2C-8CD8-7D09E91D0FE2",
+      "start": 120,
+      "end": 138,
+      "speakerID": "089CC882-D04C-5572-8049-6BAEEC5E8A47",
+      "source": "mic",
+      "text": "Pour ma part, je rédigerai le guide du pilote avant le 29 octobre 2026. Je ne prends pas en charge la formation des clients."
+    },
+    {
+      "id": "D27DB874-DC18-5410-9061-5D193F9A5C8F",
+      "start": 140,
+      "end": 158,
+      "speakerID": "494B1728-2C22-51C0-9499-D3AF835DCC8C",
+      "source": "system",
+      "text": "On pourrait aussi traduire le guide en espagnol. C’est une idée pour plus tard, pas une action décidée."
+    },
+    {
+      "id": "12499733-D2DB-5D2D-8071-56F36A236308",
+      "start": 160,
+      "end": 178,
+      "speakerID": "089CC882-D04C-5572-8049-6BAEEC5E8A47",
+      "source": "mic",
+      "text": "Le plafond budgétaire proposé est de douze mille euros. Est-il approuvé ?"
+    },
+    {
+      "id": "D5E1E583-C5D3-5BC7-9A26-84FA4E7A3155",
+      "start": 180,
+      "end": 198,
+      "speakerID": "494B1728-2C22-51C0-9499-D3AF835DCC8C",
+      "source": "system",
+      "text": "Non. La finance doit encore répondre. Nous n’avons ni budget validé ni responsable désigné pour cette relance."
+    },
+    {
+      "id": "E1DE7BA5-39F0-582F-8740-B44B9BD98C0B",
+      "start": 200,
+      "end": 218,
+      "speakerID": "089CC882-D04C-5572-8049-6BAEEC5E8A47",
+      "source": "mic",
+      "text": "Autre sujet : la conservation des journaux. Trente jours me semblent suffisants."
+    },
+    {
+      "id": "0333022B-3EED-5F99-B10A-94043E17E17C",
+      "start": 220,
+      "end": 238,
+      "speakerID": "494B1728-2C22-51C0-9499-D3AF835DCC8C",
+      "source": "system",
+      "text": "Je préfère sept jours, mais le service juridique demande une étude. Ne décidons rien aujourd’hui."
+    },
+    {
+      "id": "6987A316-9654-5F95-B9B4-F13A54437ED5",
+      "start": 240,
+      "end": 258,
+      "speakerID": "089CC882-D04C-5572-8049-6BAEEC5E8A47",
+      "source": "mic",
+      "text": "D’accord, durée de conservation non tranchée. Il faudra obtenir l’avis juridique, mais personne ne s’engage à le demander pendant cet échange."
+    },
+    {
+      "id": "08C3348C-BC24-5B70-A580-375A4D0707C4",
+      "start": 260,
+      "end": 278,
+      "speakerID": "494B1728-2C22-51C0-9499-D3AF835DCC8C",
+      "source": "system",
+      "text": "Le tableau de suivi indique vingt utilisateurs actifs, pas vingt pour cent d’adoption. Le dénominateur n’est pas connu."
+    },
+    {
+      "id": "1D7E1405-5635-55D0-9B0E-F438F0E90A8E",
+      "start": 280,
+      "end": 298,
+      "speakerID": "089CC882-D04C-5572-8049-6BAEEC5E8A47",
+      "source": "mic",
+      "text": "Je corrige mon engagement sur le guide : je livrerai un brouillon le 29 octobre, pas le guide final. La date finale reste ouverte."
+    },
+    {
+      "id": "3D0024F3-851A-51B9-9129-EB25DD059BDF",
+      "start": 300,
+      "end": 318,
+      "speakerID": "494B1728-2C22-51C0-9499-D3AF835DCC8C",
+      "source": "system",
+      "text": "Bien reçu. Et ma correction du test reste prévue pour le 30 octobre."
+    },
+    {
+      "id": "3B1837F7-57CB-59EA-9328-DFAED1A636C0",
+      "start": 320,
+      "end": 338,
+      "speakerID": "089CC882-D04C-5572-8049-6BAEEC5E8A47",
+      "source": "mic",
+      "text": "Nous utiliserons l’anglais et le français pour le pilote. Nous retenons ces deux langues, sans promettre l’espagnol."
+    },
+    {
+      "id": "494CB93A-CE39-5A09-BFCC-E2A8EBDB2AFE",
+      "start": 340,
+      "end": 358,
+      "speakerID": "494B1728-2C22-51C0-9499-D3AF835DCC8C",
+      "source": "system",
+      "text": "Oui. Nous décidons aussi de reporter l’envoi de l’annonce publique jusqu’à la validation des tests. Personne n’est encore chargé de cet envoi."
+    }
+  ],
+  "transcriptState": "ready",
+  "audioChunks": [],
+  "consentAnnounced": false,
+  "isDemo": true
+}
