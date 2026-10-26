@@ -78,9 +78,10 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, Sendable {
 public struct LocalLLMProvider: LLMProvider {
     public let endpoint: URL
     public let model: String
-    public init(endpoint: URL, model: String) throws {
+    public let reasoningEffort: String?
+    public init(endpoint: URL, model: String, reasoningEffort: String? = nil) throws {
         guard Self.isLocal(endpoint), !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw SummaryFailure.invalidEndpoint }
-        self.endpoint = endpoint; self.model = model
+        self.endpoint = endpoint; self.model = model; self.reasoningEffort = reasoningEffort
     }
     public static func isLocal(_ url: URL) -> Bool {
         ["http", "https"].contains(url.scheme?.lowercased() ?? "") && ["localhost", "127.0.0.1", "[::1]", "::1"].contains(url.host?.lowercased() ?? "") && url.user == nil && url.password == nil && url.query == nil && url.fragment == nil
@@ -90,7 +91,7 @@ public struct LocalLLMProvider: LLMProvider {
         try await generate(prompt: prompt, evidenceIDs: evidenceIDs, system: SummaryPipeline.planningInstructions, outputTokens: 3000)
     }
     public func generate(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent {
-        try await generate(prompt: prompt, evidenceIDs: evidenceIDs, system: SummaryPipeline.instructions, outputTokens: 6000)
+        try await generate(prompt: prompt, evidenceIDs: evidenceIDs, system: SummaryPipeline.instructions, outputTokens: 4000)
     }
     private func generate(prompt: String, evidenceIDs: [UUID], system: String, outputTokens: Int) async throws -> SummaryContent {
         let references = Dictionary(uniqueKeysWithValues: evidenceIDs.enumerated().map { ("S\($0.offset + 1)", $0.element.uuidString) })
@@ -98,7 +99,13 @@ public struct LocalLLMProvider: LLMProvider {
         for (reference, id) in references { input = input.replacingOccurrences(of: id, with: reference) }
         var evidenceItem: [String: Any] = ["type": "string"]
         if !references.isEmpty { evidenceItem["enum"] = references.keys.sorted() }
-        let evidence: [String: Any] = ["type": "array", "minItems": 1, "maxItems": 3, "items": evidenceItem]
+        let routing = prompt.hasPrefix("ROUTE:")
+        let executive = prompt.hasPrefix("EXECUTIVE:")
+        let verification = prompt.hasPrefix("VERIFY_")
+        let verifyActions = prompt.hasPrefix("VERIFY_ACTIONS:")
+        let verifyDecisions = prompt.hasPrefix("VERIFY_DECISIONS:")
+        let repair = prompt.hasPrefix("REPAIR:")
+        let evidence: [String: Any] = ["type": "array", "minItems": 1, "maxItems": system == SummaryPipeline.planningInstructions ? 64 : 3, "items": evidenceItem]
         let datePattern = try NSRegularExpression(pattern: #"\b\d{4}-\d{2}-\d{2}\b"#)
         let dates = Array(Set(datePattern.matches(in: input, range: NSRange(input.startIndex..., in: input)).compactMap { Range($0.range, in: input).map { String(input[$0]) } })).sorted()
         let dateSchema: [String: Any] = dates.isEmpty ? ["type": "null"] : ["anyOf": [["type": "string", "enum": dates], ["type": "null"]]]
@@ -118,16 +125,18 @@ public struct LocalLLMProvider: LLMProvider {
         let topic: [String: Any] = ["type": "object", "additionalProperties": false, "required": ["title", "text", "evidence_segment_ids"], "properties": ["title": ["type": "string"], "text": ["type": "string"], "evidence_segment_ids": evidence]]
         let schema: [String: Any] = ["type": "object", "additionalProperties": false, "required": ["overview", "key_points", "decisions", "action_items", "details"], "properties": [
             "overview": ["type": "string"],
-            "key_points": ["type": "array", "maxItems": 4, "items": topic],
-            "details": ["type": "array", "maxItems": system == SummaryPipeline.planningInstructions ? 8 : 16, "items": topic],
-            "decisions": ["type": "array", "maxItems": 32, "items": ["type": "object", "additionalProperties": false, "required": ["text", "evidence_segment_ids"], "properties": ["text": ["type": "string"], "evidence_segment_ids": evidence]]],
-            "action_items": ["type": "array", "maxItems": 64, "items": ["type": "object", "additionalProperties": false, "required": ["text", "assignee_name", "assignee_person_id", "due_date", "evidence_segment_ids"], "properties": ["text": ["type": "string"], "assignee_name": assigneeSchema, "assignee_person_id": ["type": "null"], "due_date": dateSchema, "evidence_segment_ids": evidence]]]
+            "key_points": ["type": "array", "maxItems": routing || verification || repair ? 0 : 4, "items": topic],
+            "details": ["type": "array", "maxItems": executive ? 0 : (repair ? 1 : (verification ? 4 : (system == SummaryPipeline.planningInstructions ? 8 : 16))), "items": topic],
+            "decisions": ["type": "array", "maxItems": routing || executive || repair || verifyActions ? 0 : 32, "items": ["type": "object", "additionalProperties": false, "required": ["text", "evidence_segment_ids"], "properties": ["text": ["type": "string"], "evidence_segment_ids": evidence]]],
+            "action_items": ["type": "array", "maxItems": routing || executive || repair || verifyDecisions ? 0 : 64, "items": ["type": "object", "additionalProperties": false, "required": ["text", "assignee_name", "assignee_person_id", "due_date", "evidence_segment_ids"], "properties": ["text": ["type": "string"], "assignee_name": assigneeSchema, "assignee_person_id": ["type": "null"], "due_date": dateSchema, "evidence_segment_ids": evidence]]]
         ]]
         var request = URLRequest(url: endpoint.appendingPathComponent("chat/completions"))
         request.httpMethod = "POST"; request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: ["model": model, "temperature": 0, "max_tokens": outputTokens, "stream": false,
+        var body: [String: Any] = ["model": model, "temperature": 0, "max_tokens": outputTokens, "stream": false,
             "messages": [["role": "system", "content": system], ["role": "user", "content": input]],
-            "response_format": ["type": "json_schema", "json_schema": ["name": "session_summary", "strict": true, "schema": schema]]], options: [.sortedKeys])
+            "response_format": ["type": "json_schema", "json_schema": ["name": "session_summary", "strict": true, "schema": schema]]]
+        if let reasoningEffort { body["reasoning_effort"] = reasoningEffort }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
         let config = URLSessionConfiguration.ephemeral; config.timeoutIntervalForRequest = 600; config.timeoutIntervalForResource = 900
         config.connectionProxyDictionary = [:]
         let session = URLSession(configuration: config, delegate: NoRedirects(), delegateQueue: nil)
@@ -216,19 +225,19 @@ public enum SummaryPipeline {
             guard action.text.count <= 240, !["aucune action", "pas d action", "pas de tache"].contains(where: { text.hasPrefix($0) }) else { throw SummaryFailure.unreliableContent }
             if text.split(separator: " ").count >= 14 && segments.contains(where: { normalized($0.text).contains(text) }) { throw SummaryFailure.unreliableContent }
         }
-        let actions = result.action_items.map { normalized($0.text) }
+        let actions = result.action_items.map { normalized($0.text) + "|" + ($0.assignee_name ?? "") }
         guard Set(actions).count == actions.count else { throw SummaryFailure.unreliableContent }
     }
 
-    public static func validate(_ result: SummaryContent, segments: [TranscriptSegment], speakers: [Speaker] = []) throws {
+    public static func validate(_ result: SummaryContent, segments: [TranscriptSegment], speakers: [Speaker] = [], maximumEvidenceReferences: Int = 3, maximumDetails: Int = 16) throws {
         let ids = Set(segments.map(\.id))
         guard !result.overview.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, result.overview.count <= 20_000 else { throw SummaryFailure.invalidResponse }
         try validateQuality(result, segments: segments)
-        guard (result.key_points ?? []).count <= 4, (result.details ?? []).count <= 16 else { throw SummaryFailure.invalidResponse }
+        guard (result.key_points ?? []).count <= 4, (result.details ?? []).count <= maximumDetails else { throw SummaryFailure.invalidResponse }
         for topic in (result.key_points ?? []) + (result.details ?? []) {
             guard !topic.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, topic.title.count <= 160,
                   !topic.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, topic.text.count <= 2200,
-                  (1...3).contains(topic.evidence_segment_ids.count), Set(topic.evidence_segment_ids).isSubset(of: ids) else { throw SummaryFailure.invalidResponse }
+                  (1...maximumEvidenceReferences).contains(topic.evidence_segment_ids.count), Set(topic.evidence_segment_ids).isSubset(of: ids) else { throw SummaryFailure.invalidResponse }
         }
         for decision in result.decisions {
             guard !decision.text.isEmpty, !decision.evidence_segment_ids.isEmpty, Set(decision.evidence_segment_ids).isSubset(of: ids) else { throw SummaryFailure.invalidResponse }

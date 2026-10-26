@@ -1,28 +1,48 @@
-# Topic planning and grounded writing
+# Bounded evidence and thematic writing
 
-HWYD uses two phases for local summaries:
+HWYD processes French, English and mixed-language transcripts. Reports currently use French. A model must pass the bilingual benchmark before it can be recommended; valid JSON alone does not demonstrate language support or factual quality.
 
-1. Map the subjects, arguments, unresolved questions and explicit commitments.
-2. Write the report using both this map and the original transcript.
+## Workflow
 
-The final structure remains overview, key points, decisions, next steps and thematic details. Source references are validated. Suspected echo is a review hint, not automatic deletion or proof of the speaker's intent.
+1. Extract facts, arguments, disagreements, open questions and explicit commitments from windows of complete turns. Each window has at most 12,000 source characters, or less with a smaller configured budget.
+2. Organize the extracted topic cards into a compact thematic map. Routing batches are bounded. Cards omitted by the model retain their original title instead of disappearing. Every original turn is assigned to a topic, using the closest cited turn within its extraction window as a fallback.
+3. Write each topic from its original turns, with a bounded inventory of topic titles for context. Large topics use several sequential writing requests. Writers may correct an approximate topic assignment. They never receive the entire long transcript merely because the server supports a large context.
+4. Verify proposed commitments from both extraction and writing. Decisions and actions use separate batches, with at most four candidates per batch. Schemas prevent a task from moving into the decision array. Verification reads the topic's source, adjacent turns, and lexical matches elsewhere in the transcript and French extraction cards. Each request includes the candidate's current supporting turns. Removing a candidate requires a cited correction note. The model cannot increase the number of candidates during verification.
+5. Repair paragraphs affected by those correction notes. Preserve the chronology of a proposal and its later cancellation or replacement.
+6. Assemble detailed paragraphs and verified commitments deterministically. A separate bounded editor writes only the overview and up to four key points from paragraphs that carry source references. It cannot remove detailed material or commitments.
 
-## Context and request count
+For a transcript that fits one extraction window, HWYD skips topic routing and writes directly from that complete source and its topic inventory. It also reuses this draft's overview and key points unless corrections require another editorial pass. A short conversation without commitments needs two requests.
 
-The context setting must match the context actually loaded in the local server. It does not reconfigure LM Studio. HWYD uses a conservative character budget, reserving space for instructions and output; it is an estimate, not tokenizer-based accounting.
+Suspected echo remains a review hint, not automatic deletion or proof of a speaker's intent.
 
-Short transcripts use two model requests. Long transcripts are mapped in smaller portions even with a large context, then those maps are consolidated into one global plan. This avoids allowing the beginning of a long conversation to monopolize the plan. Writing receives the entire raw transcript when it fits; otherwise it uses batches followed by bounded pairwise consolidation. This fallback still loses some detail compared with a full-context second pass. HWYD does not claim that two requests always suffice or that local quality equals Google Meet.
+## Memory and context
 
-References are shortened before budgeting and restored to original segment IDs after generation. The topic map is guidance; the writing pass receives raw words rather than only intermediate summaries.
+The public `SummaryPipeline.run` interface retains its character-budget argument, but user prompts are capped at **24,000 characters** independently of meeting length. A configured budget below that ceiling reduces it, with a minimum of 12,000 characters. Actual envelopes are checked, including topic maps, candidates and source JSON. An oversized single turn or indivisible source bundle fails explicitly instead of being silently truncated.
 
-## Recovery
+These limits are **not tokenizer accounting or a total process-memory guarantee**. System instructions, JSON schema, output tokens, runtime buffers, model weights and the server's KV-cache allocation also consume memory. Planning allows 3,000 output tokens; writing, verification and editing allow 4,000. LM Studio's loaded context must be configured separately. HWYD does not unload other models or reconfigure the server.
 
-Validated steps are saved atomically in the local `cache/summaries/<recording-id>/` directory. An interrupted or failed run reuses matching steps. Keys include input content, speaker labels and identities, endpoint, model, prompt version, instructions and stage prompt. Changing the transcript, names, endpoint, model or prompt invalidates the corresponding entries. Cache files contain private derived text and are not exports.
+All inference requests are sequential. The full transcript and intermediate cards still occupy ordinary application memory, which grows with recording length. The bounded guarantee concerns individual model input, not constant total host memory.
 
-The UI shows the current stage and completed steps. Cancellation preserves completed checkpoints. The final report is saved only after validation and a stale-input check. Regenerating an existing final summary forces fresh inference. Resuming a missing or failed summary reuses matching checkpoints. Cache write failures do not discard a valid model response.
+Short references are restored to original segment UUIDs after inference. Executive editing permits only references whose text appears in the current request or its previous key points. Stage-specific schemas suppress irrelevant sections. Optional `reasoningEffort` is forwarded only when explicitly configured; reasoning-channel text is never accepted as the final structured response.
 
-## Validation
+## Limits
 
-Tests cover plan-before-writing, raw source presence in the writing pass, resumption after failure, model isolation and speaker-correction invalidation. A private opt-in test accepts `HWYD_SUMMARY_RECORDING` and `HWYD_SUMMARY_OUTPUT` and runs against the configured loopback LLM server. Private recordings and benchmark results stay in ignored `build/` folders.
+Routing is approximate. Lexical retrieval and model extraction do not guarantee detection of every cross-language paraphrase or distant reversal. The benchmark includes changed decisions and cancelled commitments for that reason. A later cancellation missed by extraction and retrieval can still be missed by verification.
 
-A Claude reference obtained through read-only MCP is a comparative artifact, not ground truth. Assess topic coverage, factual fidelity, attribution, useful detail, structure and runtime separately. A shorter model output must not be described as equivalent solely because its JSON validates.
+Large thematic sections can remain split into several paragraphs. Exact duplicate paragraphs are removed; semantic deduplication is not guaranteed. If routing needs several batches, independently named equivalent subjects may remain separate. Deterministic assembly preserves detail at the cost of potentially repetitive prose. The final report permits up to 256 detailed paragraphs; individual model responses remain limited to 16. Excessive output fails validation rather than silently losing material.
+
+Verification adds calls and can become expensive when a meeting contains many commitments. Neither speed nor Google Meet-level quality is claimed without measured evidence. A reported source ID proves that the source exists, not that the interpretation is faithful.
+
+## Recovery and provenance
+
+Validated steps are written atomically to the local `cache/summaries/<recording-id>/` directory. Cache keys include input content, speaker labels and identities, endpoint identity, model, prompt version, instructions and stage prompt. The caller includes generation options such as reasoning mode in the provider identity. Stable synthetic card IDs make routing resumable.
+
+Cancellation preserves completed checkpoints. Cache writes are best effort. Regenerating a saved final summary forces fresh inference; resuming a failed or missing result reuses matching checkpoints. The application saves a final report only after validation and a stale-input check. Cache files contain private derived text and are not exports.
+
+## Validation and benchmark
+
+Unit tests cover bounded long-session requests, coverage of every original turn in writing, mixed French/English source handling, failure rather than truncation for oversized turns, source-grounded corrections, cache reuse and invalidation. Deterministic fixtures test orchestration, not model quality.
+
+The opt-in test accepts `HWYD_SUMMARY_RECORDING`, `HWYD_SUMMARY_OUTPUT`, `HWYD_SUMMARY_INPUT_CHARACTER_LIMIT`, `HWYD_LIVE_LLM_URL`, `HWYD_LIVE_LLM_MODEL` and optional `HWYD_LIVE_LLM_REASONING_EFFORT`. It writes the report, provenance, timing and `metrics.json` with inference call count, largest user prompt and inference time. Private inputs and results belong under ignored `build/` paths. The external benchmark harness measures process memory separately, including the inference server.
+
+A Claude reference obtained through read-only MCP is a comparison artifact, not ground truth. Score coverage, factual fidelity, attribution, useful detail, structure, runtime and measured peak memory separately.

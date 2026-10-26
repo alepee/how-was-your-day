@@ -195,10 +195,10 @@ extension IntegrationTests {
         let provider = DetailedFixtureLLM()
         let result = try await SummaryPipeline.run(recording, provider: provider, model: "fixture")
         let calls = await provider.calls
-        XCTAssertEqual(calls, 2)
+        XCTAssertEqual(calls, 8)
         XCTAssertEqual(result.structured.overview, "Compte rendu global.")
         XCTAssertEqual(result.structured.details?.count, 1)
-        XCTAssertEqual(result.promptVersion, "summary-v5-topic-plan")
+        XCTAssertEqual(result.promptVersion, "summary-v6-bounded-evidence")
     }
 }
 
