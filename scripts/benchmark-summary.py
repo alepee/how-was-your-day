@@ -124,6 +124,10 @@ def run_case(path, output, args):
                HWYD_SUMMARY_RECORDING=str(path), HWYD_SUMMARY_OUTPUT=str(output),
                HWYD_LIVE_LLM_MODEL=args.model, HWYD_LIVE_LLM_URL=args.endpoint,
                HWYD_SUMMARY_INPUT_CHARACTER_LIMIT=str(args.input_characters))
+    if args.reasoning_effort is not None:
+        env["HWYD_LIVE_LLM_REASONING_EFFORT"] = args.reasoning_effort
+    else:
+        env.pop("HWYD_LIVE_LLM_REASONING_EFFORT", None)
     command = ["swift", "test", "--package-path", str(ROOT / "Packages/HWYDCore"),
                "--filter", "SummaryWorkflowTests.testRealRecordingWhenExplicitlyRequested"]
     if args.skip_build:
@@ -131,6 +135,7 @@ def run_case(path, output, args):
     before = memory_sample(process_table(), server_pids=set(args.server_pid), app_pids=set(args.app_pid))
     report = {"model": args.model, "endpoint": args.endpoint, "input": input_info,
               "input_path": str(path), "input_character_limit": args.input_characters,
+              "reasoning_effort": args.reasoning_effort,
               "quantization_label": args.quantization, "loaded_context_tokens_label": args.context_tokens,
               "model_metadata_before": model_metadata(args.endpoint, args.model), "baseline": before,
               "sample_interval_seconds": args.sample_interval, "command": command,
@@ -202,6 +207,7 @@ def main():
     parser.add_argument("--input-characters", type=int, default=24000)
     parser.add_argument("--server-pid", type=int, action="append", default=[], help="Model worker PID; includes descendants; may repeat")
     parser.add_argument("--app-pid", type=int, action="append", default=[], help="Optional HWYD PID; includes descendants")
+    parser.add_argument("--reasoning-effort", help="Optional provider-specific reasoning_effort, e.g. none")
     parser.add_argument("--quantization", help="User-supplied label, not inferred")
     parser.add_argument("--context-tokens", type=int, help="Loaded server context, label only; does not configure it")
     parser.add_argument("--sample-interval", type=float, default=0.5)

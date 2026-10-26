@@ -42,7 +42,7 @@ class BenchmarkTests(unittest.TestCase):
             fake_swift.chmod(0o755)
             args = SimpleNamespace(developer_dir="unused", model="fixture", endpoint="http://127.0.0.1:1234/v1",
                                    input_characters=24000, skip_build=True, server_pid=[], app_pid=[],
-                                   quantization="test", context_tokens=16000, sample_interval=0.1, timeout=5)
+                                   quantization="test", context_tokens=16000, reasoning_effort="none", sample_interval=0.1, timeout=5)
             with patch.dict(os.environ, {"PATH": str(directory) + os.pathsep + os.environ["PATH"]}), \
                  patch.object(module, "model_metadata", return_value={"matched": False}):
                 self.assertTrue(module.run_case(module.FIXTURES / "fr.json", directory / "result", args))

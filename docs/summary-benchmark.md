@@ -27,7 +27,7 @@ python3 scripts/test-benchmark-summary.py
 python3 scripts/benchmark-summary.py --suite --prepare-only
 ```
 
-Load exactly one candidate in LM Studio. Set its context explicitly, record the quantization and stop competing inference. Changing `--context-tokens` only records a label; it does not reconfigure the server. The selected server must support the model and the structured output schema.
+Load exactly one candidate in LM Studio. Set its context explicitly, record the quantization and stop competing inference. Changing `--context-tokens` only records a label; it does not reconfigure the server. The selected server must support the model and the structured output schema. `--reasoning-effort none` optionally sends the provider-specific `reasoning_effort` setting and records it in metadata. Omit it for backends without this option. In particular, verify that a reasoning model returns final JSON in `content`, rather than exhausting its output budget in `reasoning_content`.
 
 ```sh
 python3 scripts/benchmark-summary.py \
