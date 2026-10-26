@@ -63,7 +63,7 @@ struct SettingsView: View {
                 Button(model.isDemoMode ? "Quitter les exemples" : "Explorer des exemples") {
                     model.showSettings = false
                     if model.isDemoMode { model.leaveDemo() } else { model.enterDemo() }
-                }.buttonStyle(StudioButtonStyle()).disabled(model.pipelineBusy || model.activeCaptureID != nil || model.hasUnsavedChanges)
+                }.buttonStyle(StudioButtonStyle()).disabled(model.modelWorkBusy || model.activeCaptureID != nil || model.hasUnsavedChanges)
             }
         case .calendar:
             CalendarSettingsView(calendar: model.calendar).disabled(model.isDemoMode)

@@ -134,7 +134,7 @@ final class AppModel: ObservableObject {
     func select(_ item: Recording) { showSettings = false; stopPlayback(); selectedID = item.id; activeTab = .transcript; playbackTime = 0; mutedTracks = []; soloTracks = []; trackEnvelopes = [:] }
     func library() { showSettings = false; stopPlayback(); selectedID = nil; search = "" }
     func enterDemo() {
-        guard activeCaptureID == nil, !pipelineBusy, !hasUnsavedChanges else { return }
+        guard activeCaptureID == nil, !modelWorkBusy, !hasUnsavedChanges else { return }
         calendar.suspend()
         stopPlayback(); isDemoMode = true; selectedID = nil; recordings = DemoContent.recordings(); startTicker()
     }
@@ -490,11 +490,17 @@ final class AppModel: ObservableObject {
     }
     func cancelSummary() { summaryTask?.cancel() }
     func generateSummary() {
-        guard summaryEnabled, !modelWorkBusy, !isDemoMode, let item = selected, let store else { return }
-        summaryID = item.id
+        guard summaryEnabled, !modelWorkBusy, !isDemoMode, let recordingID = selected?.id, let store else { return }
+        summaryID = recordingID
         summaryTask = Task {
             defer { summaryID = nil; summaryTask = nil; summaryProgress = nil }
             do {
+                // Capture the revision only after pending UI edits have reached the store.
+                // Otherwise the normal autosave can make our own snapshot look stale.
+                await flush()
+                try Task.checkCancellation()
+                guard !hasUnsavedChanges else { return } // flush already exposes the save error.
+                guard !isDemoMode, let item = recordings.first(where: { $0.id == recordingID }) else { throw SummaryFailure.stale }
                 guard let url = URL(string: summaryEndpoint) else { throw SummaryFailure.invalidEndpoint }
                 let provider = try LocalLLMProvider(endpoint: url, model: summaryModel,
                     reasoningEffort: summaryReasoningDisabled ? "none" : nil)
@@ -511,8 +517,11 @@ final class AppModel: ObservableObject {
                 guard persisted.revision == item.revision else { throw SummaryFailure.stale }
                 update(item.id) { $0.summary = result.structured.markdown; $0.summaryProvenance = result }
                 await flush()
-            } catch is CancellationError { notice = "Synthèse annulée." }
-            catch { errorMessage = "Synthèse : \(error.localizedDescription)" }
+            } catch {
+                if error is CancellationError || Task.isCancelled || (error as? URLError)?.code == .cancelled {
+                    notice = "Synthèse annulée."
+                } else { errorMessage = "Synthèse : \(error.localizedDescription)" }
+            }
         }
     }
     func setMCPWrites(_ enabled: Bool) {

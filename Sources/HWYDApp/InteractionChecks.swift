@@ -24,6 +24,38 @@ import HWYDCore
         guard fallback.appearancePreference == .system else { throw CaptureFailure(message: "Invalid preference must follow system") }
         print("Appearance persistence, system fallback and demo/test isolation: PASS")
     }
+    private static func checkSummaryLifecycle(directory: URL) async throws {
+        let model = AppModel(directory: directory, appliesAppearance: false)
+        await model.load()
+        let recording = Recording(title: "Summary lifecycle fixture", notes: "Before")
+        model.recordings = [recording]; model.selectedID = recording.id
+        model.update(recording.id) { $0.notes = "Pending edit" }
+        model.summaryEnabled = true
+        // An invalid remote endpoint guarantees this test performs no inference or network call.
+        model.summaryEndpoint = "https://example.com/v1"; model.summaryModel = "fixture"
+        model.generateSummary()
+        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+        while model.summaryID != nil, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        guard model.summaryID == nil, !model.hasUnsavedChanges, model.errorMessage != nil,
+              let persisted = try await model.store?.recording(recording.id), persisted.notes == "Pending edit",
+              persisted.revision == model.recordings.first?.revision else {
+            throw CaptureFailure(message: "Summary did not flush pending edits before provider setup")
+        }
+        model.errorMessage = nil; model.notice = nil
+        model.generateSummary()
+        model.enterDemo()
+        guard !model.isDemoMode, model.recordings.first?.id == recording.id else {
+            model.cancelSummary()
+            throw CaptureFailure(message: "Demo replaced recordings during summary generation")
+        }
+        model.cancelSummary()
+        let cancelDeadline = ContinuousClock.now.advanced(by: .seconds(3))
+        while model.summaryID != nil, ContinuousClock.now < cancelDeadline { try await Task.sleep(for: .milliseconds(10)) }
+        guard model.summaryID == nil, model.errorMessage == nil, model.notice == "Synthèse annulée." else {
+            throw CaptureFailure(message: "Cancelled summary surfaced as a provider error")
+        }
+        print("Summary pending-edit flush, demo exclusion and cancellation: PASS")
+    }
     static func runTranscription(directory: URL) async throws {
         let model = AppModel(directory: directory)
         let previousDiarization = model.diarizationEnabled
@@ -68,6 +100,7 @@ import HWYDCore
     static func run(directory: URL) async throws {
         try await PlaybackChecks.run(directory: directory.appendingPathComponent("playback"))
         try checkAppearancePreferences(directory: directory.appendingPathComponent("appearance-test"))
+        try await checkSummaryLifecycle(directory: directory.appendingPathComponent("summary-lifecycle-test"))
         let model = AppModel(directory: directory)
         let previousDiarization = model.diarizationEnabled
         model.diarizationEnabled = false
