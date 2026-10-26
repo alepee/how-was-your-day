@@ -15,7 +15,8 @@ extension SummaryPipeline {
     overview : sujet général et fil conducteur en une phrase.
     Lis toute la source jusqu’au dernier passage avant de choisir les sujets. Regroupe les sous-sujets : 4 à 8 grands thèmes par portion, jamais un thème par prise de parole. Les salutations et apartés ne méritent pas un thème sauf enjeu réel.
     details : un élément par sujet substantiel, titre précis et text de 1 à 3 phrases indiquant contexte, arguments à développer, exemples utiles, conclusion ou question ouverte. Rapproche les passages éloignés sur le même sujet. Signale les évolutions de position. Cite des passages pertinents dans evidence_segment_ids.
-    decisions et action_items : engagements explicites uniquement, avec références. Ne transforme pas une idée en tâche, ne confonds pas personne mentionnée et responsable. assignee_person_id = null. due_date = null sauf date explicite YYYY-MM-DD.
+    decisions : choix collectifs explicitement adoptés uniquement, une décision par objet. Une promesse personnelle n'est jamais une décision.
+    action_items : tâches futures explicitement promises ou convenues, une tâche par objet avec son responsable. Ne les place pas dans decisions, même si elles accompagnent une décision. Avec références. Ne transforme pas une idée en tâche, ne confonds pas personne mentionnée et responsable. assignee_person_id = null. due_date = null sauf date explicite YYYY-MM-DD.
     key_points : au plus quatre enjeux transversaux. N'importe aucun fait extérieur. Les fragments echo_suspect sont des répétitions possibles, pas des preuves de doublon : confronte-les aux paroles système et ne leur attribue pas un engagement isolément.
     Réponds uniquement en JSON, sans recopier le verbatim. Couvre tous les sujets substantiels, même discutés brièvement.
     """
@@ -56,7 +57,7 @@ extension SummaryPipeline {
         // recording increases this ceiling. Complete turns are preserved; oversized turns fail.
         let windows = try split(recording.segments, budget: min(12_000, limit - 4_000))
         var total = windows.count + 1, completed = 0
-        let promptVersion = "summary-v6-bounded-evidence"
+        let promptVersion = "summary-v7-grounded-writing"
         let promptHash = SHA256.hash(data: Data((instructions + planningInstructions + boundedInstructions + LocalLLMProvider.stageInstructionVersion).utf8)).map { String(format: "%02x", $0) }.joined()
         func generate(_ prompt: String, segments: [TranscriptSegment], planning: Bool, stage: String) async throws -> SummaryContent {
             try Task.checkCancellation()
@@ -155,31 +156,11 @@ extension SummaryPipeline {
             let candidate = inventory + [name]
             if try json(candidate).count <= 2_000 { inventory = candidate }
         }
-        var drafts: [SummaryContent] = []
-        let writePrefix = boundedInstructions + "\n"
-        for (topicIndex, key) in topicOrder.enumerated() {
-            let selected = recording.segments.filter { topicSources[key, default: []].contains($0.id) }
-            func writingPrompt(_ rows: [TranscriptSegment]) throws -> String {
-                let object: [String: Any] = ["title": recording.title, "topic": topicNames[key]!, "topic_map": inventory,
-                    "original_transcript": try JSONSerialization.jsonObject(with: Data(source(rows).utf8))]
-                return writePrefix + String(decoding: try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]), as: UTF8.self)
-            }
-            let budget = limit - (try writingPrompt([]).count) - 1_000
-            guard budget > 0 else { throw SummaryFailure.contextTooSmall }
-            // JSON-encoded source may escape quotes. Check the actual envelope, not only raw text.
-            var batches = try split(selected, budget: min(12_000, budget))
-            while !batches.isEmpty {
-                let rows = batches.removeFirst()
-                let prompt = try writingPrompt(rows)
-                let draft = try await generate(prompt, segments: rows, planning: false, stage: "Rédaction du thème \(topicIndex + 1)/\(topicOrder.count)")
-                drafts.append(draft)
-            }
-        }
-        // Verify explicit commitments from BOTH extraction and drafting. A writing omission
-        // must not silently discard a promise found during extraction.
+        // Only long sessions need a separate check before writing. Short sessions are read
+        // in full by the writer and remain a two-request path.
         var decisions: [SummaryDecision] = [], actions: [SummaryAction] = []
         var seenDecisions = Set<String>(), seenActions = Set<String>()
-        for value in extracts + drafts {
+        for value in extracts {
             for decision in value.decisions where seenDecisions.insert(normalized(decision.text)).inserted { decisions.append(decision) }
             for action in value.action_items where seenActions.insert(normalized(action.text) + "|" + (action.assignee_name ?? "")).inserted { actions.append(action) }
         }
@@ -214,9 +195,9 @@ extension SummaryPipeline {
             }
             if !claimIDs(batch).isEmpty { claimBatches.append(batch) }
         }
-        struct Repair { let affectedIDs: Set<UUID>; let corrections: [SummaryTopic]; let verified: SummaryContent }
-        var repairs: [Repair] = []
-        var checkedDecisions: [SummaryDecision] = [], checkedActions: [SummaryAction] = []
+        struct VerificationContext { let originalIDs: Set<UUID>; let corrections: [SummaryTopic]; let verified: SummaryContent }
+        var verificationContexts: [VerificationContext] = []
+        if windows.count == 1 { claimBatches = [] }
         for claims in claimBatches {
             let ids = claimIDs(claims)
             let relevantKeys = topicOrder.filter { !topicSources[$0, default: []].intersection(ids).isEmpty }
@@ -271,30 +252,51 @@ extension SummaryPipeline {
                 candidate.details = []
                 pending.removeFirst(consumed)
             }
-            checkedDecisions += candidate.decisions; checkedActions += candidate.action_items
-            if !corrections.isEmpty { repairs.append(Repair(affectedIDs: relevantIDs, corrections: corrections, verified: candidate)) }
+            verificationContexts.append(VerificationContext(originalIDs: ids, corrections: corrections, verified: candidate))
         }
+        var drafts: [SummaryContent] = []
+        let writePrefix = boundedInstructions + "\n"
+        for (topicIndex, key) in topicOrder.enumerated() {
+            let selected = recording.segments.filter { topicSources[key, default: []].contains($0.id) }
+            func writingInput(_ rows: [TranscriptSegment]) throws -> (String, [TranscriptSegment]) {
+                struct Review: Encodable { let verified: SummaryContent; let corrections: [SummaryTopic] }
+                let rowIDs = Set(rows.map(\.id))
+                var sourceIDs = rowIDs, reviews: [Review] = []
+                for context in verificationContexts {
+                    let references = context.originalIDs.union(context.corrections.flatMap(\.evidence_segment_ids))
+                        .union(context.verified.decisions.flatMap(\.evidence_segment_ids))
+                        .union(context.verified.action_items.flatMap(\.evidence_segment_ids))
+                    guard !references.intersection(rowIDs).isEmpty else { continue }
+                    sourceIDs.formUnion(references)
+                    reviews.append(Review(verified: context.verified, corrections: context.corrections))
+                }
+                let sources = recording.segments.filter { sourceIDs.contains($0.id) }
+                let object: [String: Any] = ["title": recording.title, "topic": topicNames[key]!, "topic_map": inventory,
+                    "extraction_map": try JSONSerialization.jsonObject(with: encoder.encode(windows.count == 1 ? extracts : [])),
+                    "verified_context": try JSONSerialization.jsonObject(with: encoder.encode(reviews)),
+                    "original_transcript": try JSONSerialization.jsonObject(with: Data(source(sources).utf8))]
+                let prompt = writePrefix + String(decoding: try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]), as: UTF8.self)
+                return (prompt, sources)
+            }
+            var batches = try split(selected, budget: min(12_000, limit - 4_000))
+            while !batches.isEmpty {
+                let rows = batches.removeFirst()
+                let (prompt, sources) = try writingInput(rows)
+                if prompt.count > limit {
+                    guard rows.count > 1 else { throw SummaryFailure.contextTooSmall }
+                    let midpoint = rows.count / 2
+                    batches.insert(contentsOf: [Array(rows[..<midpoint]), Array(rows[midpoint...])], at: 0)
+                    continue
+                }
+                let draft = try await generate(prompt, segments: sources, planning: false, stage: "Rédaction du thème \(topicIndex + 1)/\(topicOrder.count)")
+                drafts.append(draft)
+            }
+        }
+        // Never rewrite good paragraphs after drafting. Verification is context for the
+        // writer, not a post-editing loop that can invent a cancellation in unrelated prose.
         var finalDetails: [SummaryTopic] = [], detailKeys = Set<String>()
         for draft in drafts {
-            for detail in draft.details ?? [] where detailKeys.insert(normalized(detail.title + " " + detail.text)).inserted {
-                var repaired = [detail]
-                for repair in repairs where !repair.affectedIDs.intersection(detail.evidence_segment_ids).isEmpty {
-                    var updated: [SummaryTopic] = []
-                    for paragraph in repaired {
-                        let references = Set(paragraph.evidence_segment_ids + repair.corrections.flatMap(\.evidence_segment_ids))
-                        let sources = recording.segments.filter { references.contains($0.id) }
-                        struct Payload: Encodable { let paragraph: SummaryTopic; let corrections: [SummaryTopic]; let verified_decisions: [SummaryDecision]; let verified_actions: [SummaryAction] }
-                        let payload = Payload(paragraph: paragraph, corrections: repair.corrections, verified_decisions: repair.verified.decisions, verified_actions: repair.verified.action_items)
-                        let prefix = "REPAIR: corrige uniquement ce paragraphe à la lumière des changements vérifiés. Préserve ses autres faits. Présente une proposition annulée comme une proposition initiale puis la position finale, jamais comme un engagement toujours actif. Les corrections sont accompagnées des paroles sources. Renvoie le paragraphe corrigé dans details, sans ajouter d'autre sujet. decisions=[], action_items=[], key_points=[].\n"
-                        let object: [String: Any] = ["review": try JSONSerialization.jsonObject(with: encoder.encode(payload)), "original_transcript": try JSONSerialization.jsonObject(with: Data(source(sources).utf8))]
-                        let result = try await generate(prefix + String(decoding: JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]), as: UTF8.self), segments: sources, planning: false, stage: "Mise en cohérence des changements")
-                        guard let details = result.details, !details.isEmpty else { throw SummaryFailure.unreliableContent }
-                        updated += details
-                    }
-                    repaired = updated
-                }
-                finalDetails += repaired
-            }
+            for detail in draft.details ?? [] where detailKeys.insert(normalized(detail.title + " " + detail.text)).inserted { finalDetails.append(detail) }
         }
         // Only the executive overview is synthesized. The detailed report and verified
         // commitments are assembled independently and cannot be dropped by this step.
@@ -307,10 +309,10 @@ extension SummaryPipeline {
         }
         // Each fact sent to the editor carries its own references. Never offer an enum of
         // source IDs whose supporting text is absent from this request.
-        if drafts.count == 1 && repairs.isEmpty {
+        if drafts.count == 1 {
             executive = SummaryContent(overview: drafts[0].overview, decisions: [], action_items: [], key_points: drafts[0].key_points, details: [])
         }
-        for detail in (drafts.count == 1 && repairs.isEmpty ? [] : finalDetails) {
+        for detail in (drafts.count == 1 ? [] : finalDetails) {
             let abstract = Abstract(topic: detail)
             if try executivePrompt(executiveBatch + [abstract], previous: executive).count > limit, !executiveBatch.isEmpty {
                 executive = try await generate(executivePrompt(executiveBatch, previous: executive), segments: recording.segments.filter { executiveIDs.contains($0.id) }, planning: false, stage: "Résumé et points essentiels")
@@ -325,8 +327,8 @@ extension SummaryPipeline {
             executive = try await generate(executivePrompt(executiveBatch, previous: executive), segments: recording.segments.filter { executiveIDs.contains($0.id) }, planning: false, stage: "Résumé et points essentiels")
         }
         seenDecisions = []; seenActions = []
-        let result = SummaryContent(overview: executive.overview, decisions: checkedDecisions.filter { seenDecisions.insert(normalized($0.text)).inserted },
-            action_items: checkedActions.filter { seenActions.insert(normalized($0.text) + "|" + ($0.assignee_name ?? "")).inserted },
+        let result = SummaryContent(overview: executive.overview, decisions: drafts.flatMap(\.decisions).filter { seenDecisions.insert(normalized($0.text)).inserted },
+            action_items: drafts.flatMap(\.action_items).filter { seenActions.insert(normalized($0.text) + "|" + ($0.assignee_name ?? "")).inserted },
             key_points: executive.key_points, details: finalDetails)
         try validate(result, segments: recording.segments, speakers: recording.speakers, maximumDetails: 256)
         total = completed
@@ -336,6 +338,6 @@ extension SummaryPipeline {
     }
 
     private static let boundedInstructions = """
-    WRITE_TOPIC: rédige ce thème du compte rendu depuis les paroles originales. La carte des thèmes sert uniquement d'orientation. Le routage est approximatif : si la source aborde un autre sujet, conserve-le dans un détail distinct. Comprends le français et l'anglais et leur alternance, mais rédige en français naturel. Préserve faits, chiffres, arguments, désaccords, évolutions de position et questions ouvertes. N'invente pas les liens entre passages éloignés. Les horodatages donnent leur ordre. Développe les thèmes en paragraphes concrets sans recopier le verbatim. Les engagements explicites doivent apparaître aussi dans decisions et action_items. Une proposition n'est pas une décision. Un écho suspect n'est pas une preuve d'engagement. Toutes les références doivent pointer vers les paroles fournies ici. Réponds selon le schéma JSON.
+    WRITE_TOPIC: rédige ce thème du compte rendu depuis les paroles originales. La carte des thèmes et extraction_map servent uniquement d'orientation. verified_context indique les engagements vérifiés avant rédaction et les changements constatés, avec leurs paroles justificatives présentes dans original_transcript. Utilise ces sources pour expliquer la chronologie et la position finale. Une suppression de doublon dans une liste ne signifie pas que le fait est annulé. Ne transforme pas une proposition non validée en proposition retirée. Le routage est approximatif : si la source aborde un autre sujet, conserve-le dans un détail distinct. Comprends le français et l'anglais et leur alternance, mais rédige en français naturel. Préserve faits, chiffres, arguments, désaccords, évolutions de position et questions ouvertes. N'invente pas les liens entre passages éloignés. Les horodatages donnent leur ordre. Développe les thèmes en paragraphes concrets sans recopier le verbatim. Les engagements explicites doivent apparaître aussi dans decisions et action_items. Une proposition n'est pas une décision. Un écho suspect n'est pas une preuve d'engagement. Toutes les références doivent pointer vers les paroles fournies ici. Réponds selon le schéma JSON.
     """
 }

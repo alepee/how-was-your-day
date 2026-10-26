@@ -93,7 +93,7 @@ public struct LocalLLMProvider: LLMProvider {
     public func generate(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent {
         try await generate(prompt: prompt, evidenceIDs: evidenceIDs, system: Self.systemInstructions(for: prompt, planning: false), outputTokens: 4000, planning: false)
     }
-    static let stageInstructionVersion = "bounded-stage-systems-v1"
+    static let stageInstructionVersion = "bounded-stage-systems-v2"
     /// Only internally selected stage prefixes affect the system role. Source text appearing
     /// inside the JSON payload cannot select a different set of instructions.
     static func systemInstructions(for prompt: String, planning: Bool) -> String {
@@ -125,6 +125,22 @@ public struct LocalLLMProvider: LLMProvider {
         }
         return planning ? SummaryPipeline.planningInstructions : SummaryPipeline.instructions
     }
+    static func outputContract(planning: Bool, routing: Bool = false, executive: Bool = false,
+                               verification: Bool = false, verifyActions: Bool = false,
+                               verifyDecisions: Bool = false, repair: Bool = false) -> String {
+        let topics = executive ? 0 : (repair ? 1 : (verification ? 4 : (planning ? 8 : 16)))
+        let points = routing || verification || repair ? 0 : 4
+        let decisions = routing || executive || repair || verifyActions ? 0 : 32
+        let actions = routing || executive || repair || verifyDecisions ? 0 : 64
+        return """
+        FORMAT DE SORTIE OBLIGATOIRE : un objet JSON, sans balise Markdown ni texte autour. Toutes les clés ci-dessous sont obligatoires. Un tableau vide est [] et une valeur absente est null.
+        {"overview": string, "key_points": Topic[0..\(points)], "decisions": Decision[0..\(decisions)], "action_items": Action[0..\(actions)], "details": Topic[0..\(topics)]}
+        Topic = {"title": string, "text": string, "evidence_segment_ids": string[1..\(planning ? 64 : 3)]}
+        Decision = {"text": string, "evidence_segment_ids": string[1..3]}
+        Action = {"text": string, "assignee_name": string|null, "assignee_person_id": null, "due_date": string|null, "evidence_segment_ids": string[1..3]}
+        Les types string, Topic, Decision et Action ci-dessus décrivent la forme, ne les recopie pas comme valeurs. Une limite 0 impose []. Les références doivent correspondre exactement aux IDs fournis. assignee_name est le nom explicite du responsable ou null. due_date est null sauf date YYYY-MM-DD littéralement présente dans les sources. Une échéance en langage naturel reste dans text. Une seule décision ou tâche par objet. Les promesses personnelles vont dans action_items, jamais dans decisions.
+        """
+    }
     private func generate(prompt: String, evidenceIDs: [UUID], system: String, outputTokens: Int, planning: Bool) async throws -> SummaryContent {
         let references = Dictionary(uniqueKeysWithValues: evidenceIDs.enumerated().map { ("S\($0.offset + 1)", $0.element.uuidString) })
         var input = prompt
@@ -154,18 +170,21 @@ public struct LocalLLMProvider: LLMProvider {
         if let newline = input.firstIndex(of: "\n"), let data = String(input[input.index(after: newline)...]).data(using: .utf8),
            let object = try? JSONSerialization.jsonObject(with: data) { collectNames(object) }
         let assigneeSchema: [String: Any] = names.isEmpty ? ["type": "null"] : ["anyOf": [["type": "string", "enum": names.sorted()], ["type": "null"]]]
+        let claimEvidence: [String: Any] = ["type": "array", "minItems": 1, "maxItems": 3, "items": evidenceItem]
         let topic: [String: Any] = ["type": "object", "additionalProperties": false, "required": ["title", "text", "evidence_segment_ids"], "properties": ["title": ["type": "string"], "text": ["type": "string"], "evidence_segment_ids": evidence]]
         let schema: [String: Any] = ["type": "object", "additionalProperties": false, "required": ["overview", "key_points", "decisions", "action_items", "details"], "properties": [
             "overview": ["type": "string"],
             "key_points": ["type": "array", "maxItems": routing || verification || repair ? 0 : 4, "items": topic],
             "details": ["type": "array", "maxItems": executive ? 0 : (repair ? 1 : (verification ? 4 : (planning ? 8 : 16))), "items": topic],
-            "decisions": ["type": "array", "maxItems": routing || executive || repair || verifyActions ? 0 : 32, "items": ["type": "object", "additionalProperties": false, "required": ["text", "evidence_segment_ids"], "properties": ["text": ["type": "string"], "evidence_segment_ids": evidence]]],
-            "action_items": ["type": "array", "maxItems": routing || executive || repair || verifyDecisions ? 0 : 64, "items": ["type": "object", "additionalProperties": false, "required": ["text", "assignee_name", "assignee_person_id", "due_date", "evidence_segment_ids"], "properties": ["text": ["type": "string"], "assignee_name": assigneeSchema, "assignee_person_id": ["type": "null"], "due_date": dateSchema, "evidence_segment_ids": evidence]]]
+            "decisions": ["type": "array", "maxItems": routing || executive || repair || verifyActions ? 0 : 32, "items": ["type": "object", "additionalProperties": false, "required": ["text", "evidence_segment_ids"], "properties": ["text": ["type": "string"], "evidence_segment_ids": claimEvidence]]],
+            "action_items": ["type": "array", "maxItems": routing || executive || repair || verifyDecisions ? 0 : 64, "items": ["type": "object", "additionalProperties": false, "required": ["text", "assignee_name", "assignee_person_id", "due_date", "evidence_segment_ids"], "properties": ["text": ["type": "string"], "assignee_name": assigneeSchema, "assignee_person_id": ["type": "null"], "due_date": dateSchema, "evidence_segment_ids": claimEvidence]]]
         ]]
+        let contract = Self.outputContract(planning: planning, routing: routing, executive: executive,
+                                           verification: verification, verifyActions: verifyActions, verifyDecisions: verifyDecisions, repair: repair)
         var request = URLRequest(url: endpoint.appendingPathComponent("chat/completions"))
         request.httpMethod = "POST"; request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         var body: [String: Any] = ["model": model, "temperature": 0, "max_tokens": outputTokens, "stream": false,
-            "messages": [["role": "system", "content": system], ["role": "user", "content": input]],
+            "messages": [["role": "system", "content": system + "\n\n" + contract], ["role": "user", "content": input]],
             "response_format": ["type": "json_schema", "json_schema": ["name": "session_summary", "strict": true, "schema": schema]]]
         if let reasoningEffort { body["reasoning_effort"] = reasoningEffort }
         request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])

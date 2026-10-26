@@ -198,7 +198,7 @@ extension IntegrationTests {
         XCTAssertEqual(calls, 8)
         XCTAssertEqual(result.structured.overview, "Compte rendu global.")
         XCTAssertEqual(result.structured.details?.count, 1)
-        XCTAssertEqual(result.promptVersion, "summary-v6-bounded-evidence")
+        XCTAssertEqual(result.promptVersion, "summary-v7-grounded-writing")
     }
 }
 

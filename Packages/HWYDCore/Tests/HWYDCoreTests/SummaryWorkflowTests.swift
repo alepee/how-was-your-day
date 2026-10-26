@@ -134,7 +134,7 @@ extension SummaryWorkflowTests {
         let calls = await provider.prompts.count
         XCTAssertEqual(calls, 0)
     }
-    func testCancellationUnderAnotherTopicRepairsDetailsAsWellAsActions() async throws {
+    func testCancellationEvidenceIsGivenToWriterBeforeDrafting() async throws {
         let speaker = Speaker(label: "Camille", confirmed: true)
         let texts = ["Je promets de publier le lancement vendredi. INITIAL_COMMITMENT. ", "Nous abordons les accès techniques. ", "We discuss the finance budget. ", "ANNULÉ : le lancement est annulé. Do not publish on Friday. "]
         let recording = Recording(title: "Mixed discussion", speakers: [speaker], segments: texts.enumerated().map { index, text in
@@ -146,7 +146,11 @@ extension SummaryWorkflowTests {
         XCTAssertFalse(result.structured.markdown.contains("ENGAGEMENT_ACTIF"))
         XCTAssertTrue(result.structured.markdown.contains("annulé"))
         let prompts = await provider.prompts
-        XCTAssertTrue(prompts.contains { $0.hasPrefix("REPAIR:") })
+        XCTAssertFalse(prompts.contains { $0.hasPrefix("REPAIR:") })
+        let verification = prompts.firstIndex { $0.hasPrefix("VERIFY_") }!
+        let writing = prompts.firstIndex { $0.hasPrefix("WRITE_TOPIC:") }!
+        XCTAssertLessThan(verification, writing)
+        XCTAssertTrue(prompts.contains { $0.hasPrefix("WRITE_TOPIC:") && $0.contains("ANNULÉ") && $0.contains("verified_context") })
         XCTAssertLessThanOrEqual(prompts.map(\.count).max()!, 12_000)
     }
 }
@@ -172,8 +176,7 @@ private actor CancellationProvider: LLMProvider {
             } else if let initial = sourceID(containing: "INITIAL_COMMITMENT") {
                 result.action_items = [.init(text: "Publier le lancement vendredi.", assignee_name: "Camille", assignee_person_id: nil, due_date: nil, evidence_segment_ids: [initial])]
             }
-        } else if prompt.hasPrefix("REPAIR:") {
-            let id = sourceID(containing: "ANNULÉ") ?? evidenceIDs[0]
+        } else if prompt.hasPrefix("WRITE_TOPIC:"), let id = sourceID(containing: "ANNULÉ") {
             result.details = [.init(title: "Lancement annulé", text: "La promesse initiale de lancement a ensuite été annulée.", evidence_segment_ids: [id])]
         } else if prompt.hasPrefix("EXECUTIVE:") {
             result.overview = "Le lancement a finalement été annulé."
@@ -202,17 +205,20 @@ extension SummaryWorkflowTests {
     }
     func testSameCountChangesRequireCitedCorrectionForTextOwnerAndDate() async throws {
         let camille = Speaker(label: "Camille", confirmed: true), jordan = Speaker(label: "Jordan", confirmed: true)
+        let padding = String(repeating: "Contexte complémentaire sur le projet. ", count: 100)
         let recording = Recording(title: "Atelier", speakers: [camille, jordan], segments: [
             .init(start: 0, end: 20, speakerID: camille.id, source: .mic,
-                  text: "Camille prépare le guide final pour 2026-10-29. Jordan pourrait aider pour un brouillon le 2026-10-30, mais cela reste à confirmer.")
+                  text: "GENUINE_PROMISE Camille prépare le guide final pour 2026-10-29. Jordan pourrait aider pour un brouillon le 2026-10-30, mais cela reste à confirmer. " + padding),
+            .init(start: 20, end: 40, speakerID: camille.id, source: .mic, text: padding),
+            .init(start: 40, end: 60, speakerID: camille.id, source: .mic, text: padding)
         ])
         for field in ["text", "owner", "date"] {
             let provider = SameCountChangeProvider(field: field, explain: false)
-            do { _ = try await SummaryPipeline.run(recording, provider: provider, model: "fixture"); XCTFail("Unexplained change accepted: \(field)") }
+            do { _ = try await SummaryPipeline.run(recording, provider: provider, model: "fixture", inputCharacterLimit: 12_000); XCTFail("Unexplained change accepted: \(field)") }
             catch SummaryFailure.unreliableContent {}
         }
         let provider = SameCountChangeProvider(field: "text", explain: true)
-        let result = try await SummaryPipeline.run(recording, provider: provider, model: "fixture")
+        let result = try await SummaryPipeline.run(recording, provider: provider, model: "fixture", inputCharacterLimit: 12_000)
         XCTAssertEqual(result.structured.action_items.count, 1)
         XCTAssertEqual(result.structured.action_items.first?.text, "Préparer le brouillon.")
         XCTAssertFalse(result.structured.markdown.contains("VERSION_FINALE_ACTIVE"))
@@ -233,6 +239,15 @@ private actor SameCountChangeProvider: LLMProvider {
         var action = SummaryAction(text: "Préparer le guide final.", assignee_name: "Camille", assignee_person_id: nil, due_date: "2026-10-29", evidence_segment_ids: [id])
         var result = SummaryContent(overview: "La préparation du guide est discutée.", decisions: [], action_items: [action], key_points: [],
             details: [.init(title: "Guide", text: "VERSION_FINALE_ACTIVE", evidence_segment_ids: [id])])
+        if prompt.hasPrefix("ROUTE:") {
+            result.action_items = []
+            result.details = [.init(title: "Guide", text: "Organisation du travail.", evidence_segment_ids: evidenceIDs)]
+            return result
+        }
+        if !prompt.contains("GENUINE_PROMISE") && !prompt.hasPrefix("EXECUTIVE:") {
+            result.action_items = []
+            result.details = [.init(title: "Contexte", text: "Le contexte du projet est discuté.", evidence_segment_ids: [id])]
+        }
         if prompt.hasPrefix("VERIFY_ACTIONS:") {
             if field == "text" { action.text = "Préparer le brouillon." }
             if field == "owner" { action.assignee_name = "Jordan" }
@@ -240,11 +255,38 @@ private actor SameCountChangeProvider: LLMProvider {
             result.action_items = [action]
             result.details = explain ? [.init(title: "Correction", text: "La formulation précédente doit être corrigée.", evidence_segment_ids: [id])] : []
         }
-        if prompt.hasPrefix("REPAIR:") {
-            repaired = true; result.action_items = []
+        if prompt.hasPrefix("WRITE_TOPIC:"), prompt.contains("Préparer le brouillon.") {
+            repaired = true
+            action.text = "Préparer le brouillon."
+            result.action_items = [action]
             result.details = [.init(title: "Guide", text: "La rédaction concerne un brouillon.", evidence_segment_ids: [id])]
         }
         if prompt.hasPrefix("EXECUTIVE:") { result.action_items = []; result.details = [] }
         return result
+    }
+}
+
+extension SummaryWorkflowTests {
+    func testShortSessionWithCommitmentsUsesExactlyTwoRequests() async throws {
+        let provider = CancellationProvider()
+        let speaker = Speaker(label: "Camille", confirmed: true)
+        let recording = Recording(title: "Court", speakers: [speaker], segments: [
+            .init(start: 0, end: 10, speakerID: speaker.id, source: .mic, text: "INITIAL_COMMITMENT Je promets de publier le lancement vendredi.")
+        ])
+        _ = try await SummaryPipeline.run(recording, provider: provider, model: "fixture")
+        let prompts = await provider.prompts
+        XCTAssertEqual(prompts.count, 2)
+        XCTAssertTrue(prompts[0].hasPrefix("EXTRACT:"))
+        XCTAssertTrue(prompts[1].hasPrefix("WRITE_TOPIC:"))
+        XCTAssertTrue(prompts[1].contains("extraction_map"))
+    }
+    func testTextualContractExplainsShapeAndStageLimitsWithoutRepeatingReferenceEnum() {
+        let contract = LocalLLMProvider.outputContract(planning: false, verification: true, verifyActions: true)
+        XCTAssertTrue(contract.contains("decisions\": Decision[0..0]"))
+        XCTAssertTrue(contract.contains("assignee_person_id"))
+        XCTAssertTrue(contract.contains("due_date"))
+        XCTAssertTrue(contract.contains("evidence_segment_ids"))
+        XCTAssertTrue(contract.contains("Une échéance en langage naturel reste dans text"))
+        XCTAssertLessThan(contract.count, 1800)
     }
 }

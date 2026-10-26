@@ -6,12 +6,15 @@ HWYD processes French, English and mixed-language transcripts. Reports currently
 
 1. Extract facts, arguments, disagreements, open questions and explicit commitments from windows of complete turns. Each window has at most 12,000 source characters, or less with a smaller configured budget.
 2. Organize the extracted topic cards into a compact thematic map. Routing batches are bounded. Cards omitted by the model retain their original title instead of disappearing. Every original turn is assigned to a topic, using the closest cited turn within its extraction window as a fallback.
-3. Write each topic from its original turns, with a bounded inventory of topic titles for context. Large topics use several sequential writing requests. Writers may correct an approximate topic assignment. They never receive the entire long transcript merely because the server supports a large context.
-4. Verify proposed commitments from both extraction and writing. Decisions and actions use separate batches, with at most four candidates per batch. Schemas prevent a task from moving into the decision array. Verification reads the topic's source, adjacent turns, and lexical matches elsewhere in the transcript and French extraction cards. Each request includes the candidate's current supporting turns. Removing a candidate requires a cited correction note. The model cannot increase the number of candidates during verification.
-5. Repair paragraphs affected by those correction notes. Preserve the chronology of a proposal and its later cancellation or replacement.
-6. Assemble detailed paragraphs and verified commitments deterministically. A separate bounded editor writes only the overview and up to four key points from paragraphs that carry source references. It cannot remove detailed material or commitments.
+3. For long sessions, verify extracted commitments before drafting. Decisions and actions use separate batches, with at most four candidates per batch. Schemas prevent a task from moving into the decision array. Verification reads the topic's source, adjacent turns, and lexical matches elsewhere in the transcript and French extraction cards. Removing or changing a candidate's text, owner or date requires a cited correction note. Unchanged candidates must be copied without stylistic reformulation.
+4. Write each topic from original turns, the topic inventory and the relevant verified commitments. Original passages supporting a later correction or cancellation are included even when initially routed to another theme. If the full source bundle exceeds the request ceiling, writing batches split further; an indivisible bundle fails explicitly. The writer explains the chronology once, with both the initial and final positions available.
+5. Assemble the writer's detailed paragraphs, decisions and actions deterministically. A separate bounded editor writes only the overview and up to four key points from paragraphs that carry source references. It cannot remove detailed material or commitments.
 
-For a transcript that fits one extraction window, HWYD skips topic routing and writes directly from that complete source and its topic inventory. It also reuses this draft's overview and key points unless corrections require another editorial pass. A short conversation without commitments needs two requests.
+There is **no automatic paragraph repair after writing**. Earlier experiments showed that repeated correction requests could introduce fictitious cancellations into otherwise faithful prose. Verification now supplies context before writing instead of editing a finished report.
+
+For a transcript that fits one extraction window, HWYD skips routing and separate commitment verification. It sends the complete original source and extraction map to the writer, then uses that writer's report directly when the complete request fits. This is a two-request path, including conversations with commitments.
+
+The final commitments come from the writer. A commitment missed during extraction but discovered during writing does not receive an additional verification call. This is a deliberate quality/runtime tradeoff, not a claim that every final sentence was independently checked.
 
 Suspected echo remains a review hint, not automatic deletion or proof of a speaker's intent.
 
@@ -23,7 +26,7 @@ These limits are **not tokenizer accounting or a total process-memory guarantee*
 
 All inference requests are sequential. The full transcript and intermediate cards still occupy ordinary application memory, which grows with recording length. The bounded guarantee concerns individual model input, not constant total host memory.
 
-Short references are restored to original segment UUIDs after inference. Executive editing permits only references whose text appears in the current request or its previous key points. Stage-specific schemas suppress irrelevant sections. Optional `reasoningEffort` is forwarded only when explicitly configured; reasoning-channel text is never accepted as the final structured response.
+Short references are restored to original segment UUIDs after inference. Executive editing permits only references whose text appears in the current request or its previous key points. Stage-specific system instructions and schemas suppress irrelevant sections. Every request also presents a compact textual output contract to the model, including required fields, types and stage limits. The grammar alone is not assumed to tell the model which structure to produce. Optional `reasoningEffort` is forwarded only when explicitly configured; reasoning-channel text is never accepted as the final structured response.
 
 ## Limits
 
@@ -41,7 +44,7 @@ Cancellation preserves completed checkpoints. Cache writes are best effort. Rege
 
 ## Validation and benchmark
 
-Unit tests cover bounded long-session requests, coverage of every original turn in writing, mixed French/English source handling, failure rather than truncation for oversized turns, source-grounded corrections, cache reuse and invalidation. Deterministic fixtures test orchestration, not model quality.
+Unit tests cover bounded long-session requests, coverage of every original turn in writing, mixed French/English source handling, failure rather than truncation for oversized turns, correction evidence reaching the writer before drafting, explained same-count changes, the two-request short path, cache reuse and invalidation. Deterministic fixtures test orchestration, not model quality.
 
 The opt-in test accepts `HWYD_SUMMARY_RECORDING`, `HWYD_SUMMARY_OUTPUT`, `HWYD_SUMMARY_INPUT_CHARACTER_LIMIT`, `HWYD_LIVE_LLM_URL`, `HWYD_LIVE_LLM_MODEL` and optional `HWYD_LIVE_LLM_REASONING_EFFORT`. It writes the report, provenance, timing and `metrics.json` with inference call count, largest user prompt and inference time. Private inputs and results belong under ignored `build/` paths. The external benchmark harness measures process memory separately, including the inference server.
 
