@@ -465,8 +465,9 @@ extension SummaryWorkflowTests {
         XCTAssertFalse(englishChecks.isEmpty)
         XCTAssertEqual(englishChecks.map { ($0["original_transcript"] as? [[String: Any]])?.compactMap { $0["text"] as? String } },
                        frenchChecks.map { ($0["original_transcript"] as? [[String: Any]])?.compactMap { $0["text"] as? String } })
-        XCTAssertEqual(englishChecks.compactMap { ($0["candidate"] as? [String: Any])?["overview"] as? String }, Array(repeating: "Verification of commitments.", count: englishChecks.count))
-        XCTAssertEqual(frenchChecks.compactMap { ($0["candidate"] as? [String: Any])?["overview"] as? String }, Array(repeating: "Vérification des engagements.", count: frenchChecks.count))
+        // Later pages carry the previous provider response, including its overview.
+        XCTAssertEqual(englishChecks.compactMap { ($0["candidate"] as? [String: Any])?["overview"] as? String }, ["Verification of commitments."] + Array(repeating: "Le lancement est discuté.", count: englishChecks.count - 1))
+        XCTAssertEqual(frenchChecks.compactMap { ($0["candidate"] as? [String: Any])?["overview"] as? String }, ["Vérification des engagements."] + Array(repeating: "Le lancement est discuté.", count: frenchChecks.count - 1))
     }
     func testDefaultRunIsIdenticalToExplicitFrenchAndKeepsHistoricalPromptIdentity() async throws {
         let implicit = CancellationProvider(), explicit = CancellationProvider(intermediateLanguage: .french), recording = announcedRecording()

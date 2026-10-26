@@ -97,6 +97,20 @@ Both arms retained both assigned tasks in all three cases. A1 removed the French
 
 Sampled server physical-footprint peaks ranged from 7.50 to 8.58 GiB for A0 and 7.64 to 8.51 GiB for A1. There was one run per language and arm, with A0 before A1 on the same loaded model. Backend caching and execution order prevent attributing small time or memory differences to schema order. Source recordings were unchanged. A successful harness status only means the workflow completed; the quality assessment above is separate.
 
+## English intermediate stages
+
+An opt-in variant requested English extraction, routing and verification, while preserving the French final-writing prompts. It used alphabetical schema order and Qwen 3.5 4B MLX 4-bit with reasoning disabled. Original source text was unchanged. These short fixtures exercised extraction and writing only, not routing or verification.
+
+| Input | Wall time | Decisions recovered in the decision list | Tasks recovered | Final prose language |
+| --- | ---: | ---: | ---: | --- |
+| French | 40.1 s | 2/3 | 2/2 | French |
+| English | 36.8 s | 3/3 | 2/2 | English, fails requirement |
+| Mixed | 33.7 s | 2/3 | 2/2 | English, fails requirement |
+
+All intermediate extractions were in English. Two final reports ignored the French-writing instruction. The French report promoted unresolved retention into a decision to defer it pending Legal. The mixed report claimed Finance rejected the budget in a key point, although its own details correctly said Finance had not answered. These are substantive failures, despite valid JSON and preserved task owners.
+
+The variant remains benchmark-only. No production default changed. There was one run per input, a model reload between this arm and A0, and a brief overlapping loopback fixture test with no competing model inference. Times are descriptive, not evidence of a speed improvement. The short-case failures do not justify treating this variant as a solution for the 90-minute recording. Next work should address statement classification and grounded commitment extraction; language choice alone has not solved either.
+
 ## Reproduce
 
 Use [the benchmark harness and procedure](summary-benchmark.md). Run each candidate with a fresh output directory and the same fixtures. Preserve model metadata, workflow version, memory samples and the manual review. Do not publish private recordings or their generated summaries with the results.
