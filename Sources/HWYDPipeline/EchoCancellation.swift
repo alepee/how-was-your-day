@@ -11,7 +11,7 @@ struct EchoPreparation {
 }
 
 enum EchoCancellation {
-    static let engine = "speexdsp-1.2.1-mdf-residual-512ms-v1"
+    static let engine = "speexdsp-1.2.1-mdf-residual-512ms-v2"
     static func prepare(_ request: TranscriptionRequest, store: SessionStore, directory: URL) throws -> EchoPreparation {
         let mic = request.chunks.filter { $0.source == .mic }.sorted { $0.start < $1.start }
         let system = request.chunks.filter { $0.source == .system }.sorted { $0.start < $1.start }

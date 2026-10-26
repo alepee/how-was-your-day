@@ -60,6 +60,7 @@ import HWYDCore
                         }
                     }
                 }
+                result.segments = EchoTranscriptGuard.annotate(result.segments)
                 try JSONEncoder().encode(result).write(to: URL(fileURLWithPath: args[3]), options: .atomic)
             case "echo-diagnostic" where args.count == 4:
                 let store = try SessionStore(directory: URL(fileURLWithPath: args[1]))

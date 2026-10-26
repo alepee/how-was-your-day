@@ -12,7 +12,7 @@ HWYDEcho *hwyd_echo_create(void) {
     speex_echo_ctl(state->echo, SPEEX_ECHO_SET_SAMPLING_RATE, &rate);
     state->residual = speex_preprocess_state_init(256, rate);
     if (!state->residual) { speex_echo_state_destroy(state->echo); free(state); return NULL; }
-    int noise = 0, echo = -45, active = -12;
+    int noise = 0, echo = -45, active = -24;
     speex_preprocess_ctl(state->residual, SPEEX_PREPROCESS_SET_NOISE_SUPPRESS, &noise);
     speex_preprocess_ctl(state->residual, SPEEX_PREPROCESS_SET_ECHO_SUPPRESS, &echo);
     speex_preprocess_ctl(state->residual, SPEEX_PREPROCESS_SET_ECHO_SUPPRESS_ACTIVE, &active);

@@ -31,6 +31,8 @@ public struct TranscriptSegment: Codable, Identifiable, Equatable, Sendable {
     public var source: AudioSource
     public var text: String
     public var words: [TranscriptWord]?
+    /// nil means not evaluated; true is a cross-track repetition hint, not proven echo.
+    public var echoSuspect: Bool?
     public init(id: UUID = UUID(), start: Double, end: Double, speakerID: UUID?, source: AudioSource, text: String) {
         self.id = id; self.start = start; self.end = end; self.speakerID = speakerID; self.source = source; self.text = text
     }
