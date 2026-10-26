@@ -83,6 +83,20 @@ This exposed a recovery defect: a structurally valid response had been cached be
 
 The measured peak covers only the stages reached. It is **not** a successful full-session memory bound or completion-time measurement. Qwen 4B remains an experimental candidate, not an accepted solution for long meetings.
 
+## Schema-order ablation (A1)
+
+An isolated follow-up used Qwen 3.5 4B MLX 4-bit, reasoning disabled, and the same three Atlas fixtures. A0 retained alphabetical schema order. A1 requested overview and details before decisions and actions. The production default remains A0.
+
+| Input | A0 wall time | A1 wall time | Explicit decisions recovered in the decision list, A0 / A1 |
+| --- | ---: | ---: | ---: |
+| French | 42.1 s | 37.3 s | 1/3 / 2/3 |
+| English | 40.0 s | 41.4 s | 2/3 / 2/3 |
+| Mixed | 40.5 s | 41.2 s | 3/3 / 2/3 |
+
+Both arms retained both assigned tasks in all three cases. A1 removed the French entry that classified unresolved budget and retention questions as a decision. It still omitted the language choice from every decision list, and the English decision list mixed task deadlines into a decision. Some A1 action lists omitted deadlines that remained in the detailed prose. This is not an overall quality improvement or an acceptance pass.
+
+Sampled server physical-footprint peaks ranged from 7.50 to 8.58 GiB for A0 and 7.64 to 8.51 GiB for A1. There was one run per language and arm, with A0 before A1 on the same loaded model. Backend caching and execution order prevent attributing small time or memory differences to schema order. Source recordings were unchanged. A successful harness status only means the workflow completed; the quality assessment above is separate.
+
 ## Reproduce
 
 Use [the benchmark harness and procedure](summary-benchmark.md). Run each candidate with a fresh output directory and the same fixtures. Preserve model metadata, workflow version, memory samples and the manual review. Do not publish private recordings or their generated summaries with the results.
