@@ -5,7 +5,7 @@ Transport v1 : stdio, exécutable signé `hwyd-mcp`. Lecture directe du store, s
 ## 1. Démarrage et capacités
 
 ```json
-{"mcpServers":{"hwyd":{"command":"/Applications/HWYD.app/Contents/Helpers/hwyd-mcp","args":["--read-only"]}}}
+{"mcpServers":{"hwyd":{"command":"/Applications/How Was Your Day.app/Contents/Helpers/hwyd-mcp","args":["--read-only"]}}}
 ```
 
 Par défaut : lecture seule. `--allow-write` est nécessaire mais insuffisant. Il faut aussi `mcp_writes_enabled=true` dans les réglages locaux modifiables par l'app. `--read-only` l'emporte toujours. Aucun outil MCP ne peut activer cette politique. La vérifier dans la transaction de chaque mutation. Ne pas présenter ces règles comme une isolation contre un autre programme du même utilisateur ayant accès direct aux fichiers.
@@ -26,7 +26,7 @@ Par défaut : lecture seule. `--allow-write` est nécessaire mais insuffisant. I
 
 JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs puis, pour chaque outil, `inputSchema` et `outputSchema`. Les `$ref` sont relatifs à ce document JSON. Lors de `tools/list`, le serveur copie les `$defs` dans chaque schéma envoyé afin que chaque schéma soit autonome. Toute propriété non déclarée est refusée dans les entrées.
 
-`RecordingMetadata` est la projection MCP stable de l'enregistrement. `get_recording` renvoie les artefacts comme Markdown, plus les numéros de version. Les détails par mot et les scores sont disponibles dans le JSON exporté ; ils ne sont pas implicites dans une string Markdown.
+`RecordingMetadata` est la projection MCP stable de l'enregistrement. `get_recording` renvoie les artefacts en Markdown, ou le transcript structuré avec `format: structured`. Les numéros de version et les volumes sont explicites. Aucun score ASR n’est inventé : `confidence` vaut `null` lorsqu’il n’est pas disponible.
 
 ```json
 {
@@ -117,6 +117,20 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
           "items": {
             "$ref": "#/$defs/Person"
           }
+        },
+        "echo_cancellation_engine": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "echo_assessed_segments": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "echo_suspect_segments": {
+          "type": "integer",
+          "minimum": 0
         }
       },
       "required": [
@@ -127,7 +141,10 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
         "started_at",
         "duration_us",
         "status",
-        "participants"
+        "participants",
+        "echo_cancellation_engine",
+        "echo_assessed_segments",
+        "echo_suspect_segments"
       ],
       "additionalProperties": false
     },
@@ -157,12 +174,19 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
             "string",
             "null"
           ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
         "status",
         "version",
-        "markdown"
+        "markdown",
+        "reason"
       ],
       "additionalProperties": false
     },
@@ -200,6 +224,92 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
         "identity_enrollment"
       ],
       "additionalProperties": false
+    },
+    "TranscriptSegment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "start": {
+          "type": "number"
+        },
+        "end": {
+          "type": "number"
+        },
+        "track": {
+          "type": "string",
+          "enum": [
+            "mic",
+            "system"
+          ]
+        },
+        "speaker_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "speaker_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "person_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "speaker_confirmed": {
+          "type": "boolean"
+        },
+        "text": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "echo_suspect": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "text_offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "text_total_chars": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "partial": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "start",
+        "end",
+        "track",
+        "speaker_id",
+        "speaker_name",
+        "person_id",
+        "speaker_confirmed",
+        "text",
+        "confidence",
+        "echo_suspect",
+        "text_offset",
+        "text_total_chars",
+        "partial"
+      ]
     }
   },
   "tools": {
@@ -264,7 +374,8 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
           "snapshot_seq"
         ],
         "additionalProperties": false
-      }
+      },
+      "description": "List stored recordings, newest first, with confirmed participants deduplicated by person ID. No implicit date filter. limit is a maximum, not a required result count. Follow next_cursor with identical arguments until null; cursors expire after 15 minutes or a store change."
     },
     "get_recording": {
       "inputSchema": {
@@ -295,7 +406,48 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
             "type": "integer",
             "minimum": 1000,
             "maximum": 100000,
-            "default": 50000
+            "default": 30000
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "markdown",
+              "structured"
+            ],
+            "default": "markdown"
+          },
+          "max_segments": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 100
+          },
+          "from": {
+            "type": "number",
+            "minimum": 0
+          },
+          "to": {
+            "type": "number",
+            "minimum": 0
+          },
+          "track": {
+            "type": "string",
+            "enum": [
+              "mic",
+              "system"
+            ]
+          },
+          "speaker": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "exclude_unattributed": {
+            "type": "boolean",
+            "default": false
+          },
+          "exclude_echo_suspect": {
+            "type": "boolean",
+            "default": false
           }
         },
         "required": [
@@ -333,16 +485,52 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
           },
           "truncated": {
             "type": "boolean"
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/TranscriptSegment"
+            }
+          },
+          "total_chars": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total_segments": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total_pages": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "page_chars": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "partial_segment": {
+            "type": "boolean"
           }
         },
         "required": [
           "recording",
           "artifacts",
           "next_cursor",
-          "truncated"
+          "truncated",
+          "total_chars",
+          "total_segments",
+          "total_pages",
+          "page",
+          "page_chars",
+          "partial_segment"
         ],
         "additionalProperties": false
-      }
+      },
+      "description": "Read a recording in bounded pages. Default max_chars=30000 and max_segments=100. Follow next_cursor with identical arguments until null. Transcript pages preserve whole segments except explicitly marked oversized fragments. format=structured returns timed segments; track mic is microphone, system is audio from other apps. Time filters use seconds and select overlapping segments. speaker filters acoustic speaker_id, not person_id. Unknown confidence/echo status is null. Unavailable summaries include a reason; this tool does not generate them. Page totals cover selected artifacts/filters. Resource templates return unpaginated Markdown. echo_cancellation_engine records audio preprocessing, not proof of echo-free text; echo_assessed_segments and echo_suspect_segments count post-transcription assessment."
     },
     "search": {
       "inputSchema": {
@@ -454,7 +642,8 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
           "snapshot_seq"
         ],
         "additionalProperties": false
-      }
+      },
+      "description": "Search stored titles, transcripts, notes and summaries with SQLite FTS. Optional since/kind/participant filters. Follow next_cursor with identical arguments; returned snippets are excerpts, not full transcripts."
     },
     "get_participants": {
       "inputSchema": {
@@ -499,7 +688,8 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
           "snapshot_seq"
         ],
         "additionalProperties": false
-      }
+      },
+      "description": "List known people from the local identity directory, not individual acoustic voice clusters. Paginated with limit and next_cursor."
     },
     "set_notes": {
       "inputSchema": {
@@ -532,7 +722,8 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
       },
       "outputSchema": {
         "$ref": "#/$defs/MutationReceipt"
-      }
+      },
+      "description": "Replace manual notes using expected_revision and a unique request_id for safe retries. Requires --allow-write and the app write setting. Does not modify transcript or summary."
     },
     "rename_speaker": {
       "inputSchema": {
@@ -570,7 +761,8 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
       },
       "outputSchema": {
         "$ref": "#/$defs/MutationReceipt"
-      }
+      },
+      "description": "Link an acoustic speaker cluster to an existing person using expected_revision and a unique request_id. Requires --allow-write and the app write setting. Does not enroll voice fingerprints."
     }
   }
 }
@@ -599,9 +791,26 @@ Mutations : comparer `expected_revision`, appliquer, incrémenter la révision, 
 | Personnes | `id ASC` |
 | Recherche | `bm25 ASC, recording_id ASC, artifact ASC, entity_id ASC` |
 
-Curseurs opaques base64url : version, hash des filtres, dernière clé, `snapshot_seq` global, expiration à 15 min. Signés HMAC avec clé éphémère du processus, donc invalidés au redémarrage. Aucun nom ou contenu textuel en clair dans le curseur. Contrôler taille et signature avant décodage métier. Toute modification de `change_log.seq` depuis la première page invalide la pagination de liste par `CURSOR_STALE` ; le client recommence. Ce choix privilégie la cohérence sans garder une transaction SQLite ouverte entre appels.
+Les curseurs opaques sont signés HMAC avec une clé éphémère du processus. Ils expirent après 15 minutes et sont invalidés au redémarrage. Ils lient les arguments, l’offset de page et le numéro de séquence du store. Réutiliser exactement les mêmes arguments avec `cursor`. Toute modification du store invalide le curseur par `CURSOR_STALE` ; le client recommence sans mélanger les pages.
 
-`get_recording` fige la révision au premier appel. Le curseur porte version, artefact et offset de caractère Unicode ; les blocs suivants peuvent découper un paragraphe. `max_chars` borne le total des champs Markdown de la réponse. `truncated=true` tant qu'il reste du texte ; la concaténation par artefact reconstitue exactement le texte. Les artefacts non demandés sont absents. Une redaction invalide les curseurs historiques. Refuser toute réponse encodée > 1 Mio et proposer une page plus petite.
+| Champ ou option | Comportement |
+|---|---|
+| `max_chars` | Défaut 30 000, de 1 000 à 100 000. Budget du contenu Markdown ou des objets segments sérialisés. L’enveloppe JSON et les métadonnées s’ajoutent. Ce n’est pas un budget de tokens. |
+| `max_segments` | Défaut 100, maximum 500. Borne aussi les unités de paragraphes pour notes et synthèse. |
+| `format` | `markdown` par défaut ; `structured` ajoute `segments[]` et laisse le Markdown du transcript à `null`. |
+| `from`, `to` | Secondes depuis le début de la session. Intervalle `[from, to[`, sélection des segments qui le chevauchent, sans découper leur texte. |
+| `track` | `mic` pour le microphone, `system` pour le son des autres applications. |
+| `speaker` | UUID du groupe acoustique, pas l’ID de personne. Plusieurs groupes peuvent représenter une seule personne. |
+| `exclude_unattributed` | Exclut uniquement les segments sans `speaker_id`, pas les voix non nommées. |
+| `exclude_echo_suspect` | Exclut uniquement les segments marqués `true`. `null` indique un transcript non évalué ; aucune exclusion par défaut. |
+| `total_chars`, `total_segments` | Volume du contenu sélectionné et nombre de segments du transcript après filtres. Les filtres concernent le transcript, pas les notes ou la synthèse. |
+| `page`, `total_pages`, `page_chars` | Numéro de page à partir de 1, nombre exact de pages pour ces options, taille de contenu de cette page. |
+
+Les pages respectent les frontières des segments et, pour les notes et synthèses, les frontières des paragraphes. La concaténation des champs Markdown de chaque artefact reconstitue son texte exact. Aucun mot n’est perdu entre pages. Un segment plus grand que le budget est fragmenté, si possible à un espace. `partial_segment: true` annonce ce cas. En format structuré, ses fragments gardent le même `id`, avec `partial`, `text_offset` et `text_total_chars`. Les offsets comptent les caractères Swift (graphèmes Unicode). Un budget trop petit pour les métadonnées d’un segment renvoie `PAGE_LIMIT_TOO_SMALL`.
+
+`confidence: null` signifie que la confiance n’est pas mesurée. `echo_suspect` vaut `true`, `false` ou `null` selon le résultat disponible. Une suspicion est un signal de contrôle, pas une preuve d’écho. `recording.echo_cancellation_engine` indique le prétraitement audio appliqué ; cela ne garantit pas l’absence d’écho résiduel. `echo_assessed_segments` compte les segments évalués après transcription et `echo_suspect_segments` les segments suspects dans la session entière.
+
+Une synthèse absente retourne `status: unavailable` et `reason: not_generated_or_invalidated`, ou `invalidated_after_edit` si une provenance antérieure est conservée. Le store actuel ne permet pas de distinguer toutes les causes historiques. Le serveur ne prétend donc pas que la synthèse est désactivée, en cours ou échouée. La génération reste une action de l’app.
 
 ## 5. Ressources
 

@@ -18,6 +18,11 @@ func validate(_ input: [String: Any], schema: [String: Any]) throws {
             if let values = spec["enum"] as? [String], !values.contains(s) { throw IntegrationError("INVALID_ARGUMENTS") }
             if spec["format"] as? String == "uuid", UUID(uuidString: s) == nil { throw IntegrationError("INVALID_ARGUMENTS") }
             if spec["format"] as? String == "date-time", ISO8601DateFormatter().date(from: s) == nil { throw IntegrationError("INVALID_ARGUMENTS") }
+        } else if spec["type"] as? String == "boolean" {
+            guard let n = x as? NSNumber, CFGetTypeID(n) == CFBooleanGetTypeID() else { throw IntegrationError("INVALID_ARGUMENTS") }
+        } else if spec["type"] as? String == "number" {
+            guard let n = x as? NSNumber, CFGetTypeID(n) != CFBooleanGetTypeID(), n.doubleValue.isFinite,
+                  n.doubleValue >= (spec["minimum"] as? Double ?? 0) else { throw IntegrationError("INVALID_ARGUMENTS") }
         } else if spec["type"] as? String == "integer" {
             guard x as? Int != nil, let n = x as? NSNumber, CFGetTypeID(n) != CFBooleanGetTypeID(), n.doubleValue.rounded() == n.doubleValue, n.doubleValue >= Double(spec["minimum"] as? Int ?? 0), n.doubleValue <= Double(spec["maximum"] as? Int ?? Int.max) else { throw IntegrationError("INVALID_ARGUMENTS") }
         }
@@ -33,7 +38,7 @@ actor MCPService {
     struct Cursor: Codable { var method: String; var filter: String; var sequence: Int; var offset: Int; var expires: Double }
     init(store: SessionStore, writes: Bool, schemaData: Data) { self.store = store; self.writes = writes; self.schemaData = schemaData }
     func metadata(_ r: Recording) -> [String: Any] {
-        ["id": r.id.uuidString, "revision": r.revision, "title": r.title, "kind": r.kind.rawValue, "started_at": r.startedAt.ISO8601Format(), "duration_us": Int64(r.duration * 1e6), "status": r.state == .recording ? "capturing" : r.transcriptState == .ready ? "complete" : "partial", "participants": r.participants.map { ["id": ($0.personID ?? $0.id).uuidString, "name": $0.label, "alias": NSNull(), "status": "named"] as [String: Any] }]
+        ["id": r.id.uuidString, "revision": r.revision, "title": r.title, "kind": r.kind.rawValue, "started_at": r.startedAt.ISO8601Format(), "duration_us": Int64(r.duration * 1e6), "status": r.state == .recording ? "capturing" : r.transcriptState == .ready ? "complete" : "partial", "echo_cancellation_engine": nullable(r.transcription?.echoCancellationEngine), "echo_assessed_segments": r.segments.filter { $0.echoSuspect != nil }.count, "echo_suspect_segments": r.segments.filter { $0.echoSuspect == true }.count, "participants": r.participants.map { ["id": ($0.personID ?? $0.id).uuidString, "name": $0.label, "alias": NSNull(), "status": "named"] as [String: Any] }]
     }
     func cursor(_ method: String, _ hash: String, _ seq: Int, _ offset: Int) throws -> String {
         let data = try JSONEncoder().encode(Cursor(method: method, filter: hash, sequence: seq, offset: offset, expires: Date().timeIntervalSince1970 + 900))
@@ -74,23 +79,29 @@ actor MCPService {
             let r = try await store.recording(UUID(uuidString: input["id"] as! String)!, revision: input["revision"] as? Int)
             let include = input["include"] as? String ?? "all"
             let names = ["transcript", "summary", "notes"].filter { include == "all" || $0 == include }
-            let maximum = input["max_chars"] as? Int ?? 50000
-            var position = 0, consumed = 0, artifacts: [String: Any] = [:]
-            let total = names.reduce(0) { $0 + SessionExporter.artifact(r, $1).count }
-            guard start <= total else { throw IntegrationError("INVALID_CURSOR") }
+            let pagination = try RecordingPages(recording: r, names: names, input: input)
+            guard start < pagination.pages.count else { throw IntegrationError("INVALID_CURSOR") }
+            let page = pagination.units[pagination.pages[start]]
+            var artifacts: [String: Any] = [:]
             for name in names {
-                let text = SessionExporter.artifact(r, name), count = text.count
-                let localStart = max(0, start - position)
-                if localStart <= count, consumed < maximum {
-                    let chunk = String(text.dropFirst(localStart).prefix(maximum - consumed)); consumed += chunk.count
-                    let available = name != "summary" || r.summary != nil
-                    let version = name == "transcript" ? r.transcriptVersion : name == "notes" ? r.notesVersion : r.summaryVersion
-                    artifacts[name] = ["status": available ? "ready" : "disabled", "version": available ? nullable(version) : NSNull(), "markdown": available ? chunk as Any : NSNull()]
-                }
-                position += count
+                let available = name != "summary" || r.summary != nil
+                let version = name == "transcript" ? r.transcriptVersion : name == "notes" ? r.notesVersion : r.summaryVersion
+                let missingSummaryReason = r.summaryProvenance == nil ? "not_generated_or_invalidated" : "invalidated_after_edit"
+                let status = name == "transcript" ? r.transcriptState.rawValue : available ? "ready" : "unavailable"
+                let content = page.filter { $0.artifact == name }
+                artifacts[name] = ["status": status, "reason": name == "summary" && !available ? missingSummaryReason as Any : NSNull(),
+                    "version": available && (version ?? 0) > 0 ? nullable(version) : NSNull(),
+                    "markdown": available && !(name == "transcript" && input["format"] as? String == "structured") ? content.map(\.text).joined() as Any : NSNull()]
             }
-            let next = start + consumed
-            result = ["recording": metadata(r), "artifacts": artifacts, "next_cursor": next < total ? try cursor(method, hash, seq, next) as Any : NSNull(), "truncated": next < total]
+            let next = start + 1
+            result = ["recording": metadata(r), "artifacts": artifacts,
+                "next_cursor": next < pagination.pages.count ? try cursor(method, hash, seq, next) as Any : NSNull(),
+                "truncated": next < pagination.pages.count,
+                "total_chars": pagination.totalCharacters, "total_segments": pagination.totalSegments,
+                "total_pages": pagination.pages.count, "page": start + 1,
+                "page_chars": page.reduce(0) { $0 + $1.cost }, "partial_segment": page.contains(where: { $0.artifact == "transcript" && $0.fragmented })]
+            if input["format"] as? String == "structured" { result["segments"] = page.compactMap(\.segment) }
+
         case "list_recordings", "search", "get_participants":
             var items: [[String: Any]] = []
             if method == "get_participants" {
@@ -149,7 +160,7 @@ if args.contains("--help") {
         let toolList = try toolSchemas.keys.sorted().filter { writes || !["set_notes", "rename_speaker"].contains($0) }.map { name in
             var input = toolSchemas[name]!["inputSchema"] as! [String: Any]; input["$defs"] = definitions
             var output = toolSchemas[name]!["outputSchema"] as! [String: Any]; output["$defs"] = definitions
-            return try Tool(name: name, description: name, inputSchema: value(input), annotations: .init(readOnlyHint: !["set_notes", "rename_speaker"].contains(name), destructiveHint: false, idempotentHint: true, openWorldHint: false), outputSchema: value(output))
+            return try Tool(name: name, description: toolSchemas[name]!["description"] as? String ?? name, inputSchema: value(input), annotations: .init(readOnlyHint: !["set_notes", "rename_speaker"].contains(name), destructiveHint: false, idempotentHint: true, openWorldHint: false), outputSchema: value(output))
         }
         let service = MCPService(store: store, writes: writes, schemaData: schemaData)
         let server = Server(name: "hwyd", version: "0.2.0", capabilities: .init(resources: .init(subscribe: false, listChanged: false), tools: .init(listChanged: false)))
