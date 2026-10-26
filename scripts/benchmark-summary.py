@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import re
 import signal
+import stat
 import subprocess
 import time
 import urllib.parse
@@ -117,9 +118,55 @@ def validate_recording(path):
             "duration_seconds": recording["duration"]}
 
 
+
+def validate_cache_seed(seed, suite, recordings):
+    if seed is None:
+        return None
+    if suite or len(recordings) != 1:
+        raise ValueError("--cache-seed requires exactly one --recording and cannot be used with --suite")
+    if seed.is_symlink() or not seed.is_dir():
+        raise ValueError("--cache-seed must be an existing non-symlink directory")
+    return seed.resolve()
+
+
+def copy_cache_seed(seed, destination):
+    """Copy only direct, regular SHA-256-named JSON entries, never symlinks."""
+    if seed.is_symlink() or not seed.is_dir():
+        raise ValueError("Cache seed must be an existing non-symlink directory")
+    destination.mkdir(mode=0o700, parents=True, exist_ok=False)
+    copied, skipped = [], []
+    for entry in sorted(seed.iterdir()):
+        if not re.fullmatch(r"[0-9a-fA-F]{64}\.json", entry.name):
+            skipped.append(entry.name)
+            continue
+        try:
+            # O_NOFOLLOW and fstat also reject a file swapped for a symlink
+            # between enumeration and opening. No nested directory is traversed.
+            descriptor = os.open(entry, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(descriptor, "rb") as stream:
+                if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                    skipped.append(entry.name)
+                    continue
+                data = stream.read()
+            json.loads(data)
+        except (OSError, ValueError, UnicodeError):
+            skipped.append(entry.name)
+            continue
+        target = destination / entry.name
+        descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(data)
+        copied.append({"name": entry.name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+    return {"directory": str(seed.resolve()), "copied_entries": copied,
+            "copied_count": len(copied), "skipped_entries": skipped}
+
 def run_case(path, output, args):
     output.mkdir(parents=True, exist_ok=False)
     input_info = validate_recording(path)
+    seed = getattr(args, "cache_seed", None)
+    seed_info = copy_cache_seed(seed, output / "cache") if seed is not None else None
+    if seed is not None:
+        print("Resumed run: copied cache entries; elapsed time is not comparable with a fresh run.", flush=True)
     env = dict(os.environ, DEVELOPER_DIR=args.developer_dir,
                HWYD_SUMMARY_RECORDING=str(path), HWYD_SUMMARY_OUTPUT=str(output),
                HWYD_LIVE_LLM_MODEL=args.model, HWYD_LIVE_LLM_URL=args.endpoint,
@@ -133,7 +180,11 @@ def run_case(path, output, args):
     if args.skip_build:
         command.insert(2, "--skip-build")
     before = memory_sample(process_table(), server_pids=set(args.server_pid), app_pids=set(args.app_pid))
-    report = {"model": args.model, "endpoint": args.endpoint, "input": input_info,
+    report = {"run_type": "resumed" if seed is not None else "fresh",
+              "cache_seed": str(seed.resolve()) if seed is not None else None,
+              "cache_seed_copy": seed_info,
+              "timing_comparable_with_fresh": seed is None,
+              "model": args.model, "endpoint": args.endpoint, "input": input_info,
               "input_path": str(path), "input_character_limit": args.input_characters,
               "reasoning_effort": args.reasoning_effort,
               "quantization_label": args.quantization, "loaded_context_tokens_label": args.context_tokens,
@@ -147,6 +198,10 @@ def run_case(path, output, args):
                               "Auto server discovery includes LM Studio GUI and all detected model workers.",
                               "Wall time includes Swift test startup and compilation unless --skip-build.",
                               "Memory and timing comparisons require one loaded model and no competing inference."]}
+    if seed is not None:
+        report["limitations"].append("Resumed run: cached steps skip inference; timing is not comparable with a fresh run.")
+    # Persist provenance before execution, even if the runner is interrupted externally.
+    write_json(output / "benchmark.json", dict(report, status="running"))
     start = time.monotonic()
     peaks = {name: before[name]["rss_bytes"] for name in ("server", "benchmark", "app")}
     physical_peaks = {name: before[name]["physical_footprint_bytes"] for name in peaks}
@@ -204,6 +259,7 @@ def main():
     parser.add_argument("--recording", type=Path, action="append", default=[], help="Private Recording JSON; may repeat")
     parser.add_argument("--suite", action="store_true", help="Run FR, EN and mixed synthetic fixtures sequentially")
     parser.add_argument("--output", type=Path, help="New run directory under build/")
+    parser.add_argument("--cache-seed", type=Path, help="Resume one --recording from a prior cache directory; not a fresh timing run")
     parser.add_argument("--input-characters", type=int, default=24000)
     parser.add_argument("--server-pid", type=int, action="append", default=[], help="Model worker PID; includes descendants; may repeat")
     parser.add_argument("--app-pid", type=int, action="append", default=[], help="Optional HWYD PID; includes descendants")
@@ -216,6 +272,10 @@ def main():
     parser.add_argument("--skip-build", action="store_true", help="Use previously built Swift tests")
     parser.add_argument("--prepare-only", action="store_true", help="Validate fixture JSON without network or inference")
     args = parser.parse_args()
+    try:
+        args.cache_seed = validate_cache_seed(args.cache_seed, args.suite, args.recording)
+    except ValueError as error:
+        parser.error(str(error))
     paths = ([FIXTURES / f"{name}.json" for name in ("fr", "en", "mixed")] if args.suite else []) + [p.resolve() for p in args.recording]
     if not paths:
         parser.error("Choose --suite and/or --recording")

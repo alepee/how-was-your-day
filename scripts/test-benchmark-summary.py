@@ -51,6 +51,60 @@ class BenchmarkTests(unittest.TestCase):
             self.assertTrue(report["source_unchanged"])
             self.assertEqual(report["quality"]["status"], "not_reviewed")
             self.assertTrue(report["sampled_peak_rss_bytes"]["benchmark"] > 0)
+            self.assertEqual(report["run_type"], "fresh")
+            self.assertTrue(report["timing_comparable_with_fresh"])
+            seed = directory / "seed"
+            seed.mkdir()
+            entry = seed / ("a" * 64 + ".json")
+            entry.write_text('{"overview":"cached fixture"}')
+            args.cache_seed = seed
+            with patch.dict(os.environ, {"PATH": str(directory) + os.pathsep + os.environ["PATH"]}), \
+                 patch.object(module, "model_metadata", return_value={"matched": False}):
+                self.assertTrue(module.run_case(module.FIXTURES / "fr.json", directory / "resumed", args))
+            resumed = module.json.loads((directory / "resumed/benchmark.json").read_text())
+            self.assertEqual(resumed["run_type"], "resumed")
+            self.assertFalse(resumed["timing_comparable_with_fresh"])
+            self.assertEqual(resumed["cache_seed"], str(seed.resolve()))
+            self.assertEqual(resumed["cache_seed_copy"]["copied_count"], 1)
+            self.assertEqual((directory / "resumed/cache" / entry.name).read_bytes(), entry.read_bytes())
+            self.assertTrue(any("not comparable" in value for value in resumed["limitations"]))
+
+    def test_cache_seed_rejects_suite_multi_case_and_symlink_directory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            seed = Path(temporary)
+            with self.assertRaises(ValueError):
+                module.validate_cache_seed(seed, True, [Path("one.json")])
+            with self.assertRaises(ValueError):
+                module.validate_cache_seed(seed, False, [Path("one.json"), Path("two.json")])
+            with self.assertRaises(ValueError):
+                module.validate_cache_seed(seed, False, [])
+            link = seed / "linked"
+            link.symlink_to(seed, target_is_directory=True)
+            with self.assertRaises(ValueError):
+                module.validate_cache_seed(link, False, [Path("one.json")])
+            self.assertEqual(module.validate_cache_seed(seed, False, [Path("one.json")]), seed.resolve())
+
+    def test_cache_seed_only_copies_regular_hash_named_json(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            seed = root / "seed"
+            seed.mkdir()
+            valid = seed / ("a" * 64 + ".json")
+            valid.write_text('{"overview":"fixture"}')
+            (seed / "notes.json").write_text("{}")
+            (seed / ("b" * 64 + ".json")).symlink_to(valid)
+            (seed / ("c" * 64 + ".json")).write_text("not JSON")
+            (seed / ("d" * 64 + ".json")).mkdir()
+            os.mkfifo(seed / ("e" * 64 + ".json"))
+            result = module.copy_cache_seed(seed, root / "destination")
+            self.assertEqual(result["copied_count"], 1)
+            self.assertEqual(result["copied_entries"][0]["name"], valid.name)
+            self.assertEqual(len(result["skipped_entries"]), 5)
+            self.assertEqual([p.name for p in (root / "destination").iterdir()], [valid.name])
+            self.assertEqual((root / "destination" / valid.name).stat().st_mode & 0o777, 0o600)
+            self.assertFalse((root / "destination" / valid.name).is_symlink())
+            (root / "destination" / valid.name).write_text("changed")
+            self.assertEqual(valid.read_text(), '{"overview":"fixture"}')
 
     def test_public_fixtures_and_ground_truth_sources(self):
         for name in ("fr", "en", "mixed"):

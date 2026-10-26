@@ -52,9 +52,28 @@ python3 scripts/benchmark-summary.py \
   --output build/summary-benchmark/candidate-long-01
 ```
 
-Each output directory must be new, so previous cached generations cannot make a fresh comparison appear faster. The Swift runner receives `HWYD_SUMMARY_INPUT_CHARACTER_LIMIT`. This is a character budget, not an exact tokenizer limit. Reserve enough server context for system instructions, schema and output. The runtime's actual token/context behavior must still be checked.
+Each output directory must be new. By default the run is marked `fresh` and no previous cached generations are copied, so a fresh comparison cannot silently skip model calls. The Swift runner receives `HWYD_SUMMARY_INPUT_CHARACTER_LIMIT`. This is a character budget, not an exact tokenizer limit. Reserve enough server context for system instructions, schema and output. The runtime's actual token/context behavior must still be checked.
 
 `--server-pid PID` can be repeated to select model worker process trees. Without it, discovery includes processes whose executable path contains `.lmstudio/`, `LM Studio` or `llmster`, and their descendants. This broad default includes the GUI and all detected backends. `--app-pid PID` optionally measures the running HWYD app separately. The Swift test process tree has its own group.
+
+## Resume an interrupted private case
+
+Use `--cache-seed DIRECTORY` only for one explicit `--recording`. The harness rejects `--suite`, zero recordings and multiple recordings with this option. The output directory must still be new.
+
+```sh
+python3 scripts/benchmark-summary.py \
+  --recording build/summary-benchmark/local/recording.json \
+  --model MODEL_IDENTIFIER \
+  --cache-seed build/summary-benchmark/previous-long-run/01-recording/cache \
+  --skip-build \
+  --output build/summary-benchmark/resumed-long-run
+```
+
+The seed is read without modification. Only direct regular files named with 64 hexadecimal characters and `.json`, containing valid JSON, are copied into the new case's `cache/`. Symlinks, nested directories, special files, other names and invalid JSON are skipped. Copies are independent files with private permissions. The source directory itself must not be a symlink.
+
+`benchmark.json` records `run_type: resumed`, the explicit `cache_seed` path, copied filenames and hashes, and `timing_comparable_with_fresh: false`. The production workflow still checks the cache key against the recording, provider, model and prompts, and validates reused content. Copying a cache entry does not force the workflow to accept it.
+
+A resumed duration measures only the remaining work and cache reads. **Do not compare it to a fresh run or use it as a full-session inference time.** Keep the earlier attempt's time and failure information alongside the resumed result. A resumed run remains labeled as such even if none of its entries are ultimately reusable.
 
 ## Artifacts and interpretation
 
