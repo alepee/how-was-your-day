@@ -76,10 +76,12 @@ final class SummaryWorkflowTests: XCTestCase, @unchecked Sendable {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let model = env["HWYD_LIVE_LLM_MODEL"] ?? "google/gemma-4-e4b"
         let endpoint = URL(string: env["HWYD_LIVE_LLM_URL"] ?? "http://127.0.0.1:1234/v1")!
-        let provider = BenchmarkProvider(base: try LocalLLMProvider(endpoint: endpoint, model: model, reasoningEffort: env["HWYD_LIVE_LLM_REASONING_EFFORT"]))
+        let order = env["HWYD_LIVE_LLM_SCHEMA_ORDER"] ?? SummarySchemaOrder.alphabetical.rawValue
+        let schemaOrder = try XCTUnwrap(SummarySchemaOrder(rawValue: order), "Unknown HWYD_LIVE_LLM_SCHEMA_ORDER \(order)")
+        let provider = BenchmarkProvider(base: try LocalLLMProvider(endpoint: endpoint, model: model, reasoningEffort: env["HWYD_LIVE_LLM_REASONING_EFFORT"], schemaOrder: schemaOrder), schemaOrder: schemaOrder)
         let started = Date()
         let result = try await SummaryPipeline.run(recording, provider: provider, model: model, inputCharacterLimit: Int(env["HWYD_SUMMARY_INPUT_CHARACTER_LIMIT"] ?? "24000") ?? 24000,
-            cacheDirectory: directory.appendingPathComponent("cache"), providerIdentity: endpoint.absoluteString + "|reasoning=" + (env["HWYD_LIVE_LLM_REASONING_EFFORT"] ?? "default")) { progress in
+            cacheDirectory: directory.appendingPathComponent("cache"), providerIdentity: LocalLLMProvider.benchmarkIdentity(endpoint: endpoint, reasoningEffort: env["HWYD_LIVE_LLM_REASONING_EFFORT"], schemaOrder: schemaOrder)) { progress in
                 print("BENCHMARK \(progress.stage) \(progress.completed)/\(progress.total) cached=\(progress.cached)")
             }
         try await provider.writeMetrics(to: directory.appendingPathComponent("metrics.json"))
@@ -94,7 +96,8 @@ private actor BenchmarkProvider: LLMProvider {
     let base: LocalLLMProvider
     var calls = 0, maxCharacters = 0
     var inferenceSeconds = 0.0
-    init(base: LocalLLMProvider) { self.base = base }
+    let schemaOrder: SummarySchemaOrder
+    init(base: LocalLLMProvider, schemaOrder: SummarySchemaOrder) { self.base = base; self.schemaOrder = schemaOrder }
     func generate(prompt: String) async throws -> SummaryContent { try await generate(prompt: prompt, evidenceIDs: []) }
     func generate(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent { try await invoke(prompt, evidenceIDs, planning: false) }
     func plan(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent { try await invoke(prompt, evidenceIDs, planning: true) }
@@ -105,7 +108,7 @@ private actor BenchmarkProvider: LLMProvider {
         return try await planning ? base.plan(prompt: prompt, evidenceIDs: ids) : base.generate(prompt: prompt, evidenceIDs: ids)
     }
     func writeMetrics(to url: URL) throws {
-        let value: [String: Any] = ["model_calls": calls, "max_input_characters": maxCharacters, "inference_seconds": inferenceSeconds]
+        let value: [String: Any] = ["model_calls": calls, "max_input_characters": maxCharacters, "inference_seconds": inferenceSeconds, "schema_order": schemaOrder.rawValue]
         try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys, .prettyPrinted]).write(to: url, options: .atomic)
     }
 }

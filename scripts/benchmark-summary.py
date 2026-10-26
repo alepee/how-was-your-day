@@ -20,6 +20,7 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "benchmarks/summary/synthetic"
+SCHEMA_ORDERS = ("alphabetical", "narrative-first")
 
 
 
@@ -171,6 +172,9 @@ def run_case(path, output, args):
                HWYD_SUMMARY_RECORDING=str(path), HWYD_SUMMARY_OUTPUT=str(output),
                HWYD_LIVE_LLM_MODEL=args.model, HWYD_LIVE_LLM_URL=args.endpoint,
                HWYD_SUMMARY_INPUT_CHARACTER_LIMIT=str(args.input_characters))
+    schema_order = getattr(args, "schema_order", "alphabetical")
+    # Always set explicitly so an ambient variable cannot silently change the arm.
+    env["HWYD_LIVE_LLM_SCHEMA_ORDER"] = schema_order
     if args.reasoning_effort is not None:
         env["HWYD_LIVE_LLM_REASONING_EFFORT"] = args.reasoning_effort
     else:
@@ -187,6 +191,7 @@ def run_case(path, output, args):
               "model": args.model, "endpoint": args.endpoint, "input": input_info,
               "input_path": str(path), "input_character_limit": args.input_characters,
               "reasoning_effort": args.reasoning_effort,
+              "schema_order": schema_order,
               "quantization_label": args.quantization, "loaded_context_tokens_label": args.context_tokens,
               "model_metadata_before": model_metadata(args.endpoint, args.model), "baseline": before,
               "sample_interval_seconds": args.sample_interval, "command": command,
@@ -197,7 +202,8 @@ def run_case(path, output, args):
                               "Process-group sums are comparative metrics, not exact system-wide unique memory.",
                               "Auto server discovery includes LM Studio GUI and all detected model workers.",
                               "Wall time includes Swift test startup and compilation unless --skip-build.",
-                              "Memory and timing comparisons require one loaded model and no competing inference."]}
+                              "Memory and timing comparisons require one loaded model and no competing inference.",
+                              "schema_order sets the request wire order only; the order of the generated fields must be checked in the server output, which the API does not guarantee."]}
     if seed is not None:
         report["limitations"].append("Resumed run: cached steps skip inference; timing is not comparable with a fresh run.")
     # Persist provenance before execution, even if the runner is interrupted externally.
@@ -264,6 +270,8 @@ def main():
     parser.add_argument("--server-pid", type=int, action="append", default=[], help="Model worker PID; includes descendants; may repeat")
     parser.add_argument("--app-pid", type=int, action="append", default=[], help="Optional HWYD PID; includes descendants")
     parser.add_argument("--reasoning-effort", help="Optional provider-specific reasoning_effort, e.g. none")
+    parser.add_argument("--schema-order", choices=SCHEMA_ORDERS, default="alphabetical",
+                        help="Experimental request schema field order; alphabetical is the shipped behavior")
     parser.add_argument("--quantization", help="User-supplied label, not inferred")
     parser.add_argument("--context-tokens", type=int, help="Loaded server context, label only; does not configure it")
     parser.add_argument("--sample-interval", type=float, default=0.5)

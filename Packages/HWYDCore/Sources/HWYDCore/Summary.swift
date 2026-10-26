@@ -72,16 +72,69 @@ public enum SummaryFailure: LocalizedError {
         }
     }
 }
+/// Deterministic JSON serializer for experiments that need a chosen key order on specific objects.
+/// Every other object uses sorted keys, and scalars use the same encoder options as the default
+/// path, so output differs from `JSONSerialization` with `.sortedKeys` only in the ordered objects.
+enum OrderedJSON {
+    /// `orderedKeys` maps an object path (dictionary keys from the root) to its leading keys.
+    /// Keys not listed follow in sorted order. Arrays are never reordered.
+    static func data(_ value: Any, orderedKeys: [([String], [String])]) throws -> Data {
+        var output = Data()
+        try write(value, path: [], orderedKeys: orderedKeys, into: &output)
+        return output
+    }
+    private static func write(_ value: Any, path: [String], orderedKeys: [([String], [String])], into output: inout Data) throws {
+        if let object = value as? [String: Any] {
+            let leading = orderedKeys.first { $0.0 == path }?.1 ?? []
+            let keys = leading.filter { object[$0] != nil } + object.keys.filter { !leading.contains($0) }.sorted()
+            output.append(UInt8(ascii: "{"))
+            for (index, key) in keys.enumerated() {
+                if index > 0 { output.append(UInt8(ascii: ",")) }
+                output.append(try JSONSerialization.data(withJSONObject: key, options: [.fragmentsAllowed]))
+                output.append(UInt8(ascii: ":"))
+                try write(object[key]!, path: path + [key], orderedKeys: orderedKeys, into: &output)
+            }
+            output.append(UInt8(ascii: "}"))
+        } else if let array = value as? [Any] {
+            output.append(UInt8(ascii: "["))
+            for (index, element) in array.enumerated() {
+                if index > 0 { output.append(UInt8(ascii: ",")) }
+                // Array elements get a "[]" path component, so named object paths never match inside arrays.
+                try write(element, path: path + ["[]"], orderedKeys: orderedKeys, into: &output)
+            }
+            output.append(UInt8(ascii: "]"))
+        } else {
+            output.append(try JSONSerialization.data(withJSONObject: value, options: [.fragmentsAllowed]))
+        }
+    }
+}
 private final class NoRedirects: NSObject, URLSessionTaskDelegate, Sendable {
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void) { completionHandler(nil) }
+}
+/// Wire order of the root output schema properties. Servers that constrain decoding with the
+/// schema typically emit fields in this order, but that is not guaranteed by the API.
+public enum SummarySchemaOrder: String, Sendable, CaseIterable {
+    /// Existing behavior: every JSON object is serialized with sorted keys.
+    case alphabetical
+    /// Experimental: overview, details, decisions, action_items, key_points, so topic prose is
+    /// generated before commitments. Schema contents are otherwise unchanged.
+    case narrativeFirst = "narrative-first"
+    static let narrativeFirstFields = ["overview", "details", "decisions", "action_items", "key_points"]
 }
 public struct LocalLLMProvider: LLMProvider {
     public let endpoint: URL
     public let model: String
     public let reasoningEffort: String?
-    public init(endpoint: URL, model: String, reasoningEffort: String? = nil) throws {
+    public let schemaOrder: SummarySchemaOrder
+    public init(endpoint: URL, model: String, reasoningEffort: String? = nil, schemaOrder: SummarySchemaOrder = .alphabetical) throws {
         guard Self.isLocal(endpoint), !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw SummaryFailure.invalidEndpoint }
-        self.endpoint = endpoint; self.model = model; self.reasoningEffort = reasoningEffort
+        self.endpoint = endpoint; self.model = model; self.reasoningEffort = reasoningEffort; self.schemaOrder = schemaOrder
+    }
+    /// Cache identity for benchmark runs. The default order keeps the historical identity so existing
+    /// checkpoints stay valid; an experimental wire format never shares checkpoints with another arm.
+    static func benchmarkIdentity(endpoint: URL, reasoningEffort: String?, schemaOrder: SummarySchemaOrder) -> String {
+        endpoint.absoluteString + "|reasoning=" + (reasoningEffort ?? "default")
+            + (schemaOrder == .alphabetical ? "" : "|schema-order=" + schemaOrder.rawValue)
     }
     public static func isLocal(_ url: URL) -> Bool {
         ["http", "https"].contains(url.scheme?.lowercased() ?? "") && ["localhost", "127.0.0.1", "[::1]", "::1"].contains(url.host?.lowercased() ?? "") && url.user == nil && url.password == nil && url.query == nil && url.fragment == nil
@@ -141,7 +194,9 @@ public struct LocalLLMProvider: LLMProvider {
         Les types string, Topic, Decision et Action ci-dessus décrivent la forme, ne les recopie pas comme valeurs. Une limite 0 impose []. Les références doivent correspondre exactement aux IDs fournis. assignee_name est le nom explicite du responsable ou null. due_date est null sauf date YYYY-MM-DD littéralement présente dans les sources. Une échéance en langage naturel reste dans text. Une seule décision ou tâche par objet. Les promesses personnelles vont dans action_items, jamais dans decisions.
         """
     }
-    private func generate(prompt: String, evidenceIDs: [UUID], system: String, outputTokens: Int, planning: Bool) async throws -> SummaryContent {
+    /// Builds the chat completion request without sending it. Returns the local reference map used
+    /// to translate `S<n>` identifiers back to segment UUIDs.
+    func makeRequest(prompt: String, evidenceIDs: [UUID], system: String, outputTokens: Int, planning: Bool) throws -> (request: URLRequest, references: [String: String]) {
         let references = Dictionary(uniqueKeysWithValues: evidenceIDs.enumerated().map { ("S\($0.offset + 1)", $0.element.uuidString) })
         var input = prompt
         for (reference, id) in references { input = input.replacingOccurrences(of: id, with: reference) }
@@ -172,7 +227,7 @@ public struct LocalLLMProvider: LLMProvider {
         let assigneeSchema: [String: Any] = names.isEmpty ? ["type": "null"] : ["anyOf": [["type": "string", "enum": names.sorted()], ["type": "null"]]]
         let claimEvidence: [String: Any] = ["type": "array", "minItems": 1, "maxItems": 3, "items": evidenceItem]
         let topic: [String: Any] = ["type": "object", "additionalProperties": false, "required": ["title", "text", "evidence_segment_ids"], "properties": ["title": ["type": "string"], "text": ["type": "string"], "evidence_segment_ids": evidence]]
-        let schema: [String: Any] = ["type": "object", "additionalProperties": false, "required": ["overview", "key_points", "decisions", "action_items", "details"], "properties": [
+        let schema: [String: Any] = ["type": "object", "additionalProperties": false, "required": schemaOrder == .alphabetical ? ["overview", "key_points", "decisions", "action_items", "details"] : SummarySchemaOrder.narrativeFirstFields, "properties": [
             "overview": ["type": "string"],
             "key_points": ["type": "array", "maxItems": routing || verification || repair ? 0 : 4, "items": topic],
             "details": ["type": "array", "maxItems": executive ? 0 : (repair ? 1 : (verification ? 4 : (planning ? 8 : 16))), "items": topic],
@@ -187,7 +242,17 @@ public struct LocalLLMProvider: LLMProvider {
             "messages": [["role": "system", "content": system + "\n\n" + contract], ["role": "user", "content": input]],
             "response_format": ["type": "json_schema", "json_schema": ["name": "session_summary", "strict": true, "schema": schema]]]
         if let reasoningEffort { body["reasoning_effort"] = reasoningEffort }
-        request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
+        switch schemaOrder {
+        case .alphabetical:
+            request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
+        case .narrativeFirst:
+            request.httpBody = try OrderedJSON.data(body, orderedKeys: [(Self.schemaPropertiesPath, SummarySchemaOrder.narrativeFirstFields)])
+        }
+        return (request, references)
+    }
+    static let schemaPropertiesPath = ["response_format", "json_schema", "schema", "properties"]
+    private func generate(prompt: String, evidenceIDs: [UUID], system: String, outputTokens: Int, planning: Bool) async throws -> SummaryContent {
+        let (request, references) = try makeRequest(prompt: prompt, evidenceIDs: evidenceIDs, system: system, outputTokens: outputTokens, planning: planning)
         let config = URLSessionConfiguration.ephemeral; config.timeoutIntervalForRequest = 600; config.timeoutIntervalForResource = 900
         config.connectionProxyDictionary = [:]
         let session = URLSession(configuration: config, delegate: NoRedirects(), delegateQueue: nil)
