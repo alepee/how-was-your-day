@@ -78,10 +78,13 @@ final class SummaryWorkflowTests: XCTestCase, @unchecked Sendable {
         let endpoint = URL(string: env["HWYD_LIVE_LLM_URL"] ?? "http://127.0.0.1:1234/v1")!
         let order = env["HWYD_LIVE_LLM_SCHEMA_ORDER"] ?? SummarySchemaOrder.alphabetical.rawValue
         let schemaOrder = try XCTUnwrap(SummarySchemaOrder(rawValue: order), "Unknown HWYD_LIVE_LLM_SCHEMA_ORDER \(order)")
-        let provider = BenchmarkProvider(base: try LocalLLMProvider(endpoint: endpoint, model: model, reasoningEffort: env["HWYD_LIVE_LLM_REASONING_EFFORT"], schemaOrder: schemaOrder), schemaOrder: schemaOrder)
+        // An unset variable means the default; a set but unknown value fails the run before any inference.
+        let intermediateLanguage = try SummaryIntermediateLanguage.option(environment: env)
+        let provider = BenchmarkProvider(base: try LocalLLMProvider(endpoint: endpoint, model: model, reasoningEffort: env["HWYD_LIVE_LLM_REASONING_EFFORT"], schemaOrder: schemaOrder, intermediateLanguage: intermediateLanguage), schemaOrder: schemaOrder)
+        XCTAssertEqual(provider.intermediateLanguage, intermediateLanguage)
         let started = Date()
         let result = try await SummaryPipeline.run(recording, provider: provider, model: model, inputCharacterLimit: Int(env["HWYD_SUMMARY_INPUT_CHARACTER_LIMIT"] ?? "24000") ?? 24000,
-            cacheDirectory: directory.appendingPathComponent("cache"), providerIdentity: LocalLLMProvider.benchmarkIdentity(endpoint: endpoint, reasoningEffort: env["HWYD_LIVE_LLM_REASONING_EFFORT"], schemaOrder: schemaOrder)) { progress in
+            cacheDirectory: directory.appendingPathComponent("cache"), providerIdentity: LocalLLMProvider.benchmarkIdentity(endpoint: endpoint, reasoningEffort: env["HWYD_LIVE_LLM_REASONING_EFFORT"], schemaOrder: schemaOrder, intermediateLanguage: intermediateLanguage)) { progress in
                 print("BENCHMARK \(progress.stage) \(progress.completed)/\(progress.total) cached=\(progress.cached)")
             }
         try await provider.writeMetrics(to: directory.appendingPathComponent("metrics.json"))
@@ -97,7 +100,9 @@ private actor BenchmarkProvider: LLMProvider {
     var calls = 0, maxCharacters = 0
     var inferenceSeconds = 0.0
     let schemaOrder: SummarySchemaOrder
-    init(base: LocalLLMProvider, schemaOrder: SummarySchemaOrder) { self.base = base; self.schemaOrder = schemaOrder }
+    // Forwarded explicitly: the protocol default is French, which would silently disagree with `base`.
+    nonisolated let intermediateLanguage: SummaryIntermediateLanguage
+    init(base: LocalLLMProvider, schemaOrder: SummarySchemaOrder) { self.base = base; self.schemaOrder = schemaOrder; self.intermediateLanguage = base.intermediateLanguage }
     func generate(prompt: String) async throws -> SummaryContent { try await generate(prompt: prompt, evidenceIDs: []) }
     func generate(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent { try await invoke(prompt, evidenceIDs, planning: false) }
     func plan(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent { try await invoke(prompt, evidenceIDs, planning: true) }
@@ -108,7 +113,7 @@ private actor BenchmarkProvider: LLMProvider {
         return try await planning ? base.plan(prompt: prompt, evidenceIDs: ids) : base.generate(prompt: prompt, evidenceIDs: ids)
     }
     func writeMetrics(to url: URL) throws {
-        let value: [String: Any] = ["model_calls": calls, "max_input_characters": maxCharacters, "inference_seconds": inferenceSeconds, "schema_order": schemaOrder.rawValue]
+        let value: [String: Any] = ["model_calls": calls, "max_input_characters": maxCharacters, "inference_seconds": inferenceSeconds, "schema_order": schemaOrder.rawValue, "intermediate_language": intermediateLanguage.rawValue]
         try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys, .prettyPrinted]).write(to: url, options: .atomic)
     }
 }
@@ -161,8 +166,12 @@ extension SummaryWorkflowTests {
 
 private actor CancellationProvider: LLMProvider {
     var prompts: [String] = []
+    /// Prompts the pipeline sent through `plan`, as opposed to `generate`.
+    var planned: [String] = []
+    nonisolated let intermediateLanguage: SummaryIntermediateLanguage
+    init(intermediateLanguage: SummaryIntermediateLanguage = .french) { self.intermediateLanguage = intermediateLanguage }
     func generate(prompt: String) async throws -> SummaryContent { throw SummaryFailure.invalidResponse }
-    func plan(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent { try await generate(prompt: prompt, evidenceIDs: evidenceIDs) }
+    func plan(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent { planned.append(prompt); return try await generate(prompt: prompt, evidenceIDs: evidenceIDs) }
     func generate(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent {
         prompts.append(prompt)
         var result = SummaryContent(overview: "Le lancement est discuté.", decisions: [], action_items: [], key_points: [], details: [])
@@ -238,7 +247,10 @@ private actor SameCountChangeProvider: LLMProvider {
     var verificationCalls = 0
     var verificationPrompts: [String] = []
     let acceptRetry: Bool
-    init(field: String, explain: Bool, acceptRetry: Bool = false) { self.field = field; self.explain = explain; self.acceptRetry = acceptRetry }
+    nonisolated let intermediateLanguage: SummaryIntermediateLanguage
+    init(field: String, explain: Bool, acceptRetry: Bool = false, intermediateLanguage: SummaryIntermediateLanguage = .french) {
+        self.field = field; self.explain = explain; self.acceptRetry = acceptRetry; self.intermediateLanguage = intermediateLanguage
+    }
     func generate(prompt: String) async throws -> SummaryContent { throw SummaryFailure.invalidResponse }
     func plan(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent { try await generate(prompt: prompt, evidenceIDs: evidenceIDs) }
     func generate(prompt: String, evidenceIDs: [UUID]) async throws -> SummaryContent {
@@ -257,7 +269,7 @@ private actor SameCountChangeProvider: LLMProvider {
         }
         if prompt.hasPrefix("VERIFY_ACTIONS:") {
             verificationCalls += 1; verificationPrompts.append(prompt)
-            if acceptRetry && prompt.contains("NOUVEL ESSAI") {
+            if acceptRetry && (prompt.contains("NOUVEL ESSAI") || prompt.contains(" RETRY: ")) {
                 result.details = []
                 return result
             }
@@ -368,5 +380,118 @@ extension SummaryWorkflowTests {
         XCTAssertEqual(prompts.count, 1)
         XCTAssertTrue(prompts[0].contains("NOUVEL ESSAI"))
         XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+    }
+}
+
+/// Pipeline-level checks of the opt-in English intermediate variant. Providers are deterministic
+/// fixtures: no server or model is involved.
+extension SummaryWorkflowTests {
+    private func announcedRecording() -> Recording {
+        let speaker = Speaker(label: "Camille", confirmed: true)
+        let texts = ["Je promets de publier le lancement vendredi. INITIAL_COMMITMENT. ", "Nous abordons les accès techniques. ", "We discuss the finance budget. ", "ANNULÉ : le lancement est annulé. Do not publish on Friday. "]
+        return Recording(title: "Mixed discussion", speakers: [speaker], segments: texts.enumerated().map { index, text in
+            .init(start: Double(index * 100), end: Double(index * 100 + 90), speakerID: speaker.id, source: .mic, text: text + String(repeating: "Contexte explicatif sans engagement supplémentaire. ", count: 75))
+        })
+    }
+    /// Callers share one recording: segment and speaker IDs are random, and they reach the writing prompts.
+    private func scenario(_ language: SummaryIntermediateLanguage, _ recording: Recording) async throws -> (prompts: [String], planned: [String], result: SummaryProvenance) {
+        let provider = CancellationProvider(intermediateLanguage: language)
+        let result = try await SummaryPipeline.run(recording, provider: provider, model: "fixture", inputCharacterLimit: 12_000)
+        return (await provider.prompts, await provider.planned, result)
+    }
+    private func firstLine(_ prompt: String) -> String { String(prompt.prefix { $0 != "\n" }) }
+    private func payload(_ prompt: String) -> String { String(prompt[prompt.index(after: prompt.firstIndex(of: "\n")!)...]) }
+    private func stage(_ prompt: String) -> String { String(prompt.prefix { $0 != ":" }) }
+    private var frenchCharacters: CharacterSet { CharacterSet(charactersIn: "àâäçéèêëîïôöùûüÿœÀÂÄÇÉÈÊËÎÏÔÖÙÛÜŒ«»’") }
+
+    func testEnglishIntermediatePromptsAreEnglishAndFinalStagesStayFrench() async throws {
+        let recording = announcedRecording()
+        let french = try await scenario(.french, recording), english = try await scenario(.english, recording)
+        // Same stages in the same order, so the call count is unchanged.
+        XCTAssertEqual(english.prompts.map(stage), french.prompts.map(stage))
+        XCTAssertEqual(Set(english.planned.map(stage)), ["EXTRACT", "ROUTE"])
+        XCTAssertEqual(Set(french.planned.map(stage)), ["EXTRACT", "ROUTE"])
+        let stages = Set(english.prompts.map(stage))
+        XCTAssertTrue(stages.isSuperset(of: ["EXTRACT", "ROUTE", "VERIFY_ACTIONS", "WRITE_TOPIC", "EXECUTIVE"]), "The fixture must exercise every stage: \(stages)")
+
+        // A verification retry replaces the directive line and relies on the system role, in both languages.
+        for prompt in english.prompts where ["EXTRACT", "ROUTE", "VERIFY_ACTIONS", "VERIFY_DECISIONS"].contains(stage(prompt)) && !prompt.contains(" RETRY: ") {
+            let line = firstLine(prompt)
+            XCTAssertNil(line.rangeOfCharacter(from: frenchCharacters), line)
+            XCTAssertTrue(line.contains("English"), "Directive must request English: \(line)")
+            for word in ["Rédige", "Conserve", "Regroupe", "recopie", "Vérifie", "paroles", "fiches", "engagement "] { XCTAssertFalse(line.contains(word), "\(word) in \(line)") }
+        }
+        XCTAssertTrue(english.prompts.contains { $0.hasPrefix("EXTRACT: note the facts") })
+        XCTAssertTrue(english.prompts.contains { $0.hasPrefix("ROUTE: group these cards") })
+        XCTAssertTrue(english.prompts.contains { $0.hasPrefix("VERIFY_ACTIONS: keep the tasks in action_items") })
+        XCTAssertTrue(french.prompts.contains { $0.hasPrefix("EXTRACT: relève les faits") })
+        XCTAssertTrue(french.prompts.contains { $0.hasPrefix("ROUTE: regroupe ces fiches") })
+        XCTAssertTrue(french.prompts.contains { $0.hasPrefix("VERIFY_ACTIONS: conserve les tâches") })
+
+        // Final writing stages are byte-identical to the default prompts and request French.
+        for name in ["WRITE_TOPIC", "EXECUTIVE"] {
+            let before = french.prompts.filter { stage($0) == name }, after = english.prompts.filter { stage($0) == name }
+            XCTAssertFalse(after.isEmpty, name)
+            XCTAssertEqual(after, before, name)
+        }
+        XCTAssertTrue(english.prompts.contains { $0.hasPrefix("WRITE_TOPIC: rédige ce thème") && $0.contains("rédige en français naturel") })
+        XCTAssertTrue(english.prompts.contains { $0.hasPrefix("EXECUTIVE: écris uniquement overview") && $0.contains("écris en français") })
+        XCTAssertTrue(english.result.structured.action_items.isEmpty)
+    }
+    func testEnglishVariantLeavesSourcePayloadsAndLabelsUntouched() async throws {
+        let recording = announcedRecording()
+        let french = try await scenario(.french, recording), english = try await scenario(.english, recording)
+        let extractions = english.prompts.filter { $0.hasPrefix("EXTRACT:") }
+        XCTAssertEqual(extractions.map(payload), french.prompts.filter { $0.hasPrefix("EXTRACT:") }.map(payload))
+        var seen = Set<String>()
+        for prompt in extractions {
+            let rows = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(payload(prompt).utf8)) as? [[String: Any]])
+            for row in rows {
+                let text = try XCTUnwrap(row["text"] as? String)
+                XCTAssertTrue(recording.segments.contains { $0.text == text }, "Source text must be unchanged")
+                XCTAssertEqual(row["speaker"] as? String, "Camille")
+                XCTAssertEqual((row["id"] as? String)?.hasPrefix("S"), true)
+                seen.insert(text)
+            }
+        }
+        XCTAssertEqual(seen, Set(recording.segments.map(\.text)))
+        // Verification keeps the original passages as they are. Only the harness-written candidate label follows the language.
+        func verification(_ prompts: [String]) throws -> [[String: Any]] {
+            try prompts.filter { $0.hasPrefix("VERIFY_") && !$0.contains(" RETRY: ") }.map {
+                try XCTUnwrap(JSONSerialization.jsonObject(with: Data(payload($0).utf8)) as? [String: Any])
+            }
+        }
+        let englishChecks = try verification(english.prompts), frenchChecks = try verification(french.prompts)
+        XCTAssertFalse(englishChecks.isEmpty)
+        XCTAssertEqual(englishChecks.map { ($0["original_transcript"] as? [[String: Any]])?.compactMap { $0["text"] as? String } },
+                       frenchChecks.map { ($0["original_transcript"] as? [[String: Any]])?.compactMap { $0["text"] as? String } })
+        XCTAssertEqual(englishChecks.compactMap { ($0["candidate"] as? [String: Any])?["overview"] as? String }, Array(repeating: "Verification of commitments.", count: englishChecks.count))
+        XCTAssertEqual(frenchChecks.compactMap { ($0["candidate"] as? [String: Any])?["overview"] as? String }, Array(repeating: "Vérification des engagements.", count: frenchChecks.count))
+    }
+    func testDefaultRunIsIdenticalToExplicitFrenchAndKeepsHistoricalPromptIdentity() async throws {
+        let implicit = CancellationProvider(), explicit = CancellationProvider(intermediateLanguage: .french), recording = announcedRecording()
+        let first = try await SummaryPipeline.run(recording, provider: implicit, model: "fixture", inputCharacterLimit: 12_000)
+        let second = try await SummaryPipeline.run(recording, provider: explicit, model: "fixture", inputCharacterLimit: 12_000)
+        let implicitPrompts = await implicit.prompts, explicitPrompts = await explicit.prompts
+        XCTAssertEqual(implicitPrompts, explicitPrompts)
+        XCTAssertEqual(first.promptHash, second.promptHash)
+        XCTAssertEqual(first.promptVersion, "summary-v7-grounded-writing")
+        // Identity of the shipped prompt texts: checkpoints written before this variant stay valid.
+        XCTAssertEqual(first.promptHash, "fd9a716d4ef2a2782cddd126e8327739c393183818595e77cdc3e2dccc62c0d5")
+        XCTAssertEqual(first.structured, second.structured)
+    }
+    func testEnglishVerificationRetryFeedbackIsEnglish() async throws {
+        let provider = SameCountChangeProvider(field: "owner", explain: false, acceptRetry: true, intermediateLanguage: .english)
+        _ = try await SummaryPipeline.run(retryRecording(), provider: provider, model: "fixture", inputCharacterLimit: 12_000)
+        let prompts = await provider.verificationPrompts
+        XCTAssertEqual(prompts.count, 2)
+        XCTAssertFalse(prompts[0].contains(" RETRY: "))
+        let line = firstLine(prompts[1])
+        XCTAssertTrue(line.hasPrefix("VERIFY_ACTIONS: RETRY: You modified assignee_name without a correction note."), line)
+        XCTAssertTrue(line.hasSuffix("Apply all the system rules."), line)
+        XCTAssertNil(line.rangeOfCharacter(from: frenchCharacters), line)
+        XCTAssertFalse(prompts[1].contains("NOUVEL ESSAI"))
+        // The retry keeps the candidate and the original passages, as in French.
+        XCTAssertEqual(payload(prompts[0]), payload(prompts[1]))
     }
 }

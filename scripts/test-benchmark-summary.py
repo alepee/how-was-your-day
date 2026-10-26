@@ -100,6 +100,54 @@ class BenchmarkTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse("--schema-order", "reverse")
 
+    def test_intermediate_language_is_passed_to_swift_and_recorded(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            fake_swift = directory / "swift"
+            fake_swift.write_text("#!/usr/bin/env python3\nimport os,pathlib\np=pathlib.Path(os.environ['HWYD_SUMMARY_OUTPUT'])\n(p/'result.json').write_text('{}')\n(p/'language.txt').write_text(os.environ['HWYD_LIVE_LLM_INTERMEDIATE_LANGUAGE'])\n(p/'order.txt').write_text(os.environ['HWYD_LIVE_LLM_SCHEMA_ORDER'])\n")
+            fake_swift.chmod(0o755)
+            base = dict(developer_dir="unused", model="fixture", endpoint="http://127.0.0.1:1234/v1", input_characters=24000,
+                        skip_build=True, server_pid=[], app_pid=[], quantization=None, context_tokens=None,
+                        reasoning_effort=None, sample_interval=0.1, timeout=5)
+            cases = (("default", {}, "french", "alphabetical"),
+                     ("english", {"intermediate_language": "english"}, "english", "alphabetical"),
+                     ("french", {"intermediate_language": "french"}, "french", "alphabetical"),
+                     ("combined", {"intermediate_language": "english", "schema_order": "narrative-first"}, "english", "narrative-first"))
+            for name, kwargs, expected, order in cases:
+                # An ambient value must never leak into the arm.
+                with patch.dict(os.environ, {"PATH": str(directory) + os.pathsep + os.environ["PATH"], "HWYD_LIVE_LLM_INTERMEDIATE_LANGUAGE": "ambient"}), \
+                     patch.object(module, "model_metadata", return_value={"matched": False}):
+                    self.assertTrue(module.run_case(module.FIXTURES / "fr.json", directory / name, SimpleNamespace(**base, **kwargs)))
+                report = module.json.loads((directory / name / "benchmark.json").read_text())
+                self.assertEqual(report["intermediate_language"], expected)
+                self.assertEqual(report["schema_order"], order)
+                self.assertEqual((directory / name / "language.txt").read_text(), expected)
+                self.assertEqual((directory / name / "order.txt").read_text(), order)
+                self.assertTrue(any("Lexical retrieval" in value for value in report["limitations"]))
+
+    def test_run_case_rejects_unknown_intermediate_language_before_creating_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            args = SimpleNamespace(developer_dir="unused", model="fixture", endpoint="http://127.0.0.1:1234/v1", input_characters=24000,
+                                   skip_build=True, server_pid=[], app_pid=[], quantization=None, context_tokens=None,
+                                   reasoning_effort=None, sample_interval=0.1, timeout=5, intermediate_language="klingon")
+            with self.assertRaisesRegex(ValueError, "Unknown intermediate language 'klingon'"):
+                module.run_case(module.FIXTURES / "fr.json", directory / "never", args)
+            self.assertFalse((directory / "never").exists())
+
+    def test_intermediate_language_option_defaults_to_french_and_rejects_unknown(self):
+        def parse(*extra):
+            with patch("sys.argv", ["benchmark-summary.py", "--suite", "--prepare-only", *extra]), \
+                 patch.object(module, "validate_recording", return_value={}), contextlib.redirect_stdout(io.StringIO()):
+                module.main()
+        parse()
+        parse("--intermediate-language", "french")
+        parse("--intermediate-language", "english")
+        for value in ("English", "en", "klingon", ""):
+            with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+                parse("--intermediate-language", value)
+        self.assertEqual(module.INTERMEDIATE_LANGUAGES, ("french", "english"))
+
     def test_cache_seed_rejects_suite_multi_case_and_symlink_directory(self):
         with tempfile.TemporaryDirectory() as temporary:
             seed = Path(temporary)

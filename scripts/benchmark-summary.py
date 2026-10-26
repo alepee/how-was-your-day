@@ -21,6 +21,7 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "benchmarks/summary/synthetic"
 SCHEMA_ORDERS = ("alphabetical", "narrative-first")
+INTERMEDIATE_LANGUAGES = ("french", "english")
 
 
 
@@ -162,6 +163,9 @@ def copy_cache_seed(seed, destination):
             "copied_count": len(copied), "skipped_entries": skipped}
 
 def run_case(path, output, args):
+    intermediate_language = getattr(args, "intermediate_language", "french")
+    if intermediate_language not in INTERMEDIATE_LANGUAGES:
+        raise ValueError(f"Unknown intermediate language {intermediate_language!r}; expected one of {', '.join(INTERMEDIATE_LANGUAGES)}")
     output.mkdir(parents=True, exist_ok=False)
     input_info = validate_recording(path)
     seed = getattr(args, "cache_seed", None)
@@ -175,6 +179,7 @@ def run_case(path, output, args):
     schema_order = getattr(args, "schema_order", "alphabetical")
     # Always set explicitly so an ambient variable cannot silently change the arm.
     env["HWYD_LIVE_LLM_SCHEMA_ORDER"] = schema_order
+    env["HWYD_LIVE_LLM_INTERMEDIATE_LANGUAGE"] = intermediate_language
     if args.reasoning_effort is not None:
         env["HWYD_LIVE_LLM_REASONING_EFFORT"] = args.reasoning_effort
     else:
@@ -192,6 +197,7 @@ def run_case(path, output, args):
               "input_path": str(path), "input_character_limit": args.input_characters,
               "reasoning_effort": args.reasoning_effort,
               "schema_order": schema_order,
+              "intermediate_language": intermediate_language,
               "quantization_label": args.quantization, "loaded_context_tokens_label": args.context_tokens,
               "model_metadata_before": model_metadata(args.endpoint, args.model), "baseline": before,
               "sample_interval_seconds": args.sample_interval, "command": command,
@@ -203,7 +209,8 @@ def run_case(path, output, args):
                               "Auto server discovery includes LM Studio GUI and all detected model workers.",
                               "Wall time includes Swift test startup and compilation unless --skip-build.",
                               "Memory and timing comparisons require one loaded model and no competing inference.",
-                              "schema_order sets the request wire order only; the order of the generated fields must be checked in the server output, which the API does not guarantee."]}
+                              "schema_order sets the request wire order only; the order of the generated fields must be checked in the server output, which the API does not guarantee.",
+                              "intermediate_language changes only the language requested from the EXTRACT, ROUTE and VERIFY stages; WRITE_TOPIC and EXECUTIVE stay French and source passages are not translated. Lexical retrieval between claims and source passages is not made cross-language by this option."]}
     if seed is not None:
         report["limitations"].append("Resumed run: cached steps skip inference; timing is not comparable with a fresh run.")
     # Persist provenance before execution, even if the runner is interrupted externally.
@@ -272,6 +279,9 @@ def main():
     parser.add_argument("--reasoning-effort", help="Optional provider-specific reasoning_effort, e.g. none")
     parser.add_argument("--schema-order", choices=SCHEMA_ORDERS, default="alphabetical",
                         help="Experimental request schema field order; alphabetical is the shipped behavior")
+    parser.add_argument("--intermediate-language", choices=INTERMEDIATE_LANGUAGES, default="french",
+                        help="Experimental language of the EXTRACT, ROUTE and VERIFY stages; french is the shipped behavior. "
+                             "Final writing stays French and source passages are untouched")
     parser.add_argument("--quantization", help="User-supplied label, not inferred")
     parser.add_argument("--context-tokens", type=int, help="Loaded server context, label only; does not configure it")
     parser.add_argument("--sample-interval", type=float, default=0.5)

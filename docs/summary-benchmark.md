@@ -95,11 +95,43 @@ Cache isolation: the benchmark `providerIdentity` is unchanged for `alphabetical
 
 What this does not show: the request order is only an input. The API does not guarantee that a server emits fields in schema order, and some engines may reorder or ignore it. Before attributing any difference to A1, confirm the generated order in the raw server output. For LM Studio, the logs under `~/.lmstudio/server-logs/` hold raw responses, so `grep -o '{\\"overview\\"' LOG | wc -l` counts responses starting with `overview` (expected for A1), and the same with `'{\\"action_items\\"'` counts those starting with `action_items` (observed for A0). Compare against the total number of calls in `metrics.json`. A single run is also a small sample: judge decision and action recall against the rubric rather than from this order check.
 
+## Experiment: English intermediate stages
+
+By default the extraction, routing and verification stages ask the model for French, even for English or mixed turns. This opt-in variant tests whether English intermediate notes improve fidelity, commitment recall or the final French prose. It is a language ablation: `EXTRACT`, `ROUTE` and `VERIFY_*` ask for English in their directive line, system instructions and textual output contract. The stage prefixes used for dispatch are unchanged. `WRITE_TOPIC` and `EXECUTIVE` are byte-identical to the default prompts and still ask for French, so the final chapter prose and overview are written in French. There is no translation call.
+
+```sh
+python3 scripts/benchmark-summary.py \
+  --recording build/summary-benchmark/local/recording.json \
+  --model MODEL_IDENTIFIER \
+  --reasoning-effort none \
+  --intermediate-language english \
+  --skip-build \
+  --output build/summary-benchmark/MODEL-english-intermediate
+```
+
+`--intermediate-language` (`french` by default, or `english`) sets `HWYD_LIVE_LLM_INTERMEDIATE_LANGUAGE` for the Swift test, always explicitly so an ambient variable cannot change the arm. It is recorded as `intermediate_language` in `benchmark.json` and `metrics.json`, and it combines with `--schema-order`. An unknown value is rejected by the command line, and by the Swift test before any inference. The production application does not expose or enable it.
+
+What changes: the directive and system wording of `EXTRACT`, `ROUTE`, `VERIFY_ACTIONS` and `VERIFY_DECISIONS`, the verification retry feedback, the English planning instructions, the textual output contract of these stages, and the harness-written `candidate.overview` label in the verification payload. The English wording is an independent translation of the French rules, with the same constraints, field names and limits.
+
+What does not change: the call count and call order, the input character ceiling, windowing, output budgets, the JSON schema sent to the server, temperature, semantic guards, owner and date checks, stable IDs, speaker labels, timestamps, dates, and the original transcript passages, which stay in their original language (French, English or mixed). Progress and error strings stay French.
+
+Cache isolation: the benchmark `providerIdentity` is unchanged for `french`. For `english` it gains the suffix `|intermediate-language=english`, appended after any `|schema-order=...` suffix, so the four schema order and language combinations have distinct identities. The workflow also derives its prompt version and hash from the provider language: the French values are unchanged, so existing checkpoints stay valid, and the English hash covers the rendered English prompt texts with length-prefixed parts. English and French checkpoints are never shared, even if a caller reuses the same provider identity or `--cache-seed`.
+
+Limits to keep in mind when reading a result:
+
+- Lexical retrieval across languages is not fixed. Verification context is still selected by comparing claim words with source words after accent folding. With English intermediates, claims match English passages and English extraction cards better, and French passages mostly through the cards. With French intermediates it is the reverse. A change in recall can come from retrieval, not only from the model.
+- The semantic guard that rejects empty placeholder actions only knows French phrases (such as "aucune action"). It is unchanged, so an English placeholder is not caught by it.
+- `WRITE_TOPIC` still receives English extraction notes, topic names and verified context. Its existing instruction to write natural French is the only guard against English wording leaking into the chapters or titles, which is part of what this experiment measures. Check the final text for untranslated phrases.
+- In the rare case where several chapters are written but none has a detail paragraph, the executive step is skipped and the English routing overview would be returned as is.
+- The speaker label for unattributed turns, `Voix non identifiée`, stays as it is in the source payload.
+- Prompt lengths differ slightly between languages. The ceiling is unchanged, so batching can differ at the margin.
+- A single run is a small sample, and a different arm is not evidence of a better model. Judge decisions and actions against the rubric.
+
 ## Artifacts and interpretation
 
 | File | Contents |
 |---|---|
-| `benchmark.json` | Input checksum, model metadata when available, parameters (including `schema_order`), status, timing, memory peaks and review status |
+| `benchmark.json` | Input checksum, model metadata when available, parameters (including `schema_order` and `intermediate_language`), status, timing, memory peaks and review status |
 | `memory.jsonl` | Sampled process groups, per-process RSS and physical footprint |
 | `swift-test.log` | Test output and progress; may contain private data |
 | `result.json`, `summary.md` | Generated output from the Swift workflow |
