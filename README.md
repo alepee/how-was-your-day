@@ -34,7 +34,7 @@ brew upgrade --cask how-was-your-day
 
 ## Current limitations
 
-Capture and speaker identity are experimental. Automatic echo rejection is not connected, so speakerphone audio may appear on both tracks. Changing audio devices stops the recording. Transcription runs after capture, with a fixed French locale; code-switching quality is not established.
+Capture and speaker identity are experimental. Development builds apply experimental offline acoustic echo cancellation to a temporary microphone copy for dual-track transcriptions before speech recognition and diarization. Original playback audio is unchanged. Residual echo and simultaneous speech still require review. Existing transcripts need reprocessing. Changing audio devices stops the recording. Transcription runs after capture, with a fixed French locale; code-switching quality is not established.
 
 Summaries require a separately running local server. Embedded MLX inference and remote API providers are not implemented. Structured output and source references do not guarantee accuracy: small models can omit decisions or distort details. Longer sessions use windowed generation and reduction, which also needs broader evaluation.
 

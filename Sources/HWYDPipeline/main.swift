@@ -33,9 +33,14 @@ import HWYDCore
                 if command == "transcribe-calibration", request.diarize != true {
                     throw CLIError(message: "La calibration nécessite diarize: true dans la requête.")
                 }
-                var result = try await TranscriptionPipeline.run(request, store: store, recognizer: AppleSpeechRecognizer())
+                let working = URL(fileURLWithPath: args[3]).deletingLastPathComponent().appendingPathComponent("echo-processing-\(UUID())")
+                try FileManager.default.createDirectory(at: working, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+                defer { try? FileManager.default.removeItem(at: working) }
+                let prepared = try EchoCancellation.prepare(request, store: store, directory: working)
+                var result = try await TranscriptionPipeline.run(request, store: store, recognizer: AppleSpeechRecognizer(), audioOverrides: prepared.chunks)
+                result.echoCancellationEngine = prepared.engine
                 if request.diarize == true {
-                    result = try await DiarizationStage.run(result, store: store, workingDirectory: URL(fileURLWithPath: args[3]).deletingLastPathComponent(), diagnosticURL: command == "transcribe-calibration" ? URL(fileURLWithPath: args[3] + ".alignment.json") : nil)
+                    result = try await DiarizationStage.run(result, store: store, workingDirectory: URL(fileURLWithPath: args[3]).deletingLastPathComponent(), diagnosticURL: command == "transcribe-calibration" ? URL(fileURLWithPath: args[3] + ".alignment.json") : nil, microphoneOverride: prepared.microphone)
                 }
                 try JSONEncoder().encode(result).write(to: URL(fileURLWithPath: args[3]), options: .atomic)
             case "echo-diagnostic" where args.count == 4:

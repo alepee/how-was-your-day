@@ -25,7 +25,6 @@ import HWYDCore
     private var observer: NSObjectProtocol?
     private var refreshing = false
     private var revision = 0
-    private var handled: [String: Double] = [:]
     private var center: UNUserNotificationCenter { .current() }
     static let prefix = "hwyd.meeting."
     struct CalendarChoice: Identifiable { var id: String; var title: String; var account: String }
@@ -37,12 +36,14 @@ import HWYDCore
         leadMinutes = [0, 1, 5, 10, 15].contains(preferences.integer(forKey: "calendar.lead")) && preferences.object(forKey: "calendar.lead") != nil ? preferences.integer(forKey: "calendar.lead") : 5
         excludedKeywords = preferences.string(forKey: "calendar.exclusions") ?? "RH, entretien, médical"
         selectedCalendars = Set(preferences.stringArray(forKey: "calendar.selected") ?? [])
-        handled = preferences.dictionary(forKey: "calendar.handled") as? [String: Double] ?? [:]
         super.init()
     }
     func start() {
         guard allowed, !active else { return }
         active = true
+        // Legacy clicks suppressed an occurrence even after its recording was deleted.
+        // Calendar reminders are independent of capture history.
+        preferences.removeObject(forKey: "calendar.handled")
         center.delegate = self
         let join = UNNotificationAction(identifier: "join-record", title: "Rejoindre et enregistrer", options: [.foreground])
         let record = UNNotificationAction(identifier: "record", title: "Enregistrer la réunion", options: [.foreground])
@@ -140,10 +141,8 @@ import HWYDCore
         notificationStatus = settings.authorizationStatus == .authorized ? "Notifications autorisées" : "Notifications non autorisées dans macOS"
         guard reminders, settings.authorizationStatus == .authorized else { clearReminders(); return }
         let now = Date()
-        handled = handled.filter { $0.value > now.timeIntervalSince1970 }
-        preferences.set(handled, forKey: "calendar.handled")
         let scheduled = Array(upcoming.compactMap { event -> (CalendarContext, Date)? in
-            guard handled[event.id] == nil, let date = MeetingRules.reminderDate(start: event.start, minutes: leadMinutes, now: now) else { return nil }
+            guard let date = MeetingRules.reminderDate(start: event.start, minutes: leadMinutes, now: now) else { return nil }
             return (event, date)
         }.prefix(48))
         let ids = Set(scheduled.map { Self.prefix + $0.0.id })
@@ -184,9 +183,7 @@ import HWYDCore
             status = "Cette réunion n’est plus disponible ou a été déplacée."; onAction?(nil); return
         }
         center.removeDeliveredNotifications(withIdentifiers: [Self.prefix + id])
-        center.removePendingNotificationRequests(withIdentifiers: [Self.prefix + id])
-        handled[id] = event.end.timeIntervalSince1970
-        preferences.set(handled, forKey: "calendar.handled")
+        // Opening or recording an event does not dismiss its future calendar reminder.
         onAction?(event)
     }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {

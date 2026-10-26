@@ -14,6 +14,7 @@ public struct TranscriptionRequest: Codable, Sendable {
     public var locale: String
     public var chunks: [AudioChunk]
     public var diarize: Bool?
+    public var echoCancellation: Bool?
     public init(recordingID: UUID, locale: String = "fr-FR", chunks: [AudioChunk], diarize: Bool = false) {
         self.recordingID = recordingID; self.locale = locale; self.chunks = chunks; self.diarize = diarize
     }
@@ -21,6 +22,7 @@ public struct TranscriptionRequest: Codable, Sendable {
 public struct TranscriptionProvenance: Codable, Equatable, Sendable {
     public var engine: String
     public var diarizationEngine: String?
+    public var echoCancellationEngine: String?
     public var locale: String
     public var createdAt: Date
 }
@@ -28,6 +30,7 @@ public struct TranscriptionResult: Codable, Sendable {
     public var request: TranscriptionRequest
     public var engine: String
     public var diarizationEngine: String?
+    public var echoCancellationEngine: String?
     public var createdAt: Date
     public var segments: [TranscriptSegment]
     public var speakers: [Speaker]?
@@ -108,12 +111,12 @@ public actor AppleSpeechRecognizer: SpeechRecognizing {
 }
 
 public enum TranscriptionPipeline {
-    public static func run(_ request: TranscriptionRequest, store: SessionStore, recognizer: any SpeechRecognizing) async throws -> TranscriptionResult {
+    public static func run(_ request: TranscriptionRequest, store: SessionStore, recognizer: any SpeechRecognizing, audioOverrides: [UUID: URL] = [:]) async throws -> TranscriptionResult {
         guard !request.chunks.isEmpty, request.chunks.allSatisfy({ $0.start.isFinite && $0.start >= 0 && $0.duration.isFinite && $0.duration > 0 }) else { throw TranscriptionError.invalidAudio }
         var segments: [TranscriptSegment] = []
         for chunk in request.chunks.sorted(by: { $0.start < $1.start }) {
             try Task.checkCancellation()
-            segments += try await recognizer.transcribe(file: store.audioURL(for: chunk), chunk: chunk, locale: request.locale)
+            segments += try await recognizer.transcribe(file: audioOverrides[chunk.id] ?? store.audioURL(for: chunk), chunk: chunk, locale: request.locale)
         }
         segments.sort { $0.start == $1.start ? $0.source.rawValue < $1.source.rawValue : $0.start < $1.start }
         return TranscriptionResult(request: request, segments: segments)
@@ -122,7 +125,7 @@ public enum TranscriptionPipeline {
 extension Recording {
     public mutating func applyTranscription(_ result: TranscriptionResult) throws {
         guard id == result.request.recordingID, audioChunks == result.request.chunks, state != .recording else { throw TranscriptionError.staleResult }
-        transcription = .init(engine: result.engine, diarizationEngine: result.diarizationEngine, locale: result.request.locale, createdAt: result.createdAt)
+        transcription = .init(engine: result.engine, diarizationEngine: result.diarizationEngine, echoCancellationEngine: result.echoCancellationEngine, locale: result.request.locale, createdAt: result.createdAt)
         segments = result.segments; speakers = result.speakers ?? []; transcriptVersion += 1; transcriptState = .ready; summary = nil
     }
 }

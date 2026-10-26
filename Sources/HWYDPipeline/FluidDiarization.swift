@@ -21,7 +21,7 @@ enum DiarizationStage {
         let manager = OfflineDiarizerManager(config: OfflineDiarizerConfig())
         try await manager.prepareModels(directory: directory)
     }
-    static func run(_ result: TranscriptionResult, store: SessionStore, workingDirectory: URL, diagnosticURL: URL? = nil) async throws -> TranscriptionResult {
+    static func run(_ result: TranscriptionResult, store: SessionStore, workingDirectory: URL, diagnosticURL: URL? = nil, microphoneOverride: URL? = nil) async throws -> TranscriptionResult {
         ModelHub.offlineMode = true
         let folder = workingDirectory.appendingPathComponent("diarization-\(UUID())")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
@@ -31,8 +31,12 @@ enum DiarizationStage {
         for source in [HWYDCore.AudioSource.mic, .system] {
             let chunks = result.request.chunks.filter { $0.source == source }.sorted { $0.start < $1.start }
             guard !chunks.isEmpty, result.segments.contains(where: { $0.source == source }) else { continue }
-            let file = folder.appendingPathComponent("\(source.rawValue).caf")
-            try assemble(chunks, store: store, destination: file)
+            let file: URL
+            if source == .mic, let microphoneOverride { file = microphoneOverride }
+            else {
+                file = folder.appendingPathComponent("\(source.rawValue).caf")
+                try assemble(chunks, store: store, destination: file)
+            }
             turns += try await diarizer.diarize(file: file, source: source)
         }
         if let diagnosticURL {

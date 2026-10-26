@@ -134,7 +134,7 @@ struct DetailView: View {
                     }
                 }.padding(17).frame(maxWidth: .infinity, alignment: .leading).background(Studio.surface, in: RoundedRectangle(cornerRadius: 7))
             }
-            Label(recording.transcription?.diarizationEngine != nil ? "Voix séparées par piste. Rejet d’écho non appliqué. Aucun enrôlement vocal." : recording.speakers.isEmpty ? "Diarisation et rejet d’écho non appliqués à ce transcript." : "Nommer une voix ne crée pas d’empreinte vocale.", systemImage: "hand.raised").font(.system(size: 11)).foregroundStyle(Studio.muted).padding(.top, 6)
+            Label(recording.transcription?.echoCancellationEngine != nil ? "Écho du système atténué sur le micro avant transcription. Audio original conservé. Aucun enrôlement vocal." : recording.transcription?.diarizationEngine != nil ? "Voix séparées par piste. Rejet d’écho non appliqué. Aucun enrôlement vocal." : recording.speakers.isEmpty ? "Diarisation et rejet d’écho non appliqués à ce transcript." : "Nommer une voix ne crée pas d’empreinte vocale.", systemImage: "hand.raised").font(.system(size: 11)).foregroundStyle(Studio.muted).padding(.top, 6)
         }
     }
     @ViewBuilder private var summary: some View {
