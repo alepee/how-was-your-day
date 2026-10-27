@@ -111,6 +111,12 @@ All intermediate extractions were in English. Two final reports ignored the Fren
 
 The variant remains benchmark-only. No production default changed. There was one run per input, a model reload between this arm and A0, and a brief overlapping loopback fixture test with no competing model inference. Times are descriptive, not evidence of a speed improvement. The short-case failures do not justify treating this variant as a solution for the 90-minute recording. Next work should address statement classification and grounded commitment extraction; language choice alone has not solved either.
 
+## Typed-ledger follow-up
+
+The [typed-ledger experiment](summary-ledger-experiment.md) separates statement extraction from prose writing and assembles commitment lists in code. On nine development cases, its selected variant recovered 34/36 tasks with the expected owner, versus 19/36 for v7, including failed v7 cases as misses. However, eight of nine held-out cases still contained a blocking error despite recovering 37/39 expected tasks. Recall alone hides invented tasks and incorrect state changes.
+
+The prototype is rejected for production. The 90-minute recording was not processed with it because the short-case fidelity gate failed. This experiment changes several pipeline components, including long-session chapter organization, so it does not isolate the causal benefit of typed categories. Its generated prose and task-list results must be assessed separately. The parent reran all 44 deterministic prototype tests and the fixture consistency check successfully; these validate implementation invariants, not model fidelity.
+
 ## Reproduce
 
 Use [the benchmark harness and procedure](summary-benchmark.md). Run each candidate with a fresh output directory and the same fixtures. Preserve model metadata, workflow version, memory samples and the manual review. Do not publish private recordings or their generated summaries with the results.
