@@ -78,7 +78,7 @@ Nine cases (`h1`, `h2`, `h3`, each in three language forms), shipped bounds, led
 
 Counterexamples: a job left to an absent person was attributed to the present speaker (`h1`, `h3`); a chair's agenda wish and a collective "we will meet to finish" became personal tasks (`h1`); a refusal phrased outside the cue list ("je ne vais pas m'avancer") grounded a task (`h2`); an unowned obligation was linked to the speaker of another promise (`h2`); a personal habit was listed as a decision or a task, and a fact as a task (`h3`); third-party doubts became a cancellation decision (`h3`); a cancelled request and a corrected deliverable stayed active (`h3` mixed). One gate comes from a rule flaw: a withdrawal raised by a third party was applied because the model cited the owner's original promise as the owner's confirmation (`h2` mixed). The fix, requiring a later owner turn distinct from the item, was found on holdout data and is not applied here.
 
-The development result (one case with a gate out of nine) therefore did not generalize. Not run, for lack of time: `h3` in four windows, v7 on the holdout, a 9B confirmation and the 90-minute recording.
+The development result (one case with a gate out of nine) therefore did not generalize. Not run, for lack of time: `h3` in four windows, v7 on the holdout, a 9B confirmation and the 90-minute recording. The 9B development pass was run afterwards; see [the capacity follow-up](summary-capacity-followup.md).
 
 ### Several windows (development, mechanism only)
 
