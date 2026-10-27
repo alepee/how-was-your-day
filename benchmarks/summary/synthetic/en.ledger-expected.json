@@ -1,0 +1,289 @@
+{
+  "schema": "hwyd-ledger-expected/1",
+  "synthetic": true,
+  "split": "dev",
+  "scenario": "atlas",
+  "input_language": "en",
+  "output_language": "fr",
+  "participants": [
+    "Camille",
+    "Jordan"
+  ],
+  "items": [
+    {
+      "id": "D1",
+      "phenomena": [
+        "rejected_proposal_then_alternative"
+      ],
+      "description": "Internal pilot of twenty people without customer data; no Friday public launch.",
+      "match_segment_ids": [
+        "F77747F5-FD41-5B4B-B969-A716BEB76E69",
+        "FE857FEF-73D0-5A34-B9A9-B511FDFBBA65",
+        "C080B519-77B4-50A8-9A44-440FA86DF2CE"
+      ],
+      "expected_section": "decision",
+      "acceptable_sections": [
+        "decision"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null
+    },
+    {
+      "id": "D2",
+      "phenomena": [
+        "collective_decision"
+      ],
+      "description": "Pilot languages are English and French, without promising Spanish.",
+      "match_segment_ids": [
+        "0DAE7D08-66AA-5E0E-93DE-435C8E6DBA6A"
+      ],
+      "expected_section": "decision",
+      "acceptable_sections": [
+        "decision"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null
+    },
+    {
+      "id": "D3",
+      "phenomena": [
+        "collective_decision"
+      ],
+      "description": "Public announcement postponed until the tests are validated.",
+      "match_segment_ids": [
+        "F85DEC3D-4CE7-5C74-8E04-A3CA9CA374C0"
+      ],
+      "expected_section": "decision",
+      "acceptable_sections": [
+        "decision"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "The same turn also says nobody is assigned to send it; a to-confirm item citing it is not an error."
+    },
+    {
+      "id": "A1",
+      "phenomena": [
+        "third_party_request_accepted"
+      ],
+      "description": "Jordan fixes the revocation test and submits the result.",
+      "match_segment_ids": [
+        "1CA74719-64DA-58DE-8D41-D86E1F663813",
+        "47935A5B-9648-5997-9ADA-D3B8EA4D03F2",
+        "935B8E4A-938D-5DA6-B84D-0807F7ABD1BB"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Jordan",
+      "final_status": "active",
+      "due_text_contains": [
+        "30",
+        "octobre"
+      ],
+      "due_date": null
+    },
+    {
+      "id": "A2",
+      "phenomena": [
+        "late_correction"
+      ],
+      "description": "Camille delivers a draft pilot guide, not the final guide.",
+      "match_segment_ids": [
+        "DC363197-F0E3-5D89-919D-9A6D6A3571AE"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Camille",
+      "final_status": "active",
+      "due_text_contains": [
+        "29",
+        "octobre"
+      ],
+      "due_date": null
+    },
+    {
+      "id": "A2-initial",
+      "phenomena": [
+        "late_correction"
+      ],
+      "description": "Initial promise of the pilot guide, replaced by the draft.",
+      "match_segment_ids": [
+        "9B0877A4-83A5-56F9-99CF-85A1D9F21DDD"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Camille",
+      "final_status": "superseded",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "A single item citing both S7 and S15 with the draft as final state is acceptable."
+    },
+    {
+      "id": "U1",
+      "phenomena": [
+        "no_owner"
+      ],
+      "description": "Finance must still answer; nobody owns the follow-up.",
+      "match_segment_ids": [
+        "54DE1AC2-298B-5E83-9461-F245DCBB116F"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm",
+        "open"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null
+    },
+    {
+      "id": "U2",
+      "phenomena": [
+        "no_owner"
+      ],
+      "description": "Legal opinion needed; nobody commits to requesting it.",
+      "match_segment_ids": [
+        "3D7DC4A0-ABFD-5C12-9988-65A4524B4382"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm",
+        "open"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null
+    },
+    {
+      "id": "O1",
+      "phenomena": [
+        "open_question"
+      ],
+      "description": "Budget cap of 12,000 EUR proposed, not approved.",
+      "match_segment_ids": [
+        "03F53C3C-C511-56D2-95CE-D46114A404A4"
+      ],
+      "expected_section": "open",
+      "acceptable_sections": [
+        "open",
+        "to_confirm"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null
+    },
+    {
+      "id": "O2",
+      "phenomena": [
+        "open_question"
+      ],
+      "description": "Log retention: 30 or 7 days, undecided.",
+      "match_segment_ids": [
+        "89581454-2A66-5213-ACAB-A80BEC9CCA96",
+        "A794E8D7-2EFC-582E-A8DE-83B42B1FF8B7"
+      ],
+      "expected_section": "open",
+      "acceptable_sections": [
+        "open",
+        "to_confirm"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null
+    },
+    {
+      "id": "O3",
+      "phenomena": [
+        "deferred_idea"
+      ],
+      "description": "Spanish translation is an idea for later.",
+      "match_segment_ids": [
+        "26941625-66D0-56A0-B95A-A7538748F75C"
+      ],
+      "expected_section": "open",
+      "acceptable_sections": [
+        "open"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null
+    }
+  ],
+  "forbidden": [
+    {
+      "id": "F1",
+      "description": "Spanish translation becomes a task",
+      "section": "task",
+      "owner": null,
+      "match_segment_ids": [
+        "26941625-66D0-56A0-B95A-A7538748F75C"
+      ]
+    },
+    {
+      "id": "F2",
+      "description": "Budget or retention becomes a decision",
+      "section": "decision",
+      "owner": null,
+      "match_segment_ids": [
+        "03F53C3C-C511-56D2-95CE-D46114A404A4",
+        "54DE1AC2-298B-5E83-9461-F245DCBB116F",
+        "89581454-2A66-5213-ACAB-A80BEC9CCA96",
+        "A794E8D7-2EFC-582E-A8DE-83B42B1FF8B7",
+        "3D7DC4A0-ABFD-5C12-9988-65A4524B4382"
+      ]
+    },
+    {
+      "id": "F3",
+      "description": "Owner-less finance, legal or announcement follow-up becomes a task",
+      "section": "task",
+      "owner": null,
+      "match_segment_ids": [
+        "54DE1AC2-298B-5E83-9461-F245DCBB116F",
+        "3D7DC4A0-ABFD-5C12-9988-65A4524B4382",
+        "F85DEC3D-4CE7-5C74-8E04-A3CA9CA374C0"
+      ]
+    },
+    {
+      "id": "F4",
+      "description": "Adoption metric becomes a task",
+      "section": "task",
+      "owner": null,
+      "match_segment_ids": [
+        "A7FCBF04-40F2-52C1-BCBB-66FFB97B5F8A"
+      ]
+    }
+  ],
+  "forbidden_claims": [
+    "Public launch approved for Friday",
+    "Final guide promised for October 29",
+    "Spanish translation assigned",
+    "Budget of 12000 EUR approved",
+    "Retention of 7 or 30 days approved",
+    "Twenty percent adoption",
+    "Camille owns customer training",
+    "An invented owner or deadline for Legal or Finance"
+  ],
+  "detail_checks": [
+    "Twenty active users; unknown denominator",
+    "Camille changed the deliverable from final guide to draft",
+    "Rejected proposals must remain distinguishable from decisions"
+  ],
+  "notes": "Ledger-format reading of the original Atlas expectations, written before any ledger run. Matching uses cited turns, so the same turn can support a decision and a to-confirm item."
+}

@@ -1,0 +1,280 @@
+{
+  "schema": "hwyd-ledger-expected/1",
+  "synthetic": true,
+  "split": "holdout",
+  "scenario": "h2-renovation-site-meeting",
+  "input_language": "en",
+  "output_language": "fr",
+  "participants": [
+    "Gaëlle",
+    "Théo",
+    "Rachid"
+  ],
+  "items": [
+    {
+      "id": "E1",
+      "phenomena": [
+        "collective_decision"
+      ],
+      "description": "Collective decision for the whole site: noisy work only from 9 a.m. to 5 p.m., Monday to Friday.",
+      "match_segment_ids": [
+        "49BE83E9-1BB0-5ED1-B21A-F19452E7381B",
+        "A77DCE40-57D7-582F-BE9F-3393CB2410FB",
+        "3BEDA010-3519-5358-BA56-1A96F5C8B300",
+        "DCE6466F-2394-548F-B194-6CFB90FA0B0B"
+      ],
+      "expected_section": "decision",
+      "acceptable_sections": [
+        "decision"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": ""
+    },
+    {
+      "id": "E2",
+      "phenomena": [
+        "late_correction",
+        "relative_deadline"
+      ],
+      "description": "Théo has the partitions of the two consulting rooms up by Wednesday next week, revised from Friday because the plasterer can only come on Tuesday.",
+      "match_segment_ids": [
+        "107FD67A-8908-5F58-84A1-27314078B6ED",
+        "F0659FDE-48C8-5335-B645-5078C412B374",
+        "96CDE651-42D2-5DB3-A6C1-4EC86DE6AF48"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Théo",
+      "final_status": "active",
+      "due_text_contains": [
+        "mercredi"
+      ],
+      "due_date": null,
+      "notes": "One commitment corrected in place by its owner; Friday is no longer the deadline. The plasterer's call comes from an unidentified voice and only supports the correction. Original statement at turn 2; change at turn 15, 13 turns later."
+    },
+    {
+      "id": "E3",
+      "phenomena": [
+        "third_party_assignment",
+        "false_withdrawal_third_party",
+        "relative_deadline"
+      ],
+      "description": "Théo takes the basement wall humidity readings on Monday with a moisture meter and sends the measurements; asked by Gaëlle, who kept it when Rachid called it pointless.",
+      "match_segment_ids": [
+        "21B4F37A-E59C-5C45-9E59-4D3F453F6651",
+        "3D98C551-E135-5A97-95F8-AB3DAFD05FFC",
+        "139A7102-384C-5A80-96DD-E852FB3457AE",
+        "9031CDF5-DD58-5D21-BCC0-430666023C15"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Théo",
+      "final_status": "active",
+      "due_text_contains": [
+        "lundi"
+      ],
+      "due_date": null,
+      "notes": "Rachid is neither the owner nor the requester; the requester explicitly keeps the task at turn 22. Original statement at turn 4; change at turn 21, 17 turns later."
+    },
+    {
+      "id": "E4",
+      "phenomena": [
+        "request_without_acceptance"
+      ],
+      "description": "Written approval from the managing agent for the boiler flue outlet: Gaëlle asked Rachid, who would not commit and changed the subject; nobody owns it.",
+      "match_segment_ids": [
+        "19FCD979-E926-55D2-97FF-C3B2EEB44077",
+        "B058CBE6-0355-58E8-B7D5-A6FB46F50285"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": ""
+    },
+    {
+      "id": "E5",
+      "phenomena": [
+        "reported_speech",
+        "quoted_later_commits",
+        "relative_deadline"
+      ],
+      "description": "Rachid sends the bathroom tile choice by Friday at the latest; first reported by Théo, then confirmed by Rachid himself.",
+      "match_segment_ids": [
+        "ED653BB6-87A9-5A1A-85FA-7EFCBEB5B0B9",
+        "8C433564-3174-5FD0-ABB5-91B7B70436E7"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Rachid",
+      "final_status": "active",
+      "due_text_contains": [
+        "vendredi"
+      ],
+      "due_date": null,
+      "notes": "Rachid's own words at turn 16 make it a task."
+    },
+    {
+      "id": "E6",
+      "phenomena": [
+        "no_owner"
+      ],
+      "description": "The upstairs neighbour must be notified before the slab core drilling (planned in about ten days); nobody took it on.",
+      "match_segment_ids": [
+        "39BD9F7F-94EE-5ED9-9546-AA94262E935D",
+        "5846E3F1-3093-5743-85DA-29B7CC5CAF4E"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "The timing is an event (the drilling), not a date, so due_text_contains is empty. Théo only gives the drilling schedule."
+    },
+    {
+      "id": "E7",
+      "phenomena": [
+        "self_assignment",
+        "relative_deadline"
+      ],
+      "description": "Gaëlle picks up the paint samples from the supplier on Tuesday at the end of the day, after nobody volunteered.",
+      "match_segment_ids": [
+        "EB2B271F-DD96-52AC-8BAD-4E67A47A2873",
+        "354A059D-FC5D-571A-8114-CF2DF289605D"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Gaëlle",
+      "final_status": "active",
+      "due_text_contains": [
+        "mardi"
+      ],
+      "due_date": null,
+      "notes": ""
+    },
+    {
+      "id": "E8",
+      "phenomena": [
+        "iso_date"
+      ],
+      "description": "Gaëlle sends the accessibility file to the town hall before 2026-11-27.",
+      "match_segment_ids": [
+        "8E41B47B-55C0-5521-BB45-1C1E4624718F",
+        "2D0AA22C-12D2-5687-A604-775A56E19C57"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Gaëlle",
+      "final_status": "active",
+      "due_text_contains": [
+        "27"
+      ],
+      "due_date": "2026-11-27",
+      "notes": "Literal ISO date read from the acknowledgement of receipt. due_text_contains holds only the day number so that '27 novembre 2026' and '2026-11-27' both match."
+    }
+  ],
+  "forbidden": [
+    {
+      "id": "F1",
+      "phenomena": [
+        "personal_choice"
+      ],
+      "description": "Théo switching to a tablet for his site notes is a personal choice, not a team decision.",
+      "section": "decision",
+      "owner": null,
+      "match_segment_ids": [
+        "0CC6ADB3-1BC3-5501-B08A-A227FE1E1A3F"
+      ]
+    },
+    {
+      "id": "F2",
+      "phenomena": [
+        "request_without_acceptance"
+      ],
+      "description": "No task, for anyone, to obtain the managing agent's approval.",
+      "section": "task",
+      "owner": null,
+      "match_segment_ids": [
+        "19FCD979-E926-55D2-97FF-C3B2EEB44077",
+        "B058CBE6-0355-58E8-B7D5-A6FB46F50285"
+      ]
+    },
+    {
+      "id": "F3",
+      "phenomena": [
+        "reported_speech"
+      ],
+      "description": "Théo does not own the tile choice; he only reported Rachid's promise.",
+      "section": "task",
+      "owner": "Théo",
+      "match_segment_ids": [
+        "ED653BB6-87A9-5A1A-85FA-7EFCBEB5B0B9"
+      ]
+    },
+    {
+      "id": "F4",
+      "phenomena": [
+        "no_owner"
+      ],
+      "description": "No task, for anyone, to notify the upstairs neighbour.",
+      "section": "task",
+      "owner": null,
+      "match_segment_ids": [
+        "39BD9F7F-94EE-5ED9-9546-AA94262E935D",
+        "5846E3F1-3093-5743-85DA-29B7CC5CAF4E"
+      ]
+    },
+    {
+      "id": "F5",
+      "phenomena": [
+        "third_party_assignment"
+      ],
+      "description": "The humidity reading is not Gaëlle's task: she asked, Théo accepted.",
+      "section": "task",
+      "owner": "Gaëlle",
+      "match_segment_ids": [
+        "21B4F37A-E59C-5C45-9E59-4D3F453F6651",
+        "3D98C551-E135-5A97-95F8-AB3DAFD05FFC"
+      ]
+    }
+  ],
+  "forbidden_claims": [
+    "The partitions will be up by Friday.",
+    "The humidity reading is cancelled or no longer needed.",
+    "Rachid will obtain the managing agent's approval.",
+    "Théo sends the tile choice.",
+    "Théo or another participant is in charge of notifying the upstairs neighbour.",
+    "Using a tablet for site notes is a team decision.",
+    "Noisy work is allowed at weekends or before nine.",
+    "The plasterer's call is attributed to a named participant.",
+    "A calendar date (day number) is given for the Friday, Monday, Tuesday or Wednesday-next-week deadlines."
+  ],
+  "detail_checks": [
+    "Site meeting number six; two weeks behind on the structural work.",
+    "The opening in the load-bearing wall is done and propped; two consulting rooms.",
+    "The doctors want to visit at the end of November.",
+    "The plasterer can only come on Tuesday because his truck broke down.",
+    "Core drilling scheduled in ten days with a rented machine.",
+    "Humidity measurements are needed for the ten-year warranty, lime plaster or not."
+  ]
+}

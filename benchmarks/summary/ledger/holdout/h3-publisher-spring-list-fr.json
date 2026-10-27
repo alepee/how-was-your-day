@@ -1,0 +1,496 @@
+{
+  "id": "11AA7296-868E-58AD-8C26-E059364F0B46",
+  "title": "Synthetic spring list editorial meeting (fr)",
+  "kind": "meeting",
+  "startedAt": 814176000,
+  "duration": 465,
+  "state": "sealed",
+  "revision": 0,
+  "transcriptVersion": 1,
+  "notes": "",
+  "noteEntries": [],
+  "speakers": [
+    {
+      "id": "5D2EC264-CA51-5D7F-9205-F262657F1F18",
+      "personID": "D11396F1-0A48-5671-99B4-F0AFCE6DACEA",
+      "label": "Agnès",
+      "confirmed": true,
+      "source": "mic"
+    },
+    {
+      "id": "B79B3811-0D05-57FF-92AF-6FD66FEA86ED",
+      "personID": "4B052F0C-E970-59C0-84CD-821B120F1526",
+      "label": "Benoît",
+      "confirmed": true,
+      "source": "system"
+    },
+    {
+      "id": "D67ABF2B-C32D-543F-B817-3BAC6D414082",
+      "personID": "596B10E9-9DE1-583C-8044-59F1CA5C0187",
+      "label": "Nora",
+      "confirmed": true,
+      "source": "system"
+    },
+    {
+      "id": "1E62F0D9-B9CE-596E-A16B-6C0FAC626109",
+      "personID": "573C2595-332D-5610-855C-7F64C2F2C4F7",
+      "label": "Loïc",
+      "confirmed": true,
+      "source": "system"
+    }
+  ],
+  "segments": [
+    {
+      "id": "7E71E15D-913C-5E1C-8176-BF0D7E09AFB7",
+      "start": 0.0,
+      "end": 18.2,
+      "speakerID": "5D2EC264-CA51-5D7F-9205-F262657F1F18",
+      "source": "mic",
+      "text": "Bonjour à tous. Revue de la rentrée de printemps : le premier roman d’Inès Delorme, l’essai traduit de l’italien et le livre de photos sur les phares bretons. Les trois sortent en librairie la deuxième semaine de mars. Il y a beaucoup de sujets, alors allons vite."
+    },
+    {
+      "id": "162B2626-469B-52B8-8F2F-FCF83D0324C0",
+      "start": 19.5,
+      "end": 26.9,
+      "speakerID": "B79B3811-0D05-57FF-92AF-6FD66FEA86ED",
+      "source": "system",
+      "text": "Avant de commencer, l’imprimeur a confirmé ses délais : trois semaines entre le bon à tirer et la livraison."
+    },
+    {
+      "id": "F7F09396-27E5-5885-80A2-FB55B232FF06",
+      "start": 28.0,
+      "end": 40.3,
+      "speakerID": "B79B3811-0D05-57FF-92AF-6FD66FEA86ED",
+      "source": "system",
+      "text": "Côté fabrication, le roman fait deux cent quatre-vingts pages. Pour le tirage, je propose trois mille exemplaires : c’est le seuil où le prix unitaire passe sous les deux euros."
+    },
+    {
+      "id": "B9AB241B-1735-574A-BCBE-37B969440550",
+      "start": 41.2,
+      "end": 48.6,
+      "speakerID": "1E62F0D9-B9CE-596E-A16B-6C0FAC626109",
+      "source": "system",
+      "text": "Les représentants sont confiants, le roman a été bien reçu à la réunion de lancement. Trois mille, ça me va."
+    },
+    {
+      "id": "8DAC7510-322C-5534-8E22-010E59841112",
+      "start": 49.3,
+      "end": 51.2,
+      "speakerID": "D67ABF2B-C32D-543F-B817-3BAC6D414082",
+      "source": "system",
+      "text": "Trois mille, pour moi aussi."
+    },
+    {
+      "id": "EB0C9EE1-9FC7-533B-BF33-F82B01238A34",
+      "start": 52.6,
+      "end": 58.9,
+      "speakerID": "5D2EC264-CA51-5D7F-9205-F262657F1F18",
+      "source": "mic",
+      "text": "Entendu, on lance le premier tirage du roman à trois mille exemplaires."
+    },
+    {
+      "id": "43B5F04D-FB07-5A1E-8B51-6631EB7633D9",
+      "start": 60.1,
+      "end": 68.9,
+      "speakerID": "B79B3811-0D05-57FF-92AF-6FD66FEA86ED",
+      "source": "system",
+      "text": "Pour le papier, l’imprimeur nous propose un bouffant ivoire de quatre-vingts grammes, le même que pour le roman de l’an dernier."
+    },
+    {
+      "id": "D8DF96A9-AD8E-533E-8FB6-D64118BE03B9",
+      "start": 69.9,
+      "end": 82.1,
+      "speakerID": "5D2EC264-CA51-5D7F-9205-F262657F1F18",
+      "source": "mic",
+      "text": "Benoît, tu peux aussi lui demander un devis pour un papier recyclé équivalent ? J’aimerais comparer, tant qu’on reste dans le budget de fabrication de quarante-deux mille euros."
+    },
+    {
+      "id": "3148BA6A-3C48-52FD-9752-36FA0C652ADA",
+      "start": 82.9,
+      "end": 85.8,
+      "speakerID": "B79B3811-0D05-57FF-92AF-6FD66FEA86ED",
+      "source": "system",
+      "text": "Oui, je lui demande le devis demain."
+    },
+    {
+      "id": "3ACFBB7C-14BD-503F-B24D-EB3A19510C3C",
+      "start": 86.4,
+      "end": 93.6,
+      "speakerID": "D67ABF2B-C32D-543F-B817-3BAC6D414082",
+      "source": "system",
+      "text": "Côté presse, je vous envoie le dossier de presse complet, avec l’entretien de l’autrice, d’ici mercredi."
+    },
+    {
+      "id": "9C353E51-EE3D-55CB-89F4-F67AE134CE04",
+      "start": 94.9,
+      "end": 107.9,
+      "speakerID": "5D2EC264-CA51-5D7F-9205-F262657F1F18",
+      "source": "mic",
+      "text": "Très bien, deux radios régionales ont déjà demandé des exemplaires. Nora, pour la soirée de présentation aux libraires début décembre, tu peux réserver la salle de la librairie Les Rives ?"
+    },
+    {
+      "id": "B493B8CA-C6D6-551F-9C4A-136C495787B7",
+      "start": 109.0,
+      "end": 113.2,
+      "speakerID": "D67ABF2B-C32D-543F-B817-3BAC6D414082",
+      "source": "system",
+      "text": "Entendu, j’appelle la librairie demain pour bloquer une date."
+    },
+    {
+      "id": "C669925F-4571-5C32-8F0D-AB553D58BC61",
+      "start": 114.1,
+      "end": 122.7,
+      "speakerID": "1E62F0D9-B9CE-596E-A16B-6C0FAC626109",
+      "source": "system",
+      "text": "Pour les représentants, je prépare une fiche argumentaire sur les trois titres d’ici vendredi, pour leur réunion commerciale."
+    },
+    {
+      "id": "64C28309-62EB-515F-B512-29738B185E48",
+      "start": 123.4,
+      "end": 132.4,
+      "speakerID": "D67ABF2B-C32D-543F-B817-3BAC6D414082",
+      "source": "system",
+      "text": "Et la tournée de l’autrice en librairies, je l’organise : une dizaine de dates entre mars et avril, surtout en Bretagne et à Paris."
+    },
+    {
+      "id": "87DDFC74-0B6F-5D1D-A83D-3363D4F1262D",
+      "start": 133.8,
+      "end": 141.2,
+      "speakerID": "B79B3811-0D05-57FF-92AF-6FD66FEA86ED",
+      "source": "system",
+      "text": "Pour le livre de photos, je commande les épreuves couleur à l’imprimeur et je les suis jusqu’au bon à tirer."
+    },
+    {
+      "id": "10056781-34A8-52D5-8752-35B88D6BC759",
+      "start": 142.4,
+      "end": 150.3,
+      "speakerID": "1E62F0D9-B9CE-596E-A16B-6C0FAC626109",
+      "source": "system",
+      "text": "Le livre de photos reste notre plus gros risque : cent vingt pages en quadrichromie, vendu vingt-neuf euros."
+    },
+    {
+      "id": "DE9FA775-ADD2-53B4-86EA-E57E59B0FEA6",
+      "start": 151.3,
+      "end": 161.3,
+      "speakerID": "5D2EC264-CA51-5D7F-9205-F262657F1F18",
+      "source": "mic",
+      "text": "Parfait. Autre point : les droits des trois photos d’archives du livre ne sont toujours pas vérifiés, et ça doit être réglé avant le bon à tirer."
+    },
+    {
+      "id": "8DE116FB-C1AC-5D04-910F-DDDFA447934F",
+      "start": 162.1,
+      "end": 168.7,
+      "speakerID": "1E62F0D9-B9CE-596E-A16B-6C0FAC626109",
+      "source": "system",
+      "text": "Pour l’essai, Pascale, notre traductrice, se chargera de relire les épreuves de la traduction."
+    },
+    {
+      "id": "C23D6945-310E-5DEA-A6E2-546410E49021",
+      "start": 169.3,
+      "end": 176.1,
+      "speakerID": "B79B3811-0D05-57FF-92AF-6FD66FEA86ED",
+      "source": "system",
+      "text": "L’essai fait cent quatre-vingt-dix pages, et la traduction est terminée à quatre-vingts pour cent."
+    },
+    {
+      "id": "2F7382A6-0DB1-5C47-8DCC-0B27E516DF2B",
+      "start": 177.4,
+      "end": 184.5,
+      "speakerID": "D67ABF2B-C32D-543F-B817-3BAC6D414082",
+      "source": "system",
+      "text": "Loïc, tu pourrais contacter le salon du livre de Genève pour nous obtenir une table ronde sur l’essai ?"
+    },
+    {
+      "id": "149330C9-C337-5EF2-9DBC-3AA78A8E9A32",
+      "start": 185.6,
+      "end": 190.7,
+      "speakerID": "1E62F0D9-B9CE-596E-A16B-6C0FAC626109",
+      "source": "system",
+      "text": "Pas pour l’instant, avec les foires de l’hiver, je suis débordé. Avançons."
+    },
+    {
+      "id": "DFA66495-AD37-54CD-96DC-F13BE05795D0",
+      "start": 191.6,
+      "end": 195.4,
+      "speakerID": "5D2EC264-CA51-5D7F-9205-F262657F1F18",
+      "source": "mic",
+      "text": "Dommage, Genève nous avait bien réussi il y a deux ans."
+    },
+    {
+      "id": "EA0AA5D0-046B-5CEA-977A-3B18BEAF3E3E",
+      "start": 196.1,
+      "end": 202.9,
+      "speakerID": "5D2EC264-CA51-5D7F-9205-F262657F1F18",
+      "source": "mic",
+      "text": "Benoît, cette idée de version poche de notre roman de l’an dernier, tu as pu regarder ?"
+    },
+    {
+      "id": "24C21118-9A26-5EE9-894B-51B340C3969E",
+      "start": 204.3,
+      "end": 210.8,
+      "speakerID": "B79B3811-0D05-57FF-92AF-6FD66FEA86ED",
+      "source": "system",
+      "text": "Pas encore. Je pourrais en chiffrer le coût si l’imprimeur me répond vite, mais sans promesse."
+    },
+    {
+      "id": "B79931BB-99C1-5019-A4F9-22C88DC200F6",
+      "start": 212.0,
+      "end": 220.7,
+      "speakerID": "D67ABF2B-C32D-543F-B817-3BAC6D414082",
+      "source": "system",
+      "text": "Pour les couvertures, je propose que les trois titres suivent la nouvelle charte graphique, avec le bandeau de couleur en bas."
+    },
+    {
+      "id": "DFE0B025-6951-5085-883C-40B4CDC3549E",
+      "start": 221.7,
+      "end": 227.1,
+      "speakerID": "1E62F0D9-B9CE-596E-A16B-6C0FAC626109",
+      "source": "system",
+      "text": "Oui, la nouvelle charte pour les trois, les libraires reconnaîtront la maison."
+    },
+    {
+      "id": "BCA7E858-CDFC-54E0-BAA5-26850302F2E8",
+      "start": 227.9,
+      "end": 233.5,
+      "speakerID": "B79B3811-0D05-57FF-92AF-6FD66FEA86ED",
+      "source": "system",
+      "text": "D’accord pour moi, même si le bandeau coûte deux centimes de plus par exemplaire."
+    },
+    {
+      "id": "3FECBCCA-01D2-56D1-B224-3F4190BBAEEF",
+      "start": 234.1,
+      "end": 238.1,
+      "speakerID": "5D2EC264-CA51-5D7F-9205-F262657F1F18",
+      "source": "mic",
+      "text": "Adopté : les trois couvertures suivent la nouvelle charte."
+    },
+    {
+      "id": "358215FE-D5E8-5CD3-9341-9B1413D109E5",
+      "start": 239.4,
+      "end": 247.7,
+      "speakerID": "D67ABF2B-C32D-543F-B817-3BAC6D414082",
+      "source": "system",
+      "text": "Pour ma part, j’arrête les relances téléphoniques aux journalistes, je ne passe plus que par mail. Ça me convient mieux."
+    },
+    {
+      "id": "D0453834-8B6A-5AC5-A395-72B768FAE395",
+      "start": 248.8,
+      "end": 254.5,
+      "speakerID": "1E62F0D9-B9CE-596E-A16B-6C0FAC626109",
+      "source": "system",
+      "text": "Et un livre audio du roman ? Plusieurs libraires m’en ont parlé."
+    },
+    {
+      "id": "004D08B5-977B-5A41-8921-97A905806A8A",
+      "start": 255.4,
+      "end": 261.7,
+      "speakerID": "5D2EC264-CA51-5D7F-9205-F262657F1F18",
+      "source": "mic",
+      "text": "C’est tentant, mais pas pour ce printemps. On met l’idée de côté jusqu’à l’automne prochain."
+    },
+    {
+      "id": "F6C5A37A-9853-59A5-8B1D-2BCD7E067FE4",
+      "start": 262.4,
+      "end": 266.7,
+      "speakerID": "D67ABF2B-C32D-543F-B817-3BAC6D414082",
+      "source": "system",
+      "text": "Il manque encore la quatrième de couverture du livre de photos."
+    },
+    {
+      "id": "87A70F52-DFA5-5BF5-8015-9ACDF6A0DCDB",
+      "start": 268.1,
+      "end": 269.7,
+      "speakerID": "5D2EC264-CA51-5D7F-9205-F262657F1F18",
+      "source": "mic",
+      "text": "Qui peut l’écrire ?"
+    },
+    {
+      "id": "F494F9E6-72A6-5C6B-AB83-8270934E2B2C",
+      "start": 274.7,
+      "end": 279.9,
+      "speakerID": "5D2EC264-CA51-5D7F-9205-F262657F1F18",
+      "source": "mic",
+      "text": "Bon, puisque personne ne se manifeste, je m’y colle : je l’écris pour lundi."
+    },
+    {
+      "id": "F6EECCC0-F4C4-5B64-BB39-C39D99D87133",
+      "start": 280.9,
+      "end": 286.3,
+      "speakerID": "D67ABF2B-C32D-543F-B817-3BAC6D414082",
+      "source": "system",
+      "text": "Merci. Attention, la collection limite la quatrième à mille deux cents signes."
+    },
+    {
+      "id": "A7796EA7-5118-54E9-95E5-957E00628B70",
+      "start": 287.1,
+      "end": 299.7,
+      "speakerID": "1E62F0D9-B9CE-596E-A16B-6C0FAC626109",
+      "source": "system",
+      "text": "Un mot sur les précommandes : le distributeur nous remonte six cent quarante exemplaires pour le roman, c’est moitié moins que prévu. L’essai est à quatre cents, ce qui est conforme."
+    },
+    {
+      "id": "F34905CC-69FC-5A0E-9CAF-067077C0623B",
+      "start": 300.3,
+      "end": 305.5,
+      "speakerID": "D67ABF2B-C32D-543F-B817-3BAC6D414082",
+      "source": "system",
+      "text": "Les libraires indépendants n’ont pas tous répondu, mais ça ne doublera pas."
+    },
+    {
+      "id": "33AFC214-D856-5EFC-8F00-5F4403E6E9FD",
+      "start": 306.8,
+      "end": 311.2,
+      "speakerID": "B79B3811-0D05-57FF-92AF-6FD66FEA86ED",
+      "source": "system",
+      "text": "Ça va peser sur le tirage, il faudra y revenir."
+    },
+    {
+      "id": "393C60C4-F79D-556D-81EA-A8258CA355E2",
+      "start": 312.3,
+      "end": 322.4,
+      "speakerID": "5D2EC264-CA51-5D7F-9205-F262657F1F18",
+      "source": "mic",
+      "text": "Oui. Benoît, au passage, le devis pour le papier recyclé, oublie-le, je n’en ai plus besoin : l’imprimeur n’en a qu’un en stock et il est trop fin."
+    },
+    {
+      "id": "6E0ADF28-F7FC-5CA6-A441-8D619C501E29",
+      "start": 323.3,
+      "end": 325.5,
+      "speakerID": "B79B3811-0D05-57FF-92AF-6FD66FEA86ED",
+      "source": "system",
+      "text": "Très bien, je ne le demande pas."
+    },
+    {
+      "id": "9F4B44A4-5787-544D-BC30-2C5555C7C938",
+      "start": 326.2,
+      "end": 338.3,
+      "speakerID": "D67ABF2B-C32D-543F-B817-3BAC6D414082",
+      "source": "system",
+      "text": "Petit changement sur le dossier de presse : mercredi, je n’enverrai que le communiqué, sans l’entretien. L’autrice n’est disponible pour l’entretien que la semaine suivante."
+    },
+    {
+      "id": "F18C7B08-8A23-5634-8AF3-68E4ADF26C67",
+      "start": 339.7,
+      "end": 347.9,
+      "speakerID": "1E62F0D9-B9CE-596E-A16B-6C0FAC626109",
+      "source": "system",
+      "text": "D’ailleurs, avec si peu de précommandes, la salle de la librairie Les Rives, ça devient superflu, vous ne trouvez pas ?"
+    },
+    {
+      "id": "962DB141-BA92-5FCB-BFCA-89FC1CBA0419",
+      "start": 349.1,
+      "end": 354.0,
+      "speakerID": "B79B3811-0D05-57FF-92AF-6FD66FEA86ED",
+      "source": "system",
+      "text": "Je suis d’accord avec Loïc, une soirée, c’est beaucoup pour ce chiffre."
+    },
+    {
+      "id": "4DF359BB-5788-571F-A454-58F831E86407",
+      "start": 355.0,
+      "end": 358.7,
+      "speakerID": "5D2EC264-CA51-5D7F-9205-F262657F1F18",
+      "source": "mic",
+      "text": "Passons au tirage du roman, justement."
+    },
+    {
+      "id": "DCE4863F-44E7-5F38-8C48-5F58EFEEDB05",
+      "start": 359.5,
+      "end": 378.1,
+      "speakerID": "B79B3811-0D05-57FF-92AF-6FD66FEA86ED",
+      "source": "system",
+      "text": "Avec six cent quarante précommandes, trois mille exemplaires, c’est trop risqué. Je propose de revoir notre choix de tout à l’heure et de tirer à deux mille, avec un retirage rapide si ça part bien. Un retirage de mille exemplaires prend dix jours chez notre imprimeur."
+    },
+    {
+      "id": "32285478-64CF-5A4B-8D6B-F113851CB468",
+      "start": 378.7,
+      "end": 380.7,
+      "speakerID": "1E62F0D9-B9CE-596E-A16B-6C0FAC626109",
+      "source": "system",
+      "text": "Je suis d’accord, deux mille."
+    },
+    {
+      "id": "503B4BF2-1EA4-5238-AB47-4E291F6B0736",
+      "start": 382.0,
+      "end": 384.1,
+      "speakerID": "D67ABF2B-C32D-543F-B817-3BAC6D414082",
+      "source": "system",
+      "text": "Deux mille, ça me va aussi."
+    },
+    {
+      "id": "BCE823C1-EEBE-5CCF-9AEF-3CC0BF5DFD88",
+      "start": 385.2,
+      "end": 394.2,
+      "speakerID": "5D2EC264-CA51-5D7F-9205-F262657F1F18",
+      "source": "mic",
+      "text": "Alors on abandonne les trois mille : premier tirage à deux mille exemplaires, retirage si besoin. C’est entendu pour tout le monde."
+    },
+    {
+      "id": "CA82EAA6-F83C-5579-98FA-5B5CB4382170",
+      "start": 395.1,
+      "end": 405.8,
+      "speakerID": "1E62F0D9-B9CE-596E-A16B-6C0FAC626109",
+      "source": "system",
+      "text": "Autre chose : la fiche argumentaire pour les représentants, finalement, ne comptez pas sur moi. Le diffuseur en fait une de son côté, je ne la prépare pas."
+    },
+    {
+      "id": "E0FB5B3D-D59B-5FFC-A581-77F312C9AA80",
+      "start": 406.5,
+      "end": 419.7,
+      "speakerID": "D67ABF2B-C32D-543F-B817-3BAC6D414082",
+      "source": "system",
+      "text": "Moi aussi, j’ai un souci : la tournée en librairies, je ne pourrai pas l’organiser en plus de la presse. Loïc, ça te dirait de t’en charger à ma place ? Tu connais les libraires mieux que moi."
+    },
+    {
+      "id": "34EC5F96-0D22-5B03-88DF-BA61AF044944",
+      "start": 421.1,
+      "end": 428.4,
+      "speakerID": "1E62F0D9-B9CE-596E-A16B-6C0FAC626109",
+      "source": "system",
+      "text": "D’accord, je prends la suite pour la tournée. Je vous envoie un calendrier des dates d’ici la fin du mois."
+    },
+    {
+      "id": "39AD4A8B-07F9-504B-AEFC-003386A56563",
+      "start": 429.6,
+      "end": 437.0,
+      "speakerID": "B79B3811-0D05-57FF-92AF-6FD66FEA86ED",
+      "source": "system",
+      "text": "Pour les épreuves couleur du livre de photos, je les passerais bien à Nora, si elle veut s’en occuper."
+    },
+    {
+      "id": "C173D368-4E26-5F80-AD54-B1C2939F824B",
+      "start": 438.0,
+      "end": 447.9,
+      "speakerID": "5D2EC264-CA51-5D7F-9205-F262657F1F18",
+      "source": "mic",
+      "text": "Dernier point, le calendrier : le bon à tirer du roman doit partir chez l’imprimeur le 12 novembre au plus tard. Benoît, tu t’en assures ?"
+    },
+    {
+      "id": "5C4AD133-2C49-5CED-98E7-3598D6ADD810",
+      "start": 448.7,
+      "end": 453.5,
+      "speakerID": "B79B3811-0D05-57FF-92AF-6FD66FEA86ED",
+      "source": "system",
+      "text": "Oui, je m’en assure : le bon à tirer partira le 12 novembre."
+    },
+    {
+      "id": "C24BA0CE-3307-5EF5-AEB9-63A38259B962",
+      "start": 454.1,
+      "end": 458.3,
+      "speakerID": "1E62F0D9-B9CE-596E-A16B-6C0FAC626109",
+      "source": "system",
+      "text": "Ça laisse quatre mois avant la sortie, on est dans les temps."
+    },
+    {
+      "id": "BECD05B6-355B-51CF-B0D2-E3D62FFAA998",
+      "start": 459.6,
+      "end": 462.9,
+      "speakerID": "5D2EC264-CA51-5D7F-9205-F262657F1F18",
+      "source": "mic",
+      "text": "Merci à tous. On se retrouve dans quinze jours."
+    }
+  ],
+  "transcriptState": "ready",
+  "audioChunks": [],
+  "consentAnnounced": false,
+  "isDemo": true
+}

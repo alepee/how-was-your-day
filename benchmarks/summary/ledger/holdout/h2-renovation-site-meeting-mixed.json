@@ -1,0 +1,233 @@
+{
+  "id": "21DBB2A1-062C-5840-B812-73095DAC06A0",
+  "title": "Synthetic renovation site meeting (mixed)",
+  "kind": "meeting",
+  "startedAt": 814255200,
+  "duration": 219,
+  "state": "sealed",
+  "revision": 0,
+  "transcriptVersion": 1,
+  "notes": "",
+  "noteEntries": [],
+  "speakers": [
+    {
+      "id": "F1316731-E5CB-55F9-AE29-FA82996D45F8",
+      "personID": "9ABDEC98-AF86-5ECB-8EA6-7C42397A0BB7",
+      "label": "Gaëlle",
+      "confirmed": true,
+      "source": "mic"
+    },
+    {
+      "id": "94701C73-E4F5-54A5-9C7B-928C3589B0AE",
+      "personID": "D67C3B5A-B50F-5FB9-A140-0D1F87DA8154",
+      "label": "Théo",
+      "confirmed": true,
+      "source": "system"
+    },
+    {
+      "id": "9759FE50-924C-5C15-AEA5-4CC432D748F0",
+      "personID": "0354BD9A-7D63-5BFE-B115-F2F2B2EFD75B",
+      "label": "Rachid",
+      "confirmed": true,
+      "source": "system"
+    }
+  ],
+  "segments": [
+    {
+      "id": "05928858-0588-52B1-B84A-7A49F5EB1D1C",
+      "start": 0.0,
+      "end": 13.1,
+      "speakerID": "F1316731-E5CB-55F9-AE29-FA82996D45F8",
+      "source": "mic",
+      "text": "Réunion de chantier numéro six pour le futur cabinet médical, dans l’ancienne boulangerie. On a deux semaines de retard sur le gros œuvre, il nous faut un planning réaliste en sortant d’ici."
+    },
+    {
+      "id": "05DECA3B-5777-5AD3-93D0-672F67BFEE16",
+      "start": 14.4,
+      "end": 25.8,
+      "speakerID": "94701C73-E4F5-54A5-9C7B-928C3589B0AE",
+      "source": "system",
+      "text": "Demolition is finished, the opening in the load-bearing wall is done and propped. The partitions for the two consulting rooms will be up by Friday, you have my word."
+    },
+    {
+      "id": "78D12147-0B57-5754-BD9B-FE8FBE7E8ABB",
+      "start": 26.9,
+      "end": 35.1,
+      "speakerID": "F1316731-E5CB-55F9-AE29-FA82996D45F8",
+      "source": "mic",
+      "text": "Théo, avant de choisir l’enduit du sous-sol, j’ai besoin d’un relevé d’humidité des murs. Vous pouvez vous en charger ?"
+    },
+    {
+      "id": "E4C98EA5-A616-5011-8690-39729A9DA920",
+      "start": 36.0,
+      "end": 42.1,
+      "speakerID": "94701C73-E4F5-54A5-9C7B-928C3589B0AE",
+      "source": "system",
+      "text": "Yes, I'll do the reading on Monday with the moisture meter and send you the measurements."
+    },
+    {
+      "id": "B0876D04-64DF-5C7B-8B2D-9BD456C86C8F",
+      "start": 42.8,
+      "end": 52.5,
+      "speakerID": "9759FE50-924C-5C15-AEA5-4CC432D748F0",
+      "source": "system",
+      "text": "Les médecins aimeraient visiter fin novembre. And the neighbours are complaining about the noise, surtout tôt le matin."
+    },
+    {
+      "id": "BE5B971D-21B4-5957-8B35-973BB7277970",
+      "start": 53.9,
+      "end": 63.7,
+      "speakerID": "F1316731-E5CB-55F9-AE29-FA82996D45F8",
+      "source": "mic",
+      "text": "Je propose qu’on limite les travaux bruyants à la plage neuf heures, dix-sept heures, du lundi au vendredi. Vous êtes d’accord tous les deux ?"
+    },
+    {
+      "id": "2FF104FD-457D-5C6E-9DEF-37F4F685E850",
+      "start": 64.9,
+      "end": 67.7,
+      "speakerID": "94701C73-E4F5-54A5-9C7B-928C3589B0AE",
+      "source": "system",
+      "text": "Fine by me, the crews can live with that."
+    },
+    {
+      "id": "4087B01B-8C9B-51D9-86B8-1B8F30F9E81B",
+      "start": 68.7,
+      "end": 72.1,
+      "speakerID": "9759FE50-924C-5C15-AEA5-4CC432D748F0",
+      "source": "system",
+      "text": "D’accord aussi, c’est validé du côté des médecins."
+    },
+    {
+      "id": "48238743-4D8F-5A38-B441-E5798D32BF2E",
+      "start": 72.9,
+      "end": 81.3,
+      "speakerID": "F1316731-E5CB-55F9-AE29-FA82996D45F8",
+      "source": "mic",
+      "text": "Bien, la règle vaut donc pour tout le chantier : travaux bruyants de neuf heures à dix-sept heures, en semaine uniquement."
+    },
+    {
+      "id": "A1139FC9-5774-5A2B-8780-FB2788415696",
+      "start": 81.9,
+      "end": 89.9,
+      "speakerID": "94701C73-E4F5-54A5-9C7B-928C3589B0AE",
+      "source": "system",
+      "text": "Personally, I'm switching to a tablet for my site notes, no more paper notebook. It's easier for me."
+    },
+    {
+      "id": "8DDA10CD-6754-5E1F-9BB8-E239B1305454",
+      "start": 91.2,
+      "end": 99.8,
+      "speakerID": "F1316731-E5CB-55F9-AE29-FA82996D45F8",
+      "source": "mic",
+      "text": "Rachid, il nous faut l’accord écrit du syndic pour la sortie de la ventouse de chaudière en façade. Vous pourriez l’obtenir ?"
+    },
+    {
+      "id": "E5F3A2B0-9192-5A3C-9B3D-6CCBA149294C",
+      "start": 100.9,
+      "end": 110.6,
+      "speakerID": "9759FE50-924C-5C15-AEA5-4CC432D748F0",
+      "source": "system",
+      "text": "Je ne vais pas m’avancer là-dessus, the managing agent hasn't answered anyone for a month. Parlons plutôt du planning des sanitaires."
+    },
+    {
+      "id": "6BC8D598-352E-5961-A509-63161636E4C1",
+      "start": 111.5,
+      "end": 124.5,
+      "speakerID": "94701C73-E4F5-54A5-9C7B-928C3589B0AE",
+      "source": "system",
+      "text": "Right, for the bathrooms, Rachid promised me on Monday on the phone: « je vous envoie le choix des carrelages avant la fin de la semaine ». Without it, the tiler can't order."
+    },
+    {
+      "id": "455473C9-815B-59D6-A405-5B78B19AE770",
+      "start": 125.2,
+      "end": 131.0,
+      "speakerID": null,
+      "source": "system",
+      "text": "Le plâtrier vient d’appeler, il ne pourra passer que mardi, son camion est en panne."
+    },
+    {
+      "id": "F012041F-CC73-5506-A5E2-86FB7B59FBE3",
+      "start": 132.4,
+      "end": 141.4,
+      "speakerID": "94701C73-E4F5-54A5-9C7B-928C3589B0AE",
+      "source": "system",
+      "text": "In that case, I'm revising what I announced: the partitions won't be up on Friday, but on Wednesday next week."
+    },
+    {
+      "id": "6098EB8F-EB08-56CC-84B8-DA22307BF9CB",
+      "start": 142.6,
+      "end": 148.7,
+      "speakerID": "9759FE50-924C-5C15-AEA5-4CC432D748F0",
+      "source": "system",
+      "text": "Pour les carrelages, oui, c’est bien moi qui vous envoie le choix, vendredi au plus tard."
+    },
+    {
+      "id": "FF3ADDA4-1AC8-5B7D-B5D3-CF0F07014704",
+      "start": 149.7,
+      "end": 157.9,
+      "speakerID": "F1316731-E5CB-55F9-AE29-FA82996D45F8",
+      "source": "mic",
+      "text": "Merci. Autre sujet : le voisin du dessus doit être prévenu avant le carottage de la dalle, il l’a demandé par écrit."
+    },
+    {
+      "id": "8DDE407D-49BD-5AD8-B0AC-3BB7BD09DB1F",
+      "start": 158.7,
+      "end": 164.1,
+      "speakerID": "94701C73-E4F5-54A5-9C7B-928C3589B0AE",
+      "source": "system",
+      "text": "The core drilling is scheduled in ten days, with the rental company's machine."
+    },
+    {
+      "id": "3DECE567-DC39-5940-9B30-B1BBA2834AC6",
+      "start": 164.7,
+      "end": 169.5,
+      "speakerID": "F1316731-E5CB-55F9-AE29-FA82996D45F8",
+      "source": "mic",
+      "text": "Qui peut récupérer les échantillons de peinture chez le fournisseur ?"
+    },
+    {
+      "id": "A602D653-17CE-5C96-811F-68ED8E04CC3D",
+      "start": 174.5,
+      "end": 180.2,
+      "speakerID": "F1316731-E5CB-55F9-AE29-FA82996D45F8",
+      "source": "mic",
+      "text": "Pas de volontaire ? Then it's on me, je les récupère mardi en fin de journée."
+    },
+    {
+      "id": "6CFB3D90-D2E6-5251-9B1D-AEC5028AD8AA",
+      "start": 181.3,
+      "end": 189.4,
+      "speakerID": "9759FE50-924C-5C15-AEA5-4CC432D748F0",
+      "source": "system",
+      "text": "Et le relevé d’humidité, il ne sert plus à rien maintenant, si ? The doctors have already gone for a lime plaster."
+    },
+    {
+      "id": "369C6E80-BFF0-561B-BF88-4B96659C268F",
+      "start": 190.3,
+      "end": 198.2,
+      "speakerID": "F1316731-E5CB-55F9-AE29-FA82996D45F8",
+      "source": "mic",
+      "text": "Si, je le maintiens. Chaux ou pas, j’ai besoin des mesures pour la garantie décennale. Théo, c’est toujours lundi."
+    },
+    {
+      "id": "8F5C35F1-0538-55C9-8C9D-37CC16049AC2",
+      "start": 198.9,
+      "end": 204.0,
+      "speakerID": "9759FE50-924C-5C15-AEA5-4CC432D748F0",
+      "source": "system",
+      "text": "Dernier point : the town hall is still waiting for the accessibility file."
+    },
+    {
+      "id": "FF166832-8FE9-58B8-AAF5-8966370164CA",
+      "start": 205.4,
+      "end": 216.8,
+      "speakerID": "F1316731-E5CB-55F9-AE29-FA82996D45F8",
+      "source": "mic",
+      "text": "Je prends ça en charge. The acknowledgement of receipt gives a deadline of 2026-11-27, je l’envoie avant cette date. Merci à vous deux, on se revoit dans une semaine."
+    }
+  ],
+  "transcriptState": "ready",
+  "audioChunks": [],
+  "consentAnnounced": false,
+  "isDemo": true
+}

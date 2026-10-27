@@ -1,0 +1,522 @@
+{
+  "schema": "hwyd-ledger-expected/1",
+  "synthetic": true,
+  "split": "holdout",
+  "scenario": "h3-publisher-spring-list",
+  "input_language": "mixed",
+  "output_language": "fr",
+  "participants": [
+    "Agnès",
+    "Benoît",
+    "Nora",
+    "Loïc"
+  ],
+  "items": [
+    {
+      "id": "E1",
+      "phenomena": [
+        "collective_decision",
+        "decision_reversal"
+      ],
+      "description": "Initial collective decision: first print run of the novel at three thousand copies, the threshold for a unit cost under two euros; later reversed by the group.",
+      "match_segment_ids": [
+        "CA91CAE4-9B69-531D-A4FE-9B45FF0829CB",
+        "696D5234-431D-59DD-98E6-4BD036F9CFED",
+        "6CA4F4FE-545F-5B89-83B0-799E46175B78",
+        "9C37A3AA-2239-576A-877E-0831AC5283A6",
+        "B5609F1D-877F-5AC2-A18E-19CEB6EE43F4",
+        "6B8844EE-1D29-5697-AD5A-1DA5852D68D9"
+      ],
+      "expected_section": "decision",
+      "acceptable_sections": [
+        "decision"
+      ],
+      "owner": null,
+      "final_status": "superseded",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "Replaced by E2. Original statement at turn 6; change at turn 45, 39 turns later."
+    },
+    {
+      "id": "E2",
+      "phenomena": [
+        "decision_reversal",
+        "collective_decision"
+      ],
+      "description": "Reversed decision: first print run of two thousand copies, with a quick reprint if needed, because pre-orders are only 640 copies.",
+      "match_segment_ids": [
+        "B5609F1D-877F-5AC2-A18E-19CEB6EE43F4",
+        "5FFCAD37-2408-5BBA-95BF-E2199EB1ED3A",
+        "9B104C0B-A60D-5A76-9D68-D01988C21B48",
+        "6B8844EE-1D29-5697-AD5A-1DA5852D68D9"
+      ],
+      "expected_section": "decision",
+      "acceptable_sections": [
+        "decision"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "Supersedes E1."
+    },
+    {
+      "id": "E3",
+      "phenomena": [
+        "collective_decision"
+      ],
+      "description": "Collective decision: all three covers follow the new graphic guidelines, with the colour band at the bottom.",
+      "match_segment_ids": [
+        "0C905C9F-DC9D-5D65-B853-54F1EDE2D301",
+        "8A53FDA3-2EF5-51A4-A7CF-C0EF66D33384",
+        "C6B79F66-3874-52C3-B1A7-8C788BD312B2",
+        "8EFEC418-5A02-59E8-ADB5-2CD60E6E5D5F"
+      ],
+      "expected_section": "decision",
+      "acceptable_sections": [
+        "decision"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": ""
+    },
+    {
+      "id": "E4",
+      "phenomena": [
+        "deferred_idea"
+      ],
+      "description": "Audiobook of the novel: idea set aside until next autumn.",
+      "match_segment_ids": [
+        "06600EB5-2870-56CC-8CB0-1849C4EFE4A9",
+        "4BA01B92-A7F4-573D-8539-6B8FCE3DD6F0"
+      ],
+      "expected_section": "open",
+      "acceptable_sections": [
+        "open"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": ""
+    },
+    {
+      "id": "E5",
+      "phenomena": [
+        "third_party_assignment",
+        "requester_cancellation",
+        "relative_deadline"
+      ],
+      "description": "Benoît asks the printer tomorrow for a quote on an equivalent recycled paper; cancelled by Agnès, who had requested it, because the only recycled stock is too thin.",
+      "match_segment_ids": [
+        "D75530CD-FFB6-567C-A249-E43259F6FC4D",
+        "D7016438-7012-5464-9BBE-1D0395A8E5E8",
+        "30F785A4-1FCB-5861-B2F4-D96DC5D6976E",
+        "EAF30B69-46BD-5F0C-BB60-27D143B83CD7"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Benoît",
+      "final_status": "withdrawn",
+      "due_text_contains": [
+        "demain"
+      ],
+      "due_date": null,
+      "notes": "Valid cancellation by the requester. Original statement at turn 9; change at turn 39, 30 turns later."
+    },
+    {
+      "id": "E6",
+      "phenomena": [
+        "late_correction",
+        "relative_deadline"
+      ],
+      "description": "Nora sends only the press release, without the author interview, on Wednesday; changed from the full press kit with the interview.",
+      "match_segment_ids": [
+        "F7644A9F-2C8A-5EE9-AD18-D848CF326E6B",
+        "9AE30D82-7226-5C52-8363-CE95586D90E4"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Nora",
+      "final_status": "active",
+      "due_text_contains": [
+        "mercredi"
+      ],
+      "due_date": null,
+      "notes": "One commitment whose deliverable was corrected by its owner. Nora does not commit to a date for the interview. Original statement at turn 10; change at turn 41, 31 turns later."
+    },
+    {
+      "id": "E7",
+      "phenomena": [
+        "third_party_assignment",
+        "false_withdrawal_third_party",
+        "relative_deadline"
+      ],
+      "description": "Nora books the room at Les Rives bookshop for the booksellers' presentation evening in early December, calling tomorrow; asked by Agnès. Loïc and Benoît called it unnecessary, but neither Nora nor Agnès withdrew it.",
+      "match_segment_ids": [
+        "2796BB0C-182F-5714-B861-6F47D977236B",
+        "FD0D3700-A683-5ACC-8238-AA224494BB9C",
+        "6B182054-F7F2-5EFD-8CD8-2F8DDFEB3352",
+        "182B69EE-9C8B-5951-91CC-29AF5A2EACE5",
+        "EB23E80F-20E4-5D5F-B0D1-3EA03DA8DE9A"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Nora",
+      "final_status": "active",
+      "due_text_contains": [
+        "demain"
+      ],
+      "due_date": null,
+      "notes": "Loïc and Benoît are neither owner nor requester. Agnès moves on at turn 44 without cancelling, and Nora says nothing, so the task stays active. Original statement at turn 12; change at turn 42, 30 turns later."
+    },
+    {
+      "id": "E8",
+      "phenomena": [
+        "late_withdrawal",
+        "relative_deadline"
+      ],
+      "description": "Loïc prepares a selling sheet on the three titles for the sales reps by Friday; Loïc later withdrew it because the distributor makes one.",
+      "match_segment_ids": [
+        "8491CB6B-F0FC-5B59-802E-617566889E45",
+        "C1C09B3F-8B59-5E46-BE4E-958D0B18EC65"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Loïc",
+      "final_status": "withdrawn",
+      "due_text_contains": [
+        "vendredi"
+      ],
+      "due_date": null,
+      "notes": "Original statement at turn 13; change at turn 49, 36 turns later."
+    },
+    {
+      "id": "E9",
+      "phenomena": [
+        "handover_accepted"
+      ],
+      "description": "Nora organizes the author's bookshop tour (about ten dates between March and April); handed over to Loïc, who accepted.",
+      "match_segment_ids": [
+        "72318275-DE29-51E7-8100-F6D843266122",
+        "AEAD6D3E-31A0-5D84-92A5-0D7DA021AA0D",
+        "F07F7848-62A4-547C-8F7A-AF6962A297C2"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Nora",
+      "final_status": "superseded",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "Replaced by E10. 'Between March and April' is the period of the tour dates, not a deadline. Original statement at turn 14; change at turn 50, 36 turns later."
+    },
+    {
+      "id": "E10",
+      "phenomena": [
+        "handover_accepted",
+        "relative_deadline"
+      ],
+      "description": "Loïc takes over the author's bookshop tour and sends a calendar of the dates by the end of the month.",
+      "match_segment_ids": [
+        "AEAD6D3E-31A0-5D84-92A5-0D7DA021AA0D",
+        "F07F7848-62A4-547C-8F7A-AF6962A297C2"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Loïc",
+      "final_status": "active",
+      "due_text_contains": [
+        "fin du mois"
+      ],
+      "due_date": null,
+      "notes": "Supersedes E9; Loïc accepts in his own words at turn 51."
+    },
+    {
+      "id": "E11",
+      "phenomena": [
+        "handover_suggested"
+      ],
+      "description": "Benoît orders the photo book's colour proofs and follows them to sign-off; his wish to hand them to Nora got no acceptance, so he remains the owner.",
+      "match_segment_ids": [
+        "D4AED39A-3724-5D06-8299-28B9AA2EE9FD",
+        "348693F0-C542-5696-A443-D0F40CB94E62"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Benoît",
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "Nora never answers and Agnès moves to the last point; a suggested handover without acceptance leaves the original owner in place. Original statement at turn 15; change at turn 52, 37 turns later."
+    },
+    {
+      "id": "E12",
+      "phenomena": [
+        "self_assignment",
+        "relative_deadline"
+      ],
+      "description": "Agnès writes the photo book's back cover text for Monday, after nobody volunteered.",
+      "match_segment_ids": [
+        "96DAE09A-3AAC-5C12-9AFA-9111EA5A2785",
+        "20086508-9914-5D9D-8E4F-BFA4451F0823",
+        "2C2F9B4F-7438-5578-A1BD-65C16A22063F"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Agnès",
+      "final_status": "active",
+      "due_text_contains": [
+        "lundi"
+      ],
+      "due_date": null,
+      "notes": ""
+    },
+    {
+      "id": "E13",
+      "phenomena": [
+        "third_party_assignment",
+        "explicit_date"
+      ],
+      "description": "Benoît makes sure the novel's signed-off proof goes to the printer by November 12; asked by Agnès and accepted by Benoît.",
+      "match_segment_ids": [
+        "C41B66DB-299A-505B-BBFA-19663ACD56EB",
+        "9495A68C-3EB9-553E-9129-2706F0A4F707"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Benoît",
+      "final_status": "active",
+      "due_text_contains": [
+        "12 novembre"
+      ],
+      "due_date": null,
+      "notes": ""
+    },
+    {
+      "id": "E14",
+      "phenomena": [
+        "no_owner"
+      ],
+      "description": "Rights to the photo book's three archive photos are still unchecked and must be cleared before sign-off; nobody took it on.",
+      "match_segment_ids": [
+        "554116B6-B897-5CD5-BB9D-B0835842F1AF"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "The timing is an event (sign-off), not a date, so due_text_contains is empty."
+    },
+    {
+      "id": "E15",
+      "phenomena": [
+        "absent_assignee"
+      ],
+      "description": "Proofreading of the essay translation is left to Pascale, the translator, who is absent; no participant owns it.",
+      "match_segment_ids": [
+        "C0BD8A1A-D74A-5D66-9C91-6124A7270889"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": ""
+    },
+    {
+      "id": "E16",
+      "phenomena": [
+        "request_without_acceptance"
+      ],
+      "description": "Panel on the essay at the Geneva book fair: Nora asked Loïc, who declined for now; nobody owns it.",
+      "match_segment_ids": [
+        "E1449A8E-3EE5-5D64-89B6-0C4A6D828D87",
+        "AB48FC2E-7B29-5E78-BF5D-9A8D164F326A"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm",
+        "open"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "'Not for now' is a deferral, not an acceptance, so open is also acceptable."
+    },
+    {
+      "id": "E17",
+      "phenomena": [
+        "hesitant_commitment"
+      ],
+      "description": "Costing a paperback edition of last year's novel: Benoît could do it if the printer answers quickly, without promising.",
+      "match_segment_ids": [
+        "7A52DBC6-A4F0-53B2-BD05-051A812BD51F",
+        "37E9C004-248A-5FDA-BBD8-BFB3A949A374"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm"
+      ],
+      "owner": "Benoît",
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": ""
+    }
+  ],
+  "forbidden": [
+    {
+      "id": "F1",
+      "phenomena": [
+        "personal_choice"
+      ],
+      "description": "Nora dropping phone follow-ups in favour of email is a personal choice, not a team decision.",
+      "section": "decision",
+      "owner": null,
+      "match_segment_ids": [
+        "8BFE3C2D-D84B-554B-BC54-32D172F0016E"
+      ]
+    },
+    {
+      "id": "F2",
+      "phenomena": [
+        "no_owner"
+      ],
+      "description": "No task, for anyone, to check the archive photo rights.",
+      "section": "task",
+      "owner": null,
+      "match_segment_ids": [
+        "554116B6-B897-5CD5-BB9D-B0835842F1AF"
+      ]
+    },
+    {
+      "id": "F3",
+      "phenomena": [
+        "absent_assignee"
+      ],
+      "description": "No task for proofreading the translation: it is left to Pascale, who is absent.",
+      "section": "task",
+      "owner": null,
+      "match_segment_ids": [
+        "C0BD8A1A-D74A-5D66-9C91-6124A7270889"
+      ]
+    },
+    {
+      "id": "F4",
+      "phenomena": [
+        "request_without_acceptance"
+      ],
+      "description": "No task, for anyone, to contact the Geneva book fair.",
+      "section": "task",
+      "owner": null,
+      "match_segment_ids": [
+        "E1449A8E-3EE5-5D64-89B6-0C4A6D828D87",
+        "AB48FC2E-7B29-5E78-BF5D-9A8D164F326A"
+      ]
+    },
+    {
+      "id": "F5",
+      "phenomena": [
+        "hesitant_commitment"
+      ],
+      "description": "Costing the paperback edition is not a firm task for Benoît.",
+      "section": "task",
+      "owner": "Benoît",
+      "match_segment_ids": [
+        "7A52DBC6-A4F0-53B2-BD05-051A812BD51F",
+        "37E9C004-248A-5FDA-BBD8-BFB3A949A374"
+      ]
+    },
+    {
+      "id": "F6",
+      "phenomena": [
+        "handover_suggested"
+      ],
+      "description": "Nora does not own the colour proofs; the handover was only suggested.",
+      "section": "task",
+      "owner": "Nora",
+      "match_segment_ids": [
+        "348693F0-C542-5696-A443-D0F40CB94E62"
+      ]
+    },
+    {
+      "id": "F7",
+      "phenomena": [
+        "deferred_idea"
+      ],
+      "description": "The audiobook is not a decision; it was set aside.",
+      "section": "decision",
+      "owner": null,
+      "match_segment_ids": [
+        "06600EB5-2870-56CC-8CB0-1849C4EFE4A9",
+        "4BA01B92-A7F4-573D-8539-6B8FCE3DD6F0"
+      ]
+    },
+    {
+      "id": "F8",
+      "phenomena": [
+        "third_party_assignment"
+      ],
+      "description": "The room booking is not Agnès's task: she asked, Nora accepted.",
+      "section": "task",
+      "owner": "Agnès",
+      "match_segment_ids": [
+        "2796BB0C-182F-5714-B861-6F47D977236B",
+        "FD0D3700-A683-5ACC-8238-AA224494BB9C"
+      ]
+    }
+  ],
+  "forbidden_claims": [
+    "The first print run of the novel is three thousand copies.",
+    "Nora sends the full press kit with the author interview on Wednesday.",
+    "The room booking at Les Rives bookshop is cancelled or no longer needed.",
+    "Loïc prepares the selling sheet.",
+    "Nora organizes the bookshop tour.",
+    "Nora takes over the colour proofs.",
+    "Benoît still has to request a recycled paper quote.",
+    "A participant is in charge of checking the archive photo rights.",
+    "A participant proofreads the essay translation.",
+    "Loïc will contact the Geneva book fair.",
+    "An audiobook is planned.",
+    "Benoît has committed to costing a paperback edition.",
+    "Using only email for press follow-ups is a team decision.",
+    "A calendar date (day number) is given for the Wednesday, Monday, 'tomorrow' or end-of-month deadlines."
+  ],
+  "detail_checks": [
+    "Three spring titles: Inès Delorme's debut novel, an essay translated from Italian and a photo book on Breton lighthouses.",
+    "The novel has 280 pages; at three thousand copies the unit cost falls below two euros.",
+    "The printer offers an ivory bulky 80 g paper; the recycled option was dropped because the only stock is too thin.",
+    "Distributor pre-orders: 640 copies, half of what was expected.",
+    "Bookshop tour of about ten dates between March and April.",
+    "The author is only available for the interview the following week.",
+    "Booksellers' presentation evening in early December."
+  ]
+}

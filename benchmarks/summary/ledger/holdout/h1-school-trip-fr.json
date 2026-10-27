@@ -1,0 +1,201 @@
+{
+  "id": "E309A6FF-F183-5F5E-9B9B-43831ABF23FF",
+  "title": "Synthetic school trip planning (fr)",
+  "kind": "meeting",
+  "startedAt": 814113900,
+  "duration": 181,
+  "state": "sealed",
+  "revision": 0,
+  "transcriptVersion": 1,
+  "notes": "",
+  "noteEntries": [],
+  "speakers": [
+    {
+      "id": "B8FF8A37-C9A7-529C-AE18-685424FFBAD4",
+      "personID": "6582B59C-6120-50C0-9546-675AAC4CD93A",
+      "label": "Odile",
+      "confirmed": true,
+      "source": "mic"
+    },
+    {
+      "id": "4AAB5AD1-13B5-5409-880C-9C66278DF655",
+      "personID": "190091FB-12B8-5723-8D38-5D2233C5CA74",
+      "label": "Yannick",
+      "confirmed": true,
+      "source": "system"
+    },
+    {
+      "id": "95C83985-A701-5468-BAF5-C3EADE4C6C05",
+      "personID": "AFBF7BC3-DBC4-5E3B-90DD-EC637C4CE1BD",
+      "label": "Farida",
+      "confirmed": true,
+      "source": "system"
+    }
+  ],
+  "segments": [
+    {
+      "id": "48CF096D-92EB-5E7A-899D-5C6962441E9E",
+      "start": 0.0,
+      "end": 15.9,
+      "speakerID": "B8FF8A37-C9A7-529C-AE18-685424FFBAD4",
+      "source": "mic",
+      "text": "Je voudrais qu’on avance sur le séjour des deux classes de cinquième au centre de la Combe Noire, trois jours en décembre. On part avec cinquante-deux élèves et six accompagnateurs, et il reste le transport et les papiers à régler."
+    },
+    {
+      "id": "E320B9E5-A811-5E32-9175-2817E1080C15",
+      "start": 17.2,
+      "end": 24.1,
+      "speakerID": "4AAB5AD1-13B5-5409-880C-9C66278DF655",
+      "source": "system",
+      "text": "Pour le transport, je suggère le train jusqu’à Morez. C’est cent quarante euros de moins que le car."
+    },
+    {
+      "id": "7FE65B3B-B0BA-5D56-8EE8-88A0F0991976",
+      "start": 25.2,
+      "end": 38.2,
+      "speakerID": "95C83985-A701-5468-BAF5-C3EADE4C6C05",
+      "source": "system",
+      "text": "Avec cinquante-deux élèves et deux correspondances, le train, je ne le sens pas du tout. On risque de perdre quelqu’un en gare de Bourg-en-Bresse. Je préfère un car affrété, porte à porte."
+    },
+    {
+      "id": "EA674EC9-2C85-5D91-8DCF-ACA5351C0C7B",
+      "start": 39.1,
+      "end": 44.0,
+      "speakerID": "B8FF8A37-C9A7-529C-AE18-685424FFBAD4",
+      "source": "mic",
+      "text": "Je rejoins Farida. Yannick, tu es d’accord pour qu’on écarte le train ?"
+    },
+    {
+      "id": "FB3C938D-49FF-5A7E-AE8F-D6CB50C1E129",
+      "start": 44.7,
+      "end": 47.8,
+      "speakerID": "4AAB5AD1-13B5-5409-880C-9C66278DF655",
+      "source": "system",
+      "text": "Oui, la sécurité d’abord. Partons sur le car."
+    },
+    {
+      "id": "CC968ED4-535C-5572-9BD8-82E33BED19F2",
+      "start": 49.2,
+      "end": 56.6,
+      "speakerID": "B8FF8A37-C9A7-529C-AE18-685424FFBAD4",
+      "source": "mic",
+      "text": "Va pour le car affrété, aller et retour. Yannick, tu peux le réserver auprès de notre compagnie habituelle ?"
+    },
+    {
+      "id": "F586B7B6-A3B8-5091-ABE0-FDA72B7B268D",
+      "start": 57.8,
+      "end": 62.3,
+      "speakerID": "4AAB5AD1-13B5-5409-880C-9C66278DF655",
+      "source": "system",
+      "text": "Pas de souci. J’appelle la compagnie demain et je bloque la date."
+    },
+    {
+      "id": "7F850E36-8ADD-53A6-88F3-84E112913B3B",
+      "start": 63.3,
+      "end": 69.6,
+      "speakerID": "95C83985-A701-5468-BAF5-C3EADE4C6C05",
+      "source": "system",
+      "text": "Pour l’assurance annulation, je demande des devis à deux assureurs et je vous les transmets."
+    },
+    {
+      "id": "4A158E10-2864-57B5-96A9-6A26D62DC525",
+      "start": 70.4,
+      "end": 79.4,
+      "speakerID": "B8FF8A37-C9A7-529C-AE18-685424FFBAD4",
+      "source": "mic",
+      "text": "Merci. Les autorisations parentales : je les distribue aux élèves lundi et je les récupère signées avant le 20 novembre."
+    },
+    {
+      "id": "3CF4C93B-9178-52BB-B5BF-9D163A0C53C9",
+      "start": 80.0,
+      "end": 87.7,
+      "speakerID": "4AAB5AD1-13B5-5409-880C-9C66278DF655",
+      "source": "system",
+      "text": "Côté budget, le séjour revient à cent quatre-vingts euros par élève. Certaines familles ne pourront pas suivre."
+    },
+    {
+      "id": "0C885162-852C-5DAA-A3B2-6DD53A69F588",
+      "start": 89.0,
+      "end": 98.0,
+      "speakerID": "B8FF8A37-C9A7-529C-AE18-685424FFBAD4",
+      "source": "mic",
+      "text": "Pour ça, on passe par Mme Garnier, la gestionnaire : c’est elle qui montera le dossier de subvention auprès du département."
+    },
+    {
+      "id": "4752042B-B892-518E-BC46-6C07A2035A91",
+      "start": 99.1,
+      "end": 111.2,
+      "speakerID": "95C83985-A701-5468-BAF5-C3EADE4C6C05",
+      "source": "system",
+      "text": "Il y a aussi la réunion d’information avec les parents. Hier, en salle des profs, Yannick m’a lancé : « la réunion des parents, je la prends, je connais toutes les familles »."
+    },
+    {
+      "id": "1D8D168A-8B4B-574F-8514-9A1CFF28196C",
+      "start": 112.1,
+      "end": 120.3,
+      "speakerID": "4AAB5AD1-13B5-5409-880C-9C66278DF655",
+      "source": "system",
+      "text": "C’était une boutade en sortant d’un conseil de classe, je ne prends pas cette réunion. Parlons plutôt des activités."
+    },
+    {
+      "id": "9C9D043F-34F3-56A1-8619-FDDBA04E8831",
+      "start": 121.0,
+      "end": 132.0,
+      "speakerID": "95C83985-A701-5468-BAF5-C3EADE4C6C05",
+      "source": "system",
+      "text": "Pour l’atelier sur les tourbières, je pourrais éventuellement préparer un livret pour les élèves, à condition que mes conseils de classe soient bouclés à temps."
+    },
+    {
+      "id": "5A1CBB9C-113D-5C0C-AD34-3BF014D91451",
+      "start": 133.4,
+      "end": 141.0,
+      "speakerID": "B8FF8A37-C9A7-529C-AE18-685424FFBAD4",
+      "source": "mic",
+      "text": "Ce serait bien. Il nous faut aussi la liste des élèves avec allergies ou traitement, le centre la demande."
+    },
+    {
+      "id": "3582793D-746A-51EC-BED6-F7237083E72C",
+      "start": 142.2,
+      "end": 146.7,
+      "speakerID": null,
+      "source": "system",
+      "text": "Je vous fais suivre cette liste ce soir, je l’ai dans mon casier."
+    },
+    {
+      "id": "C7A37823-62B0-52D5-B9F4-1AD910C16065",
+      "start": 147.7,
+      "end": 156.1,
+      "speakerID": "4AAB5AD1-13B5-5409-880C-9C66278DF655",
+      "source": "system",
+      "text": "Côté activités, le centre propose la randonnée en raquettes et la visite de la fromagerie. Le kayak est fermé en décembre."
+    },
+    {
+      "id": "C843F364-AF37-5124-80A9-EF30D3D43951",
+      "start": 156.9,
+      "end": 166.2,
+      "speakerID": "95C83985-A701-5468-BAF5-C3EADE4C6C05",
+      "source": "system",
+      "text": "Oubliez ce que je disais sur l’assurance annulation : finalement, je ne demande pas de devis. Le centre l’inclut déjà dans son forfait."
+    },
+    {
+      "id": "6DC1D4FE-8762-5B6E-B625-E88B6FCFC393",
+      "start": 166.8,
+      "end": 172.4,
+      "speakerID": "4AAB5AD1-13B5-5409-880C-9C66278DF655",
+      "source": "system",
+      "text": "Pour les raquettes, le centre fournit tout le matériel, il n’y a rien à acheter."
+    },
+    {
+      "id": "9BE66BE9-6147-5E6F-BE9C-5DADBA63FAA1",
+      "start": 173.7,
+      "end": 179.0,
+      "speakerID": "B8FF8A37-C9A7-529C-AE18-685424FFBAD4",
+      "source": "mic",
+      "text": "Parfait. On se revoit après les conseils de classe pour boucler le programme."
+    }
+  ],
+  "transcriptState": "ready",
+  "audioChunks": [],
+  "consentAnnounced": false,
+  "isDemo": true
+}

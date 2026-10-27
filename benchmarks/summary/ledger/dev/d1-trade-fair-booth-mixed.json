@@ -1,0 +1,209 @@
+{
+  "id": "E97FF545-EDF0-5455-83F6-E36589273396",
+  "title": "Synthetic trade fair booth planning (mixed)",
+  "kind": "meeting",
+  "startedAt": 813135600,
+  "duration": 215,
+  "state": "sealed",
+  "revision": 0,
+  "transcriptVersion": 1,
+  "notes": "",
+  "noteEntries": [],
+  "speakers": [
+    {
+      "id": "7253ACDE-4E87-5ECA-B5B0-036566A3841E",
+      "personID": "8D18E343-41A5-571C-B9BB-16B2E12D1E40",
+      "label": "Hélène",
+      "confirmed": true,
+      "source": "mic"
+    },
+    {
+      "id": "B5E00753-06C2-5023-B7C9-D3073792577C",
+      "personID": "55D62274-B9E1-548C-AD22-06DA423B581C",
+      "label": "Bastien",
+      "confirmed": true,
+      "source": "system"
+    },
+    {
+      "id": "13E117A4-F36E-5E77-BCE9-F6A353EC5E74",
+      "personID": "12639CD7-E2C5-551C-9748-494771E53903",
+      "label": "Mehdi",
+      "confirmed": true,
+      "source": "system"
+    }
+  ],
+  "segments": [
+    {
+      "id": "C9F6772D-C8A5-551A-B07E-D0740DF87065",
+      "start": 0.0,
+      "end": 14.8,
+      "speakerID": "7253ACDE-4E87-5ECA-B5B0-036566A3841E",
+      "source": "mic",
+      "text": "Bon, on fait le point sur le salon Bureau & Co à Lyon. Notre stand fait dix-huit mètres carrés dans le hall 3, et l’ouverture est dans cinq semaines. Je voudrais qu’on reparte avec une liste claire de qui fait quoi."
+    },
+    {
+      "id": "15D661B5-CBCD-56EB-81AF-4AC9FE1107FC",
+      "start": 16.1,
+      "end": 27.3,
+      "speakerID": "B5E00753-06C2-5023-B7C9-D3073792577C",
+      "source": "system",
+      "text": "On the sales side, I already have forty client meetings booked over the two days. We'll need three people on the booth at all times, otherwise we'll miss people."
+    },
+    {
+      "id": "EF31FA87-8DA0-50EA-8F01-9750684A37D4",
+      "start": 28.4,
+      "end": 41.7,
+      "speakerID": "13E117A4-F36E-5E77-BCE9-F6A353EC5E74",
+      "source": "system",
+      "text": "Pour la logistique, the carrier can deliver the six demonstration chairs the morning before. Il lui faut l’adresse exacte du quai de livraison. I'll confirm it to him before November 6."
+    },
+    {
+      "id": "4450AA0C-6FA0-539D-8C7C-2CB37219A42C",
+      "start": 42.6,
+      "end": 55.3,
+      "speakerID": "7253ACDE-4E87-5ECA-B5B0-036566A3841E",
+      "source": "mic",
+      "text": "Parfait. Les brochures, maintenant : l’ancienne version affiche encore les tarifs de l’an dernier. Bastien, tu pourrais reprendre la grille tarifaire avant qu’on relance l’impression ?"
+    },
+    {
+      "id": "44D8E22C-2EE0-59B0-A64D-DB53276321DB",
+      "start": 56.0,
+      "end": 64.4,
+      "speakerID": "B5E00753-06C2-5023-B7C9-D3073792577C",
+      "source": "system",
+      "text": "I'm not committing to that, I'm on the road until Thursday. We'll talk about it again. For the giveaways, any ideas?"
+    },
+    {
+      "id": "14B10637-140E-593A-9F05-F8F358213348",
+      "start": 65.8,
+      "end": 71.0,
+      "speakerID": "7253ACDE-4E87-5ECA-B5B0-036566A3841E",
+      "source": "mic",
+      "text": "Je proposais des tote bags brodés au logo, comme l’an dernier."
+    },
+    {
+      "id": "5244528B-25F9-5C53-80DE-B01A230C1050",
+      "start": 72.2,
+      "end": 85.4,
+      "speakerID": "B5E00753-06C2-5023-B7C9-D3073792577C",
+      "source": "system",
+      "text": "No, not tote bags. Everybody hands them out, et à quatre euros pièce pour cinq cents sacs, ça fait deux mille euros. I'd rather offer a free fifteen-day trial of a chair."
+    },
+    {
+      "id": "8C2061E0-C7E1-5EA3-AC3E-86B9045D0521",
+      "start": 86.4,
+      "end": 94.7,
+      "speakerID": "13E117A4-F36E-5E77-BCE9-F6A353EC5E74",
+      "source": "system",
+      "text": "L’essai à domicile, c’est faisable, mais seulement autour de Lyon et de Grenoble. Au-delà, le transport coûte trop cher."
+    },
+    {
+      "id": "49E2AD4C-BF6E-5CA9-BD5B-80305191AAF1",
+      "start": 95.5,
+      "end": 105.2,
+      "speakerID": "7253ACDE-4E87-5ECA-B5B0-036566A3841E",
+      "source": "mic",
+      "text": "Alors on laisse tomber les tote bags et on part sur l’essai gratuit de quinze jours, limité à Lyon et Grenoble. Tout le monde est d’accord ?"
+    },
+    {
+      "id": "A51EA18E-3046-57BE-A3D3-E1DBCA21A529",
+      "start": 105.8,
+      "end": 108.0,
+      "speakerID": "13E117A4-F36E-5E77-BCE9-F6A353EC5E74",
+      "source": "system",
+      "text": "D’accord, that's settled for me."
+    },
+    {
+      "id": "DBA32B1C-B937-5550-87A5-7A35F8226E73",
+      "start": 109.3,
+      "end": 110.9,
+      "speakerID": "B5E00753-06C2-5023-B7C9-D3073792577C",
+      "source": "system",
+      "text": "Same for me."
+    },
+    {
+      "id": "B033B039-FE7B-5AFF-B0B5-F061BC6703CB",
+      "start": 112.0,
+      "end": 123.9,
+      "speakerID": "13E117A4-F36E-5E77-BCE9-F6A353EC5E74",
+      "source": "system",
+      "text": "Il reste les badges exposants. The organizer gives us five, et il faut déclarer les noms avant la clôture des inscriptions, otherwise we pay the visitor rate to get in."
+    },
+    {
+      "id": "A8C2A4E6-3CA6-5FF7-85E8-469F9E12837D",
+      "start": 124.8,
+      "end": 129.5,
+      "speakerID": "7253ACDE-4E87-5ECA-B5B0-036566A3841E",
+      "source": "mic",
+      "text": "Et la démonstration du fauteuil motorisé sur le stand, qui la fait ?"
+    },
+    {
+      "id": "36D60A9D-A522-5CAC-8B2E-899DB1D1C595",
+      "start": 130.2,
+      "end": 140.9,
+      "speakerID": "13E117A4-F36E-5E77-BCE9-F6A353EC5E74",
+      "source": "system",
+      "text": "J’entends déjà Bastien me dire : « the demo is mine, I know it by heart ». Sauf qu’avec quarante rendez-vous, je ne vois pas quand il la ferait."
+    },
+    {
+      "id": "CF296CDA-9CB2-5CB1-92F6-9CE4341098B9",
+      "start": 142.3,
+      "end": 150.5,
+      "speakerID": "7253ACDE-4E87-5ECA-B5B0-036566A3841E",
+      "source": "mic",
+      "text": "On verra quand son planning sera bouclé. Point suivant, l’hôtel : qui peut réserver les chambres pour les trois nuits ?"
+    },
+    {
+      "id": "161B66C8-0882-5A15-A0D9-DE806EFBB020",
+      "start": 155.5,
+      "end": 160.3,
+      "speakerID": "7253ACDE-4E87-5ECA-B5B0-036566A3841E",
+      "source": "mic",
+      "text": "Personne ? OK, I'll take care of it myself. Je réserve d’ici vendredi."
+    },
+    {
+      "id": "725495CF-A002-50C2-8454-A098F3A1FD82",
+      "start": 161.3,
+      "end": 168.1,
+      "speakerID": null,
+      "source": "system",
+      "text": "I'll send you the hall 3 floor plan tomorrow morning, I got it from the organizer last week."
+    },
+    {
+      "id": "081C7D70-D49B-51D5-AC93-1BFB856F86C4",
+      "start": 168.9,
+      "end": 182.6,
+      "speakerID": "13E117A4-F36E-5E77-BCE9-F6A353EC5E74",
+      "source": "system",
+      "text": "Merci, ce plan m’aidera. And I'm correcting what I said about the carrier: l’organisateur n’attribue les quais que le 8 novembre, so I'll confirm the address to him on November 9 instead of the 6th."
+    },
+    {
+      "id": "7128B76B-2F28-5243-AAA5-536AF704E321",
+      "start": 183.2,
+      "end": 191.4,
+      "speakerID": "7253ACDE-4E87-5ECA-B5B0-036566A3841E",
+      "source": "mic",
+      "text": "Bastien, il nous faut le planning des permanences sur le stand. Tu peux le préparer, avec tes créneaux de rendez-vous ?"
+    },
+    {
+      "id": "989728C0-FCFE-5D54-8411-4CBFC3001648",
+      "start": 192.7,
+      "end": 196.4,
+      "speakerID": "B5E00753-06C2-5023-B7C9-D3073792577C",
+      "source": "system",
+      "text": "Yes, that one I'll do. I'll send it to you on Monday."
+    },
+    {
+      "id": "4269FB35-32A9-512E-9D38-51A62DAD13A5",
+      "start": 197.5,
+      "end": 212.6,
+      "speakerID": "7253ACDE-4E87-5ECA-B5B0-036566A3841E",
+      "source": "mic",
+      "text": "Merci. Je récapitule : free fifteen-day trial for Lyon and Grenoble, je réserve l’hôtel, Mehdi confirme l’adresse au transporteur et Bastien envoie le planning des permanences. On refait le point dans une semaine."
+    }
+  ],
+  "transcriptState": "ready",
+  "audioChunks": [],
+  "consentAnnounced": false,
+  "isDemo": true
+}

@@ -1,0 +1,315 @@
+{
+  "schema": "hwyd-ledger-expected/1",
+  "synthetic": true,
+  "split": "dev",
+  "scenario": "d1-trade-fair-booth",
+  "input_language": "fr",
+  "output_language": "fr",
+  "participants": [
+    "Hélène",
+    "Bastien",
+    "Mehdi"
+  ],
+  "items": [
+    {
+      "id": "E1",
+      "phenomena": [
+        "collective_decision",
+        "alternative_adopted"
+      ],
+      "description": "Collective decision: instead of tote bags, offer a free fifteen-day home trial of a chair, limited to the Lyon and Grenoble areas.",
+      "match_segment_ids": [
+        "7EC90443-AE42-5BCC-B260-A2F50C562A63",
+        "10DC35BE-A70E-51C4-815F-3EA440C923AE",
+        "F504CB49-92B3-57E3-A2FA-4FC8B1D8B29C",
+        "FC54431A-C968-5E41-B5C9-AE3F328EFB29",
+        "F6340AC0-02AB-55A5-8330-D6DB4F9C9389",
+        "5D32D76C-F78B-5111-B20F-0C3A8DC34072"
+      ],
+      "expected_section": "decision",
+      "acceptable_sections": [
+        "decision"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "Proposed by Bastien at turn 7, limited by Mehdi at turn 8, put to the group by Hélène at turn 9 and approved by Mehdi and Bastien."
+    },
+    {
+      "id": "E2",
+      "phenomena": [
+        "proposal_rejected"
+      ],
+      "description": "Hélène's proposal of logo-embroidered tote bags was rejected (four euros each, two thousand euros for five hundred) and dropped in favour of the free trial.",
+      "match_segment_ids": [
+        "0816B550-CA03-598A-9E78-689DD6D4F9C9",
+        "7EC90443-AE42-5BCC-B260-A2F50C562A63",
+        "F504CB49-92B3-57E3-A2FA-4FC8B1D8B29C"
+      ],
+      "expected_section": "open",
+      "acceptable_sections": [
+        "open",
+        "decision"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "Rejected proposal. Reporting it as dropped inside the adopted decision (E1) is acceptable; reporting tote bags as adopted is not."
+    },
+    {
+      "id": "E3",
+      "phenomena": [
+        "request_without_acceptance"
+      ],
+      "description": "Update the brochure price grid before reprinting: Hélène asked Bastien, who explicitly declined to commit; nobody owns it.",
+      "match_segment_ids": [
+        "F07914EB-CABB-53E9-9C29-4590423345F0",
+        "9E6DB444-720E-59AC-872E-76B43231BECF"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm",
+        "open"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "Bastien's 'we'll talk about it again' is a deferral, not an acceptance, so open is also acceptable."
+    },
+    {
+      "id": "E4",
+      "phenomena": [
+        "no_owner"
+      ],
+      "description": "Declare the names for the five exhibitor badges before registration closes, otherwise visitor rates apply; nobody took it on.",
+      "match_segment_ids": [
+        "A243C8A0-9BF2-5187-867F-C9149CA6C450"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "The timing is an event (registration closing), not a date, so due_text_contains is empty."
+    },
+    {
+      "id": "E5",
+      "phenomena": [
+        "reported_speech",
+        "quoted_never_commits"
+      ],
+      "description": "Run the motorized chair demonstration on the booth: no owner. Mehdi only imitated Bastien volunteering, Bastien never committed, and Hélène left it until Bastien's schedule is final.",
+      "match_segment_ids": [
+        "89664B39-77FF-59DA-A8E0-A0396DB4FC67",
+        "92D25748-2123-5B63-B720-A8329FF632E7",
+        "409E4A58-20F2-5D61-9023-10E2BDF7536B"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm",
+        "open"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "The first-person promise at turn 14 is Mehdi imitating Bastien. Bastien says nothing about the demo afterwards."
+    },
+    {
+      "id": "E6",
+      "phenomena": [
+        "self_assignment",
+        "relative_deadline"
+      ],
+      "description": "Hélène books the hotel rooms for the three nights by Friday, after nobody volunteered.",
+      "match_segment_ids": [
+        "409E4A58-20F2-5D61-9023-10E2BDF7536B",
+        "E4760DD5-0265-5022-84A8-B9B12BE88826",
+        "5D32D76C-F78B-5111-B20F-0C3A8DC34072"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Hélène",
+      "final_status": "active",
+      "due_text_contains": [
+        "vendredi"
+      ],
+      "due_date": null,
+      "notes": "Hélène asked at turn 15, nobody answered, and she took it herself at turn 16."
+    },
+    {
+      "id": "E7",
+      "phenomena": [
+        "unidentified_voice",
+        "relative_deadline"
+      ],
+      "description": "Send the hall 3 floor plan tomorrow morning: promised by an unidentified voice, so the owner cannot be confirmed.",
+      "match_segment_ids": [
+        "2EFC218E-433E-5802-8571-F4B5C4376CDE"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [
+        "demain"
+      ],
+      "due_date": null,
+      "notes": "Nothing identifies the voice as Hélène, Bastien or Mehdi; Mehdi only thanks it."
+    },
+    {
+      "id": "E8",
+      "phenomena": [
+        "late_correction",
+        "explicit_date"
+      ],
+      "description": "Mehdi confirms the exact delivery dock address to the carrier on November 9, corrected from 'before November 6' because the organizer assigns docks on November 8.",
+      "match_segment_ids": [
+        "BB443909-50FE-5381-A1F9-3156B334685C",
+        "6F2BA51B-C822-5320-94AB-7A5FD6192430",
+        "5D32D76C-F78B-5111-B20F-0C3A8DC34072"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Mehdi",
+      "final_status": "active",
+      "due_text_contains": [
+        "9 novembre"
+      ],
+      "due_date": null,
+      "notes": "One commitment corrected in place by its owner; November 6 is no longer the deadline. Original statement at turn 3; change at turn 18, 15 turns later."
+    },
+    {
+      "id": "E9",
+      "phenomena": [
+        "third_party_assignment",
+        "relative_deadline"
+      ],
+      "description": "Bastien prepares the booth staffing schedule with his meeting slots and sends it on Monday; asked by Hélène and accepted by Bastien.",
+      "match_segment_ids": [
+        "47B83572-1799-5901-9C83-336636D42669",
+        "484ECEE3-00E9-5D12-9790-BF1EDC3FD5EA",
+        "5D32D76C-F78B-5111-B20F-0C3A8DC34072"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Bastien",
+      "final_status": "active",
+      "due_text_contains": [
+        "lundi"
+      ],
+      "due_date": null,
+      "notes": ""
+    }
+  ],
+  "forbidden": [
+    {
+      "id": "F1",
+      "phenomena": [
+        "request_without_acceptance"
+      ],
+      "description": "No task, for anyone, to update the brochure price grid.",
+      "section": "task",
+      "owner": null,
+      "match_segment_ids": [
+        "F07914EB-CABB-53E9-9C29-4590423345F0",
+        "9E6DB444-720E-59AC-872E-76B43231BECF"
+      ]
+    },
+    {
+      "id": "F2",
+      "phenomena": [
+        "no_owner"
+      ],
+      "description": "No task, for anyone, to declare the exhibitor badge names.",
+      "section": "task",
+      "owner": null,
+      "match_segment_ids": [
+        "A243C8A0-9BF2-5187-867F-C9149CA6C450"
+      ]
+    },
+    {
+      "id": "F3",
+      "phenomena": [
+        "reported_speech"
+      ],
+      "description": "No task owned by Bastien for the motorized chair demonstration: the promise is Mehdi's imitation.",
+      "section": "task",
+      "owner": "Bastien",
+      "match_segment_ids": [
+        "89664B39-77FF-59DA-A8E0-A0396DB4FC67",
+        "92D25748-2123-5B63-B720-A8329FF632E7"
+      ]
+    },
+    {
+      "id": "F4",
+      "phenomena": [
+        "reported_speech"
+      ],
+      "description": "No task owned by Mehdi for the demonstration: quoting someone is not committing.",
+      "section": "task",
+      "owner": "Mehdi",
+      "match_segment_ids": [
+        "89664B39-77FF-59DA-A8E0-A0396DB4FC67",
+        "92D25748-2123-5B63-B720-A8329FF632E7"
+      ]
+    },
+    {
+      "id": "F5",
+      "phenomena": [
+        "unidentified_voice"
+      ],
+      "description": "No task, for anyone, to send the hall 3 floor plan: the promising voice is unidentified.",
+      "section": "task",
+      "owner": null,
+      "match_segment_ids": [
+        "2EFC218E-433E-5802-8571-F4B5C4376CDE"
+      ]
+    },
+    {
+      "id": "F6",
+      "phenomena": [
+        "third_party_assignment"
+      ],
+      "description": "The staffing schedule is not Hélène's task: she asked, Bastien accepted.",
+      "section": "task",
+      "owner": "Hélène",
+      "match_segment_ids": [
+        "47B83572-1799-5901-9C83-336636D42669",
+        "484ECEE3-00E9-5D12-9790-BF1EDC3FD5EA"
+      ]
+    }
+  ],
+  "forbidden_claims": [
+    "Bastien agreed to update the brochure price grid.",
+    "Bastien or Mehdi is in charge of the motorized chair demonstration.",
+    "Hélène, Bastien or Mehdi will send the hall 3 floor plan.",
+    "Mehdi confirms the carrier address by November 6.",
+    "Tote bags were chosen as giveaways.",
+    "The free trial is offered beyond the Lyon and Grenoble areas.",
+    "Someone was assigned to declare the exhibitor badge names.",
+    "A calendar date (day number or month) is given for Hélène's Friday booking, Bastien's Monday schedule or the voice's 'tomorrow morning'."
+  ],
+  "detail_checks": [
+    "Booth of eighteen square meters in hall 3; the fair opens in five weeks.",
+    "Forty client meetings over two days; three people needed on the booth at all times.",
+    "Six demonstration chairs delivered the morning before the fair.",
+    "Tote bags would cost four euros each, two thousand euros for five hundred.",
+    "Five exhibitor badges; names due before registration closes, otherwise visitor rates apply.",
+    "The address confirmation moved because the organizer assigns docks on November 8."
+  ]
+}

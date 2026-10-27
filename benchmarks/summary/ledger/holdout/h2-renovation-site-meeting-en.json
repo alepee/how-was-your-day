@@ -1,0 +1,233 @@
+{
+  "id": "0EF1903D-592B-5EC0-8663-AE464BC96B08",
+  "title": "Synthetic renovation site meeting (en)",
+  "kind": "meeting",
+  "startedAt": 814255200,
+  "duration": 219,
+  "state": "sealed",
+  "revision": 0,
+  "transcriptVersion": 1,
+  "notes": "",
+  "noteEntries": [],
+  "speakers": [
+    {
+      "id": "CAF5729B-20F1-5DF2-8949-75E881FFCBAC",
+      "personID": "9ABDEC98-AF86-5ECB-8EA6-7C42397A0BB7",
+      "label": "Gaëlle",
+      "confirmed": true,
+      "source": "mic"
+    },
+    {
+      "id": "1B9D1F7F-D1CD-5FE0-9CF4-090168792FE4",
+      "personID": "D67C3B5A-B50F-5FB9-A140-0D1F87DA8154",
+      "label": "Théo",
+      "confirmed": true,
+      "source": "system"
+    },
+    {
+      "id": "7CEBA9E2-63C6-55A3-8FCA-7FA114EDD9FD",
+      "personID": "0354BD9A-7D63-5BFE-B115-F2F2B2EFD75B",
+      "label": "Rachid",
+      "confirmed": true,
+      "source": "system"
+    }
+  ],
+  "segments": [
+    {
+      "id": "E0B10744-B14D-592A-B99F-AEEE7DFEEDEC",
+      "start": 0.0,
+      "end": 13.1,
+      "speakerID": "CAF5729B-20F1-5DF2-8949-75E881FFCBAC",
+      "source": "mic",
+      "text": "Site meeting number six for the future medical practice in the old bakery. We're two weeks behind on the structural work, so we need a realistic schedule by the end of this meeting."
+    },
+    {
+      "id": "107FD67A-8908-5F58-84A1-27314078B6ED",
+      "start": 14.4,
+      "end": 25.8,
+      "speakerID": "1B9D1F7F-D1CD-5FE0-9CF4-090168792FE4",
+      "source": "system",
+      "text": "Demolition is finished, the opening in the load-bearing wall is done and propped. The partitions for the two consulting rooms will be up by Friday, you have my word."
+    },
+    {
+      "id": "21B4F37A-E59C-5C45-9E59-4D3F453F6651",
+      "start": 26.9,
+      "end": 35.1,
+      "speakerID": "CAF5729B-20F1-5DF2-8949-75E881FFCBAC",
+      "source": "mic",
+      "text": "Théo, before we choose the basement plaster, I need a humidity reading of the walls. Can you take care of that?"
+    },
+    {
+      "id": "3D98C551-E135-5A97-95F8-AB3DAFD05FFC",
+      "start": 36.0,
+      "end": 42.1,
+      "speakerID": "1B9D1F7F-D1CD-5FE0-9CF4-090168792FE4",
+      "source": "system",
+      "text": "Yes, I'll do the reading on Monday with the moisture meter and send you the measurements."
+    },
+    {
+      "id": "2A57B1F5-889F-5904-9582-082D90CCA9D0",
+      "start": 42.8,
+      "end": 52.5,
+      "speakerID": "7CEBA9E2-63C6-55A3-8FCA-7FA114EDD9FD",
+      "source": "system",
+      "text": "The doctors would like to visit at the end of November. And the neighbours are complaining about the noise, especially early in the morning."
+    },
+    {
+      "id": "49BE83E9-1BB0-5ED1-B21A-F19452E7381B",
+      "start": 53.9,
+      "end": 63.7,
+      "speakerID": "CAF5729B-20F1-5DF2-8949-75E881FFCBAC",
+      "source": "mic",
+      "text": "I propose we limit noisy work to the nine-to-five window, Monday to Friday. Do you both agree?"
+    },
+    {
+      "id": "A77DCE40-57D7-582F-BE9F-3393CB2410FB",
+      "start": 64.9,
+      "end": 67.7,
+      "speakerID": "1B9D1F7F-D1CD-5FE0-9CF4-090168792FE4",
+      "source": "system",
+      "text": "Fine by me, the crews can live with that."
+    },
+    {
+      "id": "3BEDA010-3519-5358-BA56-1A96F5C8B300",
+      "start": 68.7,
+      "end": 72.1,
+      "speakerID": "7CEBA9E2-63C6-55A3-8FCA-7FA114EDD9FD",
+      "source": "system",
+      "text": "Agreed as well, the doctors approve it."
+    },
+    {
+      "id": "DCE6466F-2394-548F-B194-6CFB90FA0B0B",
+      "start": 72.9,
+      "end": 81.3,
+      "speakerID": "CAF5729B-20F1-5DF2-8949-75E881FFCBAC",
+      "source": "mic",
+      "text": "Good, so the rule applies to the whole site: noisy work from nine to five, weekdays only."
+    },
+    {
+      "id": "0CC6ADB3-1BC3-5501-B08A-A227FE1E1A3F",
+      "start": 81.9,
+      "end": 89.9,
+      "speakerID": "1B9D1F7F-D1CD-5FE0-9CF4-090168792FE4",
+      "source": "system",
+      "text": "Personally, I'm switching to a tablet for my site notes, no more paper notebook. It's easier for me."
+    },
+    {
+      "id": "19FCD979-E926-55D2-97FF-C3B2EEB44077",
+      "start": 91.2,
+      "end": 99.8,
+      "speakerID": "CAF5729B-20F1-5DF2-8949-75E881FFCBAC",
+      "source": "mic",
+      "text": "Rachid, we need the managing agent's written approval for the boiler flue outlet on the façade. Could you get it?"
+    },
+    {
+      "id": "B058CBE6-0355-58E8-B7D5-A6FB46F50285",
+      "start": 100.9,
+      "end": 110.6,
+      "speakerID": "7CEBA9E2-63C6-55A3-8FCA-7FA114EDD9FD",
+      "source": "system",
+      "text": "I won't stick my neck out on that one, the managing agent hasn't answered anyone for a month. Let's talk about the bathroom schedule instead."
+    },
+    {
+      "id": "ED653BB6-87A9-5A1A-85FA-7EFCBEB5B0B9",
+      "start": 111.5,
+      "end": 124.5,
+      "speakerID": "1B9D1F7F-D1CD-5FE0-9CF4-090168792FE4",
+      "source": "system",
+      "text": "Right, for the bathrooms, Rachid promised me on Monday on the phone: “I'll send you the tile choice before the end of the week.” Without it, the tiler can't order."
+    },
+    {
+      "id": "F0659FDE-48C8-5335-B645-5078C412B374",
+      "start": 125.2,
+      "end": 131.0,
+      "speakerID": null,
+      "source": "system",
+      "text": "The plasterer just called, he can only come on Tuesday, his truck has broken down."
+    },
+    {
+      "id": "96CDE651-42D2-5DB3-A6C1-4EC86DE6AF48",
+      "start": 132.4,
+      "end": 141.4,
+      "speakerID": "1B9D1F7F-D1CD-5FE0-9CF4-090168792FE4",
+      "source": "system",
+      "text": "In that case, I'm revising what I announced: the partitions won't be up on Friday, but on Wednesday next week."
+    },
+    {
+      "id": "8C433564-3174-5FD0-ABB5-91B7B70436E7",
+      "start": 142.6,
+      "end": 148.7,
+      "speakerID": "7CEBA9E2-63C6-55A3-8FCA-7FA114EDD9FD",
+      "source": "system",
+      "text": "About the tiles, yes, I'm the one sending you the choice, by Friday at the latest."
+    },
+    {
+      "id": "39BD9F7F-94EE-5ED9-9546-AA94262E935D",
+      "start": 149.7,
+      "end": 157.9,
+      "speakerID": "CAF5729B-20F1-5DF2-8949-75E881FFCBAC",
+      "source": "mic",
+      "text": "Thanks. Another topic: the upstairs neighbour must be told before the slab is core-drilled, he asked for it in writing."
+    },
+    {
+      "id": "5846E3F1-3093-5743-85DA-29B7CC5CAF4E",
+      "start": 158.7,
+      "end": 164.1,
+      "speakerID": "1B9D1F7F-D1CD-5FE0-9CF4-090168792FE4",
+      "source": "system",
+      "text": "The core drilling is scheduled in ten days, with the rental company's machine."
+    },
+    {
+      "id": "EB2B271F-DD96-52AC-8BAD-4E67A47A2873",
+      "start": 164.7,
+      "end": 169.5,
+      "speakerID": "CAF5729B-20F1-5DF2-8949-75E881FFCBAC",
+      "source": "mic",
+      "text": "Who can pick up the paint samples from the supplier?"
+    },
+    {
+      "id": "354A059D-FC5D-571A-8114-CF2DF289605D",
+      "start": 174.5,
+      "end": 180.2,
+      "speakerID": "CAF5729B-20F1-5DF2-8949-75E881FFCBAC",
+      "source": "mic",
+      "text": "No volunteers? Then it's on me, I'll pick them up on Tuesday at the end of the day."
+    },
+    {
+      "id": "139A7102-384C-5A80-96DD-E852FB3457AE",
+      "start": 181.3,
+      "end": 189.4,
+      "speakerID": "7CEBA9E2-63C6-55A3-8FCA-7FA114EDD9FD",
+      "source": "system",
+      "text": "And the humidity reading is pointless now, isn't it? The doctors have already gone for a lime plaster."
+    },
+    {
+      "id": "9031CDF5-DD58-5D21-BCC0-430666023C15",
+      "start": 190.3,
+      "end": 198.2,
+      "speakerID": "CAF5729B-20F1-5DF2-8949-75E881FFCBAC",
+      "source": "mic",
+      "text": "No, I'm keeping it. Lime or not, I need the measurements for the ten-year warranty. Théo, it's still Monday."
+    },
+    {
+      "id": "8E41B47B-55C0-5521-BB45-1C1E4624718F",
+      "start": 198.9,
+      "end": 204.0,
+      "speakerID": "7CEBA9E2-63C6-55A3-8FCA-7FA114EDD9FD",
+      "source": "system",
+      "text": "One last point: the town hall is still waiting for the accessibility file."
+    },
+    {
+      "id": "2D0AA22C-12D2-5687-A604-775A56E19C57",
+      "start": 205.4,
+      "end": 216.8,
+      "speakerID": "CAF5729B-20F1-5DF2-8949-75E881FFCBAC",
+      "source": "mic",
+      "text": "Leave that with me. The acknowledgement of receipt gives a deadline of 2026-11-27, I'll send it before that date. Thank you both, see you in a week."
+    }
+  ],
+  "transcriptState": "ready",
+  "audioChunks": [],
+  "consentAnnounced": false,
+  "isDemo": true
+}

@@ -1,0 +1,209 @@
+{
+  "id": "02B328B6-E6D0-5F23-8359-004CF088DA18",
+  "title": "Synthetic trade fair booth planning (fr)",
+  "kind": "meeting",
+  "startedAt": 813135600,
+  "duration": 215,
+  "state": "sealed",
+  "revision": 0,
+  "transcriptVersion": 1,
+  "notes": "",
+  "noteEntries": [],
+  "speakers": [
+    {
+      "id": "35ADFC55-8E10-5583-983D-8BCF3D4815E9",
+      "personID": "8D18E343-41A5-571C-B9BB-16B2E12D1E40",
+      "label": "Hélène",
+      "confirmed": true,
+      "source": "mic"
+    },
+    {
+      "id": "10B86BD3-3214-50DF-8B64-51D101A198F3",
+      "personID": "55D62274-B9E1-548C-AD22-06DA423B581C",
+      "label": "Bastien",
+      "confirmed": true,
+      "source": "system"
+    },
+    {
+      "id": "4A9671BD-2F67-5D4D-AF8E-E40CFCFE87A3",
+      "personID": "12639CD7-E2C5-551C-9748-494771E53903",
+      "label": "Mehdi",
+      "confirmed": true,
+      "source": "system"
+    }
+  ],
+  "segments": [
+    {
+      "id": "6311C0D1-45A5-5DEE-B3DB-C0D45C612ADC",
+      "start": 0.0,
+      "end": 14.8,
+      "speakerID": "35ADFC55-8E10-5583-983D-8BCF3D4815E9",
+      "source": "mic",
+      "text": "Bon, on fait le point sur le salon Bureau & Co à Lyon. Notre stand fait dix-huit mètres carrés dans le hall 3, et l’ouverture est dans cinq semaines. Je voudrais qu’on reparte avec une liste claire de qui fait quoi."
+    },
+    {
+      "id": "247BA10C-9F28-57E5-A804-3597B03C343D",
+      "start": 16.1,
+      "end": 27.3,
+      "speakerID": "10B86BD3-3214-50DF-8B64-51D101A198F3",
+      "source": "system",
+      "text": "Côté commercial, j’ai déjà quarante rendez-vous clients calés sur les deux jours. Il faudra trois personnes sur le stand en permanence, sinon on va rater du monde."
+    },
+    {
+      "id": "BB443909-50FE-5381-A1F9-3156B334685C",
+      "start": 28.4,
+      "end": 41.7,
+      "speakerID": "4A9671BD-2F67-5D4D-AF8E-E40CFCFE87A3",
+      "source": "system",
+      "text": "Pour la logistique, le transporteur peut livrer les six fauteuils de démonstration la veille au matin. Il lui faut l’adresse exacte du quai de livraison. Je la lui confirme avant le 6 novembre."
+    },
+    {
+      "id": "F07914EB-CABB-53E9-9C29-4590423345F0",
+      "start": 42.6,
+      "end": 55.3,
+      "speakerID": "35ADFC55-8E10-5583-983D-8BCF3D4815E9",
+      "source": "mic",
+      "text": "Parfait. Les brochures, maintenant : l’ancienne version affiche encore les tarifs de l’an dernier. Bastien, tu pourrais reprendre la grille tarifaire avant qu’on relance l’impression ?"
+    },
+    {
+      "id": "9E6DB444-720E-59AC-872E-76B43231BECF",
+      "start": 56.0,
+      "end": 64.4,
+      "speakerID": "10B86BD3-3214-50DF-8B64-51D101A198F3",
+      "source": "system",
+      "text": "Là-dessus, je ne m’engage pas, je suis sur la route jusqu’à jeudi. On en reparlera. Pour les goodies, vous avez une idée ?"
+    },
+    {
+      "id": "0816B550-CA03-598A-9E78-689DD6D4F9C9",
+      "start": 65.8,
+      "end": 71.0,
+      "speakerID": "35ADFC55-8E10-5583-983D-8BCF3D4815E9",
+      "source": "mic",
+      "text": "Je proposais des tote bags brodés au logo, comme l’an dernier."
+    },
+    {
+      "id": "7EC90443-AE42-5BCC-B260-A2F50C562A63",
+      "start": 72.2,
+      "end": 85.4,
+      "speakerID": "10B86BD3-3214-50DF-8B64-51D101A198F3",
+      "source": "system",
+      "text": "Non, pas de tote bags. Tout le monde en distribue, et à quatre euros pièce pour cinq cents sacs, ça fait deux mille euros. Je préférerais offrir un essai gratuit de quinze jours d’un fauteuil."
+    },
+    {
+      "id": "10DC35BE-A70E-51C4-815F-3EA440C923AE",
+      "start": 86.4,
+      "end": 94.7,
+      "speakerID": "4A9671BD-2F67-5D4D-AF8E-E40CFCFE87A3",
+      "source": "system",
+      "text": "L’essai à domicile, c’est faisable, mais seulement autour de Lyon et de Grenoble. Au-delà, le transport coûte trop cher."
+    },
+    {
+      "id": "F504CB49-92B3-57E3-A2FA-4FC8B1D8B29C",
+      "start": 95.5,
+      "end": 105.2,
+      "speakerID": "35ADFC55-8E10-5583-983D-8BCF3D4815E9",
+      "source": "mic",
+      "text": "Alors on laisse tomber les tote bags et on part sur l’essai gratuit de quinze jours, limité à Lyon et Grenoble. Tout le monde est d’accord ?"
+    },
+    {
+      "id": "FC54431A-C968-5E41-B5C9-AE3F328EFB29",
+      "start": 105.8,
+      "end": 108.0,
+      "speakerID": "4A9671BD-2F67-5D4D-AF8E-E40CFCFE87A3",
+      "source": "system",
+      "text": "D’accord, c’est validé pour moi."
+    },
+    {
+      "id": "F6340AC0-02AB-55A5-8330-D6DB4F9C9389",
+      "start": 109.3,
+      "end": 110.9,
+      "speakerID": "10B86BD3-3214-50DF-8B64-51D101A198F3",
+      "source": "system",
+      "text": "Pour moi aussi."
+    },
+    {
+      "id": "A243C8A0-9BF2-5187-867F-C9149CA6C450",
+      "start": 112.0,
+      "end": 123.9,
+      "speakerID": "4A9671BD-2F67-5D4D-AF8E-E40CFCFE87A3",
+      "source": "system",
+      "text": "Il reste les badges exposants. L’organisateur nous en donne cinq, et il faut déclarer les noms avant la clôture des inscriptions, sinon on paie l’entrée au tarif visiteur."
+    },
+    {
+      "id": "89664B39-77FF-59DA-A8E0-A0396DB4FC67",
+      "start": 124.8,
+      "end": 129.5,
+      "speakerID": "35ADFC55-8E10-5583-983D-8BCF3D4815E9",
+      "source": "mic",
+      "text": "Et la démonstration du fauteuil motorisé sur le stand, qui la fait ?"
+    },
+    {
+      "id": "92D25748-2123-5B63-B720-A8329FF632E7",
+      "start": 130.2,
+      "end": 140.9,
+      "speakerID": "4A9671BD-2F67-5D4D-AF8E-E40CFCFE87A3",
+      "source": "system",
+      "text": "J’entends déjà Bastien me dire : « la démo, c’est pour moi, je la connais par cœur ». Sauf qu’avec quarante rendez-vous, je ne vois pas quand il la ferait."
+    },
+    {
+      "id": "409E4A58-20F2-5D61-9023-10E2BDF7536B",
+      "start": 142.3,
+      "end": 150.5,
+      "speakerID": "35ADFC55-8E10-5583-983D-8BCF3D4815E9",
+      "source": "mic",
+      "text": "On verra quand son planning sera bouclé. Point suivant, l’hôtel : qui peut réserver les chambres pour les trois nuits ?"
+    },
+    {
+      "id": "E4760DD5-0265-5022-84A8-B9B12BE88826",
+      "start": 155.5,
+      "end": 160.3,
+      "speakerID": "35ADFC55-8E10-5583-983D-8BCF3D4815E9",
+      "source": "mic",
+      "text": "Personne ? Bon, je m’en charge moi-même. Je réserve d’ici vendredi."
+    },
+    {
+      "id": "2EFC218E-433E-5802-8571-F4B5C4376CDE",
+      "start": 161.3,
+      "end": 168.1,
+      "speakerID": null,
+      "source": "system",
+      "text": "Je vous envoie le plan du hall 3 demain matin, je l’ai reçu de l’organisateur la semaine dernière."
+    },
+    {
+      "id": "6F2BA51B-C822-5320-94AB-7A5FD6192430",
+      "start": 168.9,
+      "end": 182.6,
+      "speakerID": "4A9671BD-2F67-5D4D-AF8E-E40CFCFE87A3",
+      "source": "system",
+      "text": "Merci, ce plan m’aidera. Et je corrige ce que j’ai dit pour le transporteur : l’organisateur n’attribue les quais que le 8 novembre, donc je lui confirmerai l’adresse le 9 novembre au lieu du 6."
+    },
+    {
+      "id": "47B83572-1799-5901-9C83-336636D42669",
+      "start": 183.2,
+      "end": 191.4,
+      "speakerID": "35ADFC55-8E10-5583-983D-8BCF3D4815E9",
+      "source": "mic",
+      "text": "Bastien, il nous faut le planning des permanences sur le stand. Tu peux le préparer, avec tes créneaux de rendez-vous ?"
+    },
+    {
+      "id": "484ECEE3-00E9-5D12-9790-BF1EDC3FD5EA",
+      "start": 192.7,
+      "end": 196.4,
+      "speakerID": "10B86BD3-3214-50DF-8B64-51D101A198F3",
+      "source": "system",
+      "text": "Oui, ça, je le fais. Je vous l’envoie lundi."
+    },
+    {
+      "id": "5D32D76C-F78B-5111-B20F-0C3A8DC34072",
+      "start": 197.5,
+      "end": 212.6,
+      "speakerID": "35ADFC55-8E10-5583-983D-8BCF3D4815E9",
+      "source": "mic",
+      "text": "Merci. Je récapitule : essai gratuit de quinze jours sur Lyon et Grenoble, je réserve l’hôtel, Mehdi confirme l’adresse au transporteur et Bastien envoie le planning des permanences. On refait le point dans une semaine."
+    }
+  ],
+  "transcriptState": "ready",
+  "audioChunks": [],
+  "consentAnnounced": false,
+  "isDemo": true
+}

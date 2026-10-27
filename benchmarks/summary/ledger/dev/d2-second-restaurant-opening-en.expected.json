@@ -1,0 +1,563 @@
+{
+  "schema": "hwyd-ledger-expected/1",
+  "synthetic": true,
+  "split": "dev",
+  "scenario": "d2-second-restaurant-opening",
+  "input_language": "en",
+  "output_language": "fr",
+  "participants": [
+    "Lucie",
+    "Karim",
+    "Sophie",
+    "Thomas"
+  ],
+  "items": [
+    {
+      "id": "E1",
+      "phenomena": [
+        "collective_decision",
+        "decision_reversal"
+      ],
+      "description": "Initial collective decision to close the new restaurant on Mondays, later reversed by the group.",
+      "match_segment_ids": [
+        "E587B086-AEC6-597E-B463-021A5A41C642",
+        "03838449-45BC-5CC5-A9B6-B07A025F0F94",
+        "A21570E4-CEB5-5FD2-897A-5BCC56110034",
+        "006D3040-BD17-5DD2-BFB7-C4C1FA67D3EC",
+        "86E7614E-0B42-5AD9-9772-7FA1C85E208A",
+        "32752605-98A0-5B58-B8F8-8D0DCCDA5511",
+        "46850116-7681-57A2-83AF-9A3A7E325D7C"
+      ],
+      "expected_section": "decision",
+      "acceptable_sections": [
+        "decision"
+      ],
+      "owner": null,
+      "final_status": "superseded",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "Replaced by E3. Original statement at turn 14; change at turn 49, 35 turns later."
+    },
+    {
+      "id": "E2",
+      "phenomena": [
+        "collective_decision"
+      ],
+      "description": "Collective decision: keep the same till software in both restaurants so the figures are comparable.",
+      "match_segment_ids": [
+        "5A188AB9-9946-5270-A1D7-978BFCAD1941",
+        "4C6D5F4C-BB7F-502D-A37E-B0F470CE9D74",
+        "51ABBA42-733D-51F6-B26B-27569C034DDE",
+        "1E620597-9FDC-566E-9163-B449BFDF954F"
+      ],
+      "expected_section": "decision",
+      "acceptable_sections": [
+        "decision"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": ""
+    },
+    {
+      "id": "E3",
+      "phenomena": [
+        "decision_reversal",
+        "collective_decision"
+      ],
+      "description": "Reversed decision: the new restaurant opens on Mondays and closes on Tuesdays instead, because Monday lunch is the first restaurant's best service.",
+      "match_segment_ids": [
+        "32752605-98A0-5B58-B8F8-8D0DCCDA5511",
+        "3289BD4F-4D90-54AA-BE46-212F4A725EAB",
+        "9D9BAA4C-BCEB-5793-8C86-C915F6319EC5",
+        "46850116-7681-57A2-83AF-9A3A7E325D7C"
+      ],
+      "expected_section": "decision",
+      "acceptable_sections": [
+        "decision"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "Supersedes E1."
+    },
+    {
+      "id": "E4",
+      "phenomena": [
+        "deferred_idea"
+      ],
+      "description": "Shared loyalty card for both restaurants: idea explicitly kept for after the opening, to be discussed again in January.",
+      "match_segment_ids": [
+        "D7958221-1E24-570F-9C3C-58F0A6C55C16",
+        "5999E3B7-7EEF-5906-AE96-AE28925581C5"
+      ],
+      "expected_section": "open",
+      "acceptable_sections": [
+        "open"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "January is when the idea is revisited, not a deadline for anyone."
+    },
+    {
+      "id": "E5",
+      "phenomena": [
+        "third_party_assignment",
+        "false_withdrawal_third_party",
+        "relative_deadline"
+      ],
+      "description": "Karim runs the full combi oven test (steam and convection) with the technician on Monday; asked by Lucie, accepted by Karim, and kept by Karim when Thomas suggested skipping it.",
+      "match_segment_ids": [
+        "0EAA402B-3E69-5F8C-A9C0-3BA81811FD5F",
+        "38839A64-EFC1-5168-A335-F40B5B135467",
+        "FEA153D1-2600-5DF1-9FC3-B0006E1BCC8C",
+        "BA9C5270-2A56-5CC6-A362-1A1EEE1F0343"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Karim",
+      "final_status": "active",
+      "due_text_contains": [
+        "lundi"
+      ],
+      "due_date": null,
+      "notes": "Thomas is neither the owner nor the requester; the owner explicitly keeps the task at turn 40. Original statement at turn 6; change at turn 39, 33 turns later."
+    },
+    {
+      "id": "E6",
+      "phenomena": [
+        "late_correction",
+        "relative_deadline"
+      ],
+      "description": "Karim sends a provisional menu without the desserts on Friday; the final menu waits for the end of the kitchen trials.",
+      "match_segment_ids": [
+        "46A9F1CC-09DE-5732-AF51-FDBF45677C1F",
+        "9F530C6B-4305-52C7-8D9E-DA2611A75002"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Karim",
+      "final_status": "active",
+      "due_text_contains": [
+        "vendredi"
+      ],
+      "due_date": null,
+      "notes": "One commitment whose deliverable was corrected by its owner: 'final menu by Friday' became 'provisional menu without desserts on Friday'. Original statement at turn 8; change at turn 38, 30 turns later."
+    },
+    {
+      "id": "E7",
+      "phenomena": [
+        "reported_speech",
+        "quoted_later_commits",
+        "relative_deadline"
+      ],
+      "description": "Karim prepares the food and wine pairings and delivers them on Tuesday; first reported by Thomas, then confirmed by Karim in his own words.",
+      "match_segment_ids": [
+        "DD960A99-2635-5430-AD50-F049408C47FD",
+        "37191FE2-3DA4-5EFE-8494-BB6527C19E96"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Karim",
+      "final_status": "active",
+      "due_text_contains": [
+        "mardi"
+      ],
+      "due_date": null,
+      "notes": "The deadline comes from Karim's own turn (Tuesday); 'next week' belongs to Thomas's report of an earlier conversation."
+    },
+    {
+      "id": "E8",
+      "phenomena": [
+        "iso_date"
+      ],
+      "description": "Sophie files the licence application with the town hall by 2026-11-10 at the latest.",
+      "match_segment_ids": [
+        "D81AF6DE-C1FC-586B-ACDE-614CC1A88031"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Sophie",
+      "final_status": "active",
+      "due_text_contains": [
+        "10"
+      ],
+      "due_date": "2026-11-10",
+      "notes": "Literal ISO date read from the town hall portal. due_text_contains holds only the day number so that '10 novembre 2026' and '2026-11-10' both match."
+    },
+    {
+      "id": "E9",
+      "phenomena": [
+        "handover_accepted",
+        "relative_deadline"
+      ],
+      "description": "Thomas writes the job ads (three waiters, one dishwasher) and posts them by Wednesday; handed over to Sophie, who accepted.",
+      "match_segment_ids": [
+        "4541037F-EEB2-5EB5-A682-708ADFB55D9C",
+        "C386C5D1-03DE-510A-94AA-4CC69B2C9D89",
+        "87167727-29AF-50AD-A02E-9E664D54B14E"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Thomas",
+      "final_status": "superseded",
+      "due_text_contains": [
+        "mercredi"
+      ],
+      "due_date": null,
+      "notes": "Replaced by E10. Original statement at turn 17; change at turn 41, 24 turns later."
+    },
+    {
+      "id": "E10",
+      "phenomena": [
+        "handover_accepted",
+        "relative_deadline"
+      ],
+      "description": "Sophie takes over the job ads and posts them on Friday on the two job sites.",
+      "match_segment_ids": [
+        "C386C5D1-03DE-510A-94AA-4CC69B2C9D89",
+        "87167727-29AF-50AD-A02E-9E664D54B14E"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Sophie",
+      "final_status": "active",
+      "due_text_contains": [
+        "vendredi"
+      ],
+      "due_date": null,
+      "notes": "Supersedes E9; Sophie accepts in her own words at turn 42."
+    },
+    {
+      "id": "E11",
+      "phenomena": [
+        "handover_suggested"
+      ],
+      "description": "Karim registers all new hires for the food hygiene training; Lucie's suggestion to hand this to Sophie was declined, so Karim remains the owner.",
+      "match_segment_ids": [
+        "3ED6B1B0-5E3B-5161-B4AA-376AD9B70BDF",
+        "EA366267-C95E-5613-BF63-8BE09C4A3580",
+        "F86334F0-183F-5B69-B0D6-013D0121E0AC"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Karim",
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "Original statement at turn 18; change at turn 46, 28 turns later."
+    },
+    {
+      "id": "E12",
+      "phenomena": [
+        "third_party_assignment",
+        "requester_cancellation",
+        "relative_deadline"
+      ],
+      "description": "Sophie asks for three terrace furniture quotes this week; cancelled by Lucie, who had requested them, because the landlord leaves his tables and chairs.",
+      "match_segment_ids": [
+        "1E620597-9FDC-566E-9163-B449BFDF954F",
+        "2747D845-A476-5B98-92F6-6110E78DD000",
+        "BA00D34E-F44C-568E-B48B-E4E5613142FD",
+        "0666F61A-5028-5623-B532-A9A090EF13DE"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Sophie",
+      "final_status": "withdrawn",
+      "due_text_contains": [
+        "semaine"
+      ],
+      "due_date": null,
+      "notes": "Valid cancellation by the requester. Original statement at turn 24; change at turn 44, 20 turns later."
+    },
+    {
+      "id": "E13",
+      "phenomena": [
+        "late_withdrawal",
+        "relative_deadline"
+      ],
+      "description": "Thomas creates the restaurant's Instagram account and posts the first photos of the works by Friday; Thomas later withdrew this commitment.",
+      "match_segment_ids": [
+        "4C3CF186-316F-5907-8FB2-177EB107497E",
+        "86951418-127B-567A-B483-5AAB4B80CB8B"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Thomas",
+      "final_status": "withdrawn",
+      "due_text_contains": [
+        "vendredi"
+      ],
+      "due_date": null,
+      "notes": "Original statement at turn 25; change at turn 48, 23 turns later."
+    },
+    {
+      "id": "E14",
+      "phenomena": [
+        "self_assignment",
+        "relative_deadline"
+      ],
+      "description": "Lucie calls the fishmonger herself tomorrow morning to fit the deliveries around the Tuesday closure, after nobody volunteered.",
+      "match_segment_ids": [
+        "46850116-7681-57A2-83AF-9A3A7E325D7C",
+        "C7307C49-B150-59A3-BF49-299FBB9C357A"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Lucie",
+      "final_status": "active",
+      "due_text_contains": [
+        "demain"
+      ],
+      "due_date": null,
+      "notes": ""
+    },
+    {
+      "id": "E15",
+      "phenomena": [
+        "no_owner"
+      ],
+      "description": "Declare the new premises to the insurer before opening, otherwise the extractor hood work is not covered; nobody took it on.",
+      "match_segment_ids": [
+        "E3DF3F15-0E54-51BA-9ECB-EB260F3B21D1"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "The timing is an event (opening), not a date, so due_text_contains is empty."
+    },
+    {
+      "id": "E16",
+      "phenomena": [
+        "absent_assignee"
+      ],
+      "description": "VAT return for the new business: Lucie says Gilles, the accountant, will do it, but he is absent; no participant owns it.",
+      "match_segment_ids": [
+        "7FC0A3F8-3828-5BC9-8722-5E98BFAE87C3",
+        "BBE739C3-798D-5070-ACEE-5C45DD5B0F48"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": ""
+    },
+    {
+      "id": "E17",
+      "phenomena": [
+        "hesitant_commitment"
+      ],
+      "description": "Photos of the dishes for the website: Thomas might take them during the kitchen trials if he has a moment, with no guarantee.",
+      "match_segment_ids": [
+        "AE795E9F-27B7-5443-BF90-3580ED017C2A",
+        "B694D713-12F3-5676-AF3C-8830140E5ADD"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm"
+      ],
+      "owner": "Thomas",
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": ""
+    },
+    {
+      "id": "E18",
+      "phenomena": [
+        "request_without_acceptance"
+      ],
+      "description": "Tasting for the local press before opening: Thomas asked Karim, who would not promise it and changed the subject; nobody owns it.",
+      "match_segment_ids": [
+        "93DE71FE-343B-523D-BE36-C4D5E4DDFFF8",
+        "288DD06E-7CC4-5723-9AA6-6F7519459158"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": ""
+    }
+  ],
+  "forbidden": [
+    {
+      "id": "F1",
+      "phenomena": [
+        "personal_choice"
+      ],
+      "description": "Sophie keeping her own spreadsheet for bank reconciliations is a personal choice, not a team decision.",
+      "section": "decision",
+      "owner": null,
+      "match_segment_ids": [
+        "E5D7CAD6-3FD5-5E09-8C06-2215E1F4246E"
+      ]
+    },
+    {
+      "id": "F2",
+      "phenomena": [
+        "reported_speech"
+      ],
+      "description": "Thomas does not own the food and wine pairings; he only reported what Karim said.",
+      "section": "task",
+      "owner": "Thomas",
+      "match_segment_ids": [
+        "DD960A99-2635-5430-AD50-F049408C47FD"
+      ]
+    },
+    {
+      "id": "F3",
+      "phenomena": [
+        "no_owner"
+      ],
+      "description": "No task, for anyone, to declare the premises to the insurer.",
+      "section": "task",
+      "owner": null,
+      "match_segment_ids": [
+        "E3DF3F15-0E54-51BA-9ECB-EB260F3B21D1"
+      ]
+    },
+    {
+      "id": "F4",
+      "phenomena": [
+        "absent_assignee"
+      ],
+      "description": "No task for the VAT return: it is assigned to Gilles, who is absent.",
+      "section": "task",
+      "owner": null,
+      "match_segment_ids": [
+        "7FC0A3F8-3828-5BC9-8722-5E98BFAE87C3",
+        "BBE739C3-798D-5070-ACEE-5C45DD5B0F48"
+      ]
+    },
+    {
+      "id": "F5",
+      "phenomena": [
+        "hesitant_commitment"
+      ],
+      "description": "The dish photos are not a firm task for Thomas.",
+      "section": "task",
+      "owner": "Thomas",
+      "match_segment_ids": [
+        "AE795E9F-27B7-5443-BF90-3580ED017C2A",
+        "B694D713-12F3-5676-AF3C-8830140E5ADD"
+      ]
+    },
+    {
+      "id": "F6",
+      "phenomena": [
+        "request_without_acceptance"
+      ],
+      "description": "No task, for anyone, to organize a press tasting.",
+      "section": "task",
+      "owner": null,
+      "match_segment_ids": [
+        "93DE71FE-343B-523D-BE36-C4D5E4DDFFF8",
+        "288DD06E-7CC4-5723-9AA6-6F7519459158"
+      ]
+    },
+    {
+      "id": "F7",
+      "phenomena": [
+        "handover_suggested"
+      ],
+      "description": "Sophie does not own the hygiene training registrations; she declined the suggested handover.",
+      "section": "task",
+      "owner": "Sophie",
+      "match_segment_ids": [
+        "EA366267-C95E-5613-BF63-8BE09C4A3580",
+        "F86334F0-183F-5B69-B0D6-013D0121E0AC"
+      ]
+    },
+    {
+      "id": "F8",
+      "phenomena": [
+        "deferred_idea"
+      ],
+      "description": "The loyalty card is not a decision; it was deferred.",
+      "section": "decision",
+      "owner": null,
+      "match_segment_ids": [
+        "D7958221-1E24-570F-9C3C-58F0A6C55C16",
+        "5999E3B7-7EEF-5906-AE96-AE28925581C5"
+      ]
+    },
+    {
+      "id": "F9",
+      "phenomena": [
+        "third_party_assignment"
+      ],
+      "description": "The oven test is not Lucie's task: she asked, Karim accepted.",
+      "section": "task",
+      "owner": "Lucie",
+      "match_segment_ids": [
+        "0EAA402B-3E69-5F8C-A9C0-3BA81811FD5F",
+        "38839A64-EFC1-5168-A335-F40B5B135467"
+      ]
+    }
+  ],
+  "forbidden_claims": [
+    "The new restaurant is closed on Mondays.",
+    "Karim sends the final menu, or a menu with desserts, on Friday.",
+    "The combi oven test is cancelled or no longer needed.",
+    "Thomas posts the job ads.",
+    "Sophie handles the hygiene training registrations.",
+    "Thomas creates the Instagram account.",
+    "Sophie still has to collect terrace furniture quotes.",
+    "Sophie or Lucie files the VAT return.",
+    "Thomas has committed to taking the dish photos.",
+    "Karim will organize a press tasting.",
+    "A loyalty card was decided.",
+    "Keeping a personal spreadsheet for bank reconciliations is a team decision.",
+    "A calendar date (day number) is attached to a weekday or 'tomorrow' deadline: Monday oven test, Friday menu, Tuesday pairings, Friday job ads or tomorrow's call."
+  ],
+  "detail_checks": [
+    "The second restaurant, on rue des Tanneurs, opens in five weeks.",
+    "Kitchen ninety percent delivered; cold room in place; combi oven arrives on Thursday.",
+    "The oven test covers steam and convection before signing for the delivery.",
+    "Original menu plan: six starters, eight mains and five desserts.",
+    "Hiring: three waiters, one dishwasher and two kitchen assistants.",
+    "Licence deadline shown on the town hall portal: 2026-11-10.",
+    "Terrace for twenty covers; the landlord leaves his tables and chairs.",
+    "The fishmonger from Pornic delivers both restaurants three times a week with a five percent volume discount.",
+    "Monday lunch is the first restaurant's best service of the week.",
+    "The loyalty card will be discussed again in January."
+  ]
+}

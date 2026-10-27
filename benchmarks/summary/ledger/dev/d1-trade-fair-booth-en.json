@@ -1,0 +1,209 @@
+{
+  "id": "C4F9506A-227D-58F1-8CF2-C4C957333759",
+  "title": "Synthetic trade fair booth planning (en)",
+  "kind": "meeting",
+  "startedAt": 813135600,
+  "duration": 215,
+  "state": "sealed",
+  "revision": 0,
+  "transcriptVersion": 1,
+  "notes": "",
+  "noteEntries": [],
+  "speakers": [
+    {
+      "id": "EB88FE52-2CC7-50B1-A5CB-2EA5ABDBBA6C",
+      "personID": "8D18E343-41A5-571C-B9BB-16B2E12D1E40",
+      "label": "Hélène",
+      "confirmed": true,
+      "source": "mic"
+    },
+    {
+      "id": "23E8090A-E0A7-5066-8A4F-EB357C32DC49",
+      "personID": "55D62274-B9E1-548C-AD22-06DA423B581C",
+      "label": "Bastien",
+      "confirmed": true,
+      "source": "system"
+    },
+    {
+      "id": "ADC1B5A2-7642-5693-8ABC-5923AF68480A",
+      "personID": "12639CD7-E2C5-551C-9748-494771E53903",
+      "label": "Mehdi",
+      "confirmed": true,
+      "source": "system"
+    }
+  ],
+  "segments": [
+    {
+      "id": "F1B92FD6-3640-524F-85D5-123E131A06E3",
+      "start": 0.0,
+      "end": 14.8,
+      "speakerID": "EB88FE52-2CC7-50B1-A5CB-2EA5ABDBBA6C",
+      "source": "mic",
+      "text": "Right, let's review the Bureau & Co trade fair in Lyon. Our booth is eighteen square meters in hall 3, and the fair opens in five weeks. I'd like us to leave with a clear list of who does what."
+    },
+    {
+      "id": "0355A8B3-1C35-5B27-B14D-82F39CE7C66B",
+      "start": 16.1,
+      "end": 27.3,
+      "speakerID": "23E8090A-E0A7-5066-8A4F-EB357C32DC49",
+      "source": "system",
+      "text": "On the sales side, I already have forty client meetings booked over the two days. We'll need three people on the booth at all times, otherwise we'll miss people."
+    },
+    {
+      "id": "07FE989A-E5D5-5F82-A643-73CFA6256D13",
+      "start": 28.4,
+      "end": 41.7,
+      "speakerID": "ADC1B5A2-7642-5693-8ABC-5923AF68480A",
+      "source": "system",
+      "text": "For logistics, the carrier can deliver the six demonstration chairs the morning before. He needs the exact address of the delivery dock. I'll confirm it to him before November 6."
+    },
+    {
+      "id": "17B79FCF-0BB4-5744-8B90-C11B5198A027",
+      "start": 42.6,
+      "end": 55.3,
+      "speakerID": "EB88FE52-2CC7-50B1-A5CB-2EA5ABDBBA6C",
+      "source": "mic",
+      "text": "Perfect. Now the brochures: the old version still shows last year's prices. Bastien, could you rework the price grid before we send it back to print?"
+    },
+    {
+      "id": "10A9138C-90EE-5F32-A4B4-B3E6AABDBDFE",
+      "start": 56.0,
+      "end": 64.4,
+      "speakerID": "23E8090A-E0A7-5066-8A4F-EB357C32DC49",
+      "source": "system",
+      "text": "I'm not committing to that, I'm on the road until Thursday. We'll talk about it again. For the giveaways, any ideas?"
+    },
+    {
+      "id": "74CA7C81-3CDF-520D-AC6B-3625EC334FCC",
+      "start": 65.8,
+      "end": 71.0,
+      "speakerID": "EB88FE52-2CC7-50B1-A5CB-2EA5ABDBBA6C",
+      "source": "mic",
+      "text": "I was going to suggest tote bags embroidered with our logo, like last year."
+    },
+    {
+      "id": "FF305E1B-5FD1-58BE-B155-ACADF970EA0C",
+      "start": 72.2,
+      "end": 85.4,
+      "speakerID": "23E8090A-E0A7-5066-8A4F-EB357C32DC49",
+      "source": "system",
+      "text": "No, not tote bags. Everybody hands them out, and at four euros each for five hundred bags, that's two thousand euros. I'd rather offer a free fifteen-day trial of a chair."
+    },
+    {
+      "id": "A4395572-11B0-5F24-99D5-BB49C2938194",
+      "start": 86.4,
+      "end": 94.7,
+      "speakerID": "ADC1B5A2-7642-5693-8ABC-5923AF68480A",
+      "source": "system",
+      "text": "A home trial is doable, but only around Lyon and Grenoble. Beyond that, transport costs too much."
+    },
+    {
+      "id": "18AB32D7-2546-542F-8EEF-EA4C13CC7C5D",
+      "start": 95.5,
+      "end": 105.2,
+      "speakerID": "EB88FE52-2CC7-50B1-A5CB-2EA5ABDBBA6C",
+      "source": "mic",
+      "text": "Then we drop the tote bags and go with the free fifteen-day trial, limited to Lyon and Grenoble. Does everyone agree?"
+    },
+    {
+      "id": "4A37061D-734F-5FE7-B3E3-5E086AD57750",
+      "start": 105.8,
+      "end": 108.0,
+      "speakerID": "ADC1B5A2-7642-5693-8ABC-5923AF68480A",
+      "source": "system",
+      "text": "Agreed, that's settled for me."
+    },
+    {
+      "id": "F480E518-D68B-53C7-8791-FEEBA3EF58D2",
+      "start": 109.3,
+      "end": 110.9,
+      "speakerID": "23E8090A-E0A7-5066-8A4F-EB357C32DC49",
+      "source": "system",
+      "text": "Same for me."
+    },
+    {
+      "id": "2395C189-9EA4-5919-AF74-603E90FE6026",
+      "start": 112.0,
+      "end": 123.9,
+      "speakerID": "ADC1B5A2-7642-5693-8ABC-5923AF68480A",
+      "source": "system",
+      "text": "There are still the exhibitor badges. The organizer gives us five, and the names have to be declared before registration closes, otherwise we pay the visitor rate to get in."
+    },
+    {
+      "id": "74B7D725-5E85-518E-BD7F-BFAD0091DCA6",
+      "start": 124.8,
+      "end": 129.5,
+      "speakerID": "EB88FE52-2CC7-50B1-A5CB-2EA5ABDBBA6C",
+      "source": "mic",
+      "text": "And the motorized chair demonstration on the booth, who's doing it?"
+    },
+    {
+      "id": "F12B7443-F536-5EFC-8428-AB544466F1C2",
+      "start": 130.2,
+      "end": 140.9,
+      "speakerID": "ADC1B5A2-7642-5693-8ABC-5923AF68480A",
+      "source": "system",
+      "text": "I can already hear Bastien telling me: “the demo is mine, I know it by heart.” Except that with forty meetings, I don't see when he'd do it."
+    },
+    {
+      "id": "DE9E3046-D860-5194-97B8-832FDEF004C7",
+      "start": 142.3,
+      "end": 150.5,
+      "speakerID": "EB88FE52-2CC7-50B1-A5CB-2EA5ABDBBA6C",
+      "source": "mic",
+      "text": "We'll see once his schedule is final. Next point, the hotel: who can book the rooms for the three nights?"
+    },
+    {
+      "id": "E5068EBF-9752-5F4C-AA36-930444EB7D60",
+      "start": 155.5,
+      "end": 160.3,
+      "speakerID": "EB88FE52-2CC7-50B1-A5CB-2EA5ABDBBA6C",
+      "source": "mic",
+      "text": "Nobody? Fine, I'll take care of it myself. I'll book by Friday."
+    },
+    {
+      "id": "2C50944F-4CD4-59FA-9497-61A82587F5D0",
+      "start": 161.3,
+      "end": 168.1,
+      "speakerID": null,
+      "source": "system",
+      "text": "I'll send you the hall 3 floor plan tomorrow morning, I got it from the organizer last week."
+    },
+    {
+      "id": "4B3CD64D-A339-525E-89F0-3F75D00B9A83",
+      "start": 168.9,
+      "end": 182.6,
+      "speakerID": "ADC1B5A2-7642-5693-8ABC-5923AF68480A",
+      "source": "system",
+      "text": "Thanks, that plan will help. And I'm correcting what I said about the carrier: the organizer only assigns the docks on November 8, so I'll confirm the address to him on November 9 instead of the 6th."
+    },
+    {
+      "id": "04AEAD8D-D9BB-5621-81F4-A63DA601DF5D",
+      "start": 183.2,
+      "end": 191.4,
+      "speakerID": "EB88FE52-2CC7-50B1-A5CB-2EA5ABDBBA6C",
+      "source": "mic",
+      "text": "Bastien, we need the booth staffing schedule. Can you prepare it, with your meeting slots?"
+    },
+    {
+      "id": "E5299EBD-01FC-5B8F-9646-4A9C79C0B983",
+      "start": 192.7,
+      "end": 196.4,
+      "speakerID": "23E8090A-E0A7-5066-8A4F-EB357C32DC49",
+      "source": "system",
+      "text": "Yes, that one I'll do. I'll send it to you on Monday."
+    },
+    {
+      "id": "4AF0D5AF-A2B6-5C5A-B883-F90F4F7D3BB0",
+      "start": 197.5,
+      "end": 212.6,
+      "speakerID": "EB88FE52-2CC7-50B1-A5CB-2EA5ABDBBA6C",
+      "source": "mic",
+      "text": "Thanks. To recap: a free fifteen-day trial for Lyon and Grenoble, I book the hotel, Mehdi confirms the address to the carrier and Bastien sends the staffing schedule. We'll check in again in a week."
+    }
+  ],
+  "transcriptState": "ready",
+  "audioChunks": [],
+  "consentAnnounced": false,
+  "isDemo": true
+}

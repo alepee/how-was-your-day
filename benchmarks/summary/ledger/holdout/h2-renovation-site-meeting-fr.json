@@ -1,0 +1,233 @@
+{
+  "id": "360EA8B2-34E9-5C20-B0C5-32CEEA70060D",
+  "title": "Synthetic renovation site meeting (fr)",
+  "kind": "meeting",
+  "startedAt": 814255200,
+  "duration": 219,
+  "state": "sealed",
+  "revision": 0,
+  "transcriptVersion": 1,
+  "notes": "",
+  "noteEntries": [],
+  "speakers": [
+    {
+      "id": "66B1C542-0A80-5B01-B32B-62A9D5B14463",
+      "personID": "9ABDEC98-AF86-5ECB-8EA6-7C42397A0BB7",
+      "label": "Gaëlle",
+      "confirmed": true,
+      "source": "mic"
+    },
+    {
+      "id": "1C976FB8-5318-5353-A6A4-E359F19B1696",
+      "personID": "D67C3B5A-B50F-5FB9-A140-0D1F87DA8154",
+      "label": "Théo",
+      "confirmed": true,
+      "source": "system"
+    },
+    {
+      "id": "93E558A5-42B2-54FF-99EE-06C8A4EDDD26",
+      "personID": "0354BD9A-7D63-5BFE-B115-F2F2B2EFD75B",
+      "label": "Rachid",
+      "confirmed": true,
+      "source": "system"
+    }
+  ],
+  "segments": [
+    {
+      "id": "23D563F9-F609-5FA7-9A7E-3F527B1E1EAF",
+      "start": 0.0,
+      "end": 13.1,
+      "speakerID": "66B1C542-0A80-5B01-B32B-62A9D5B14463",
+      "source": "mic",
+      "text": "Réunion de chantier numéro six pour le futur cabinet médical, dans l’ancienne boulangerie. On a deux semaines de retard sur le gros œuvre, il nous faut un planning réaliste en sortant d’ici."
+    },
+    {
+      "id": "9FC0D358-FB88-5C91-B53F-48FE4E64422C",
+      "start": 14.4,
+      "end": 25.8,
+      "speakerID": "1C976FB8-5318-5353-A6A4-E359F19B1696",
+      "source": "system",
+      "text": "La démolition est terminée, l’ouverture dans le mur porteur est faite et étayée. Les cloisons des deux cabinets seront montées d’ici vendredi, je m’y engage."
+    },
+    {
+      "id": "CE660DD8-5717-52A1-8B17-B0BCAF591968",
+      "start": 26.9,
+      "end": 35.1,
+      "speakerID": "66B1C542-0A80-5B01-B32B-62A9D5B14463",
+      "source": "mic",
+      "text": "Théo, avant de choisir l’enduit du sous-sol, j’ai besoin d’un relevé d’humidité des murs. Vous pouvez vous en charger ?"
+    },
+    {
+      "id": "617B4068-0D07-5FF7-981A-4F9A3FBFA518",
+      "start": 36.0,
+      "end": 42.1,
+      "speakerID": "1C976FB8-5318-5353-A6A4-E359F19B1696",
+      "source": "system",
+      "text": "Oui, je fais le relevé lundi avec l’humidimètre et je vous envoie les mesures."
+    },
+    {
+      "id": "DC3256E5-7FEB-51D6-9686-717E0986558E",
+      "start": 42.8,
+      "end": 52.5,
+      "speakerID": "93E558A5-42B2-54FF-99EE-06C8A4EDDD26",
+      "source": "system",
+      "text": "Les médecins aimeraient visiter fin novembre. Et les voisins se plaignent du bruit, surtout tôt le matin."
+    },
+    {
+      "id": "8B9D74C8-1C25-573D-BC08-9A5DD134612D",
+      "start": 53.9,
+      "end": 63.7,
+      "speakerID": "66B1C542-0A80-5B01-B32B-62A9D5B14463",
+      "source": "mic",
+      "text": "Je propose qu’on limite les travaux bruyants à la plage neuf heures, dix-sept heures, du lundi au vendredi. Vous êtes d’accord tous les deux ?"
+    },
+    {
+      "id": "EC93D5BA-BDF2-5EC9-9F80-D5DB269F6444",
+      "start": 64.9,
+      "end": 67.7,
+      "speakerID": "1C976FB8-5318-5353-A6A4-E359F19B1696",
+      "source": "system",
+      "text": "Ça me va, c’est tenable pour les équipes."
+    },
+    {
+      "id": "FE09B21D-7043-5D44-96FE-2210B27058B6",
+      "start": 68.7,
+      "end": 72.1,
+      "speakerID": "93E558A5-42B2-54FF-99EE-06C8A4EDDD26",
+      "source": "system",
+      "text": "D’accord aussi, c’est validé du côté des médecins."
+    },
+    {
+      "id": "ACEFE65A-504C-5920-AFCE-B68244F9CFEA",
+      "start": 72.9,
+      "end": 81.3,
+      "speakerID": "66B1C542-0A80-5B01-B32B-62A9D5B14463",
+      "source": "mic",
+      "text": "Bien, la règle vaut donc pour tout le chantier : travaux bruyants de neuf heures à dix-sept heures, en semaine uniquement."
+    },
+    {
+      "id": "4C296604-5E62-516E-A29D-64E58F4FDF35",
+      "start": 81.9,
+      "end": 89.9,
+      "speakerID": "1C976FB8-5318-5353-A6A4-E359F19B1696",
+      "source": "system",
+      "text": "Pour ma part, je passe sur tablette pour mes relevés de chantier, fini le carnet papier. C’est plus simple pour moi."
+    },
+    {
+      "id": "C78843FD-1BC9-557B-840D-088133FAB3F4",
+      "start": 91.2,
+      "end": 99.8,
+      "speakerID": "66B1C542-0A80-5B01-B32B-62A9D5B14463",
+      "source": "mic",
+      "text": "Rachid, il nous faut l’accord écrit du syndic pour la sortie de la ventouse de chaudière en façade. Vous pourriez l’obtenir ?"
+    },
+    {
+      "id": "9EE24A73-355D-5F6A-A88D-AE3152203426",
+      "start": 100.9,
+      "end": 110.6,
+      "speakerID": "93E558A5-42B2-54FF-99EE-06C8A4EDDD26",
+      "source": "system",
+      "text": "Je ne vais pas m’avancer là-dessus, le syndic ne répond à personne depuis un mois. Parlons plutôt du planning des sanitaires."
+    },
+    {
+      "id": "4A7ADFBE-D801-582B-8ED5-5ADE2F5076E8",
+      "start": 111.5,
+      "end": 124.5,
+      "speakerID": "1C976FB8-5318-5353-A6A4-E359F19B1696",
+      "source": "system",
+      "text": "Justement, pour les sanitaires, Rachid me l’a promis lundi au téléphone : « je vous envoie le choix des carrelages avant la fin de la semaine ». Sans ça, le carreleur ne peut pas commander."
+    },
+    {
+      "id": "A5F4A322-5971-5D69-99C3-D0878C117DCE",
+      "start": 125.2,
+      "end": 131.0,
+      "speakerID": null,
+      "source": "system",
+      "text": "Le plâtrier vient d’appeler, il ne pourra passer que mardi, son camion est en panne."
+    },
+    {
+      "id": "D2203B2D-6590-5A5A-8592-3B7B4F24422B",
+      "start": 132.4,
+      "end": 141.4,
+      "speakerID": "1C976FB8-5318-5353-A6A4-E359F19B1696",
+      "source": "system",
+      "text": "Dans ce cas, je rectifie ce que j’ai annoncé : les cloisons ne seront pas montées vendredi, mais mercredi de la semaine prochaine."
+    },
+    {
+      "id": "1C47BD24-93EB-53FB-BCD8-069DEB092839",
+      "start": 142.6,
+      "end": 148.7,
+      "speakerID": "93E558A5-42B2-54FF-99EE-06C8A4EDDD26",
+      "source": "system",
+      "text": "Pour les carrelages, oui, c’est bien moi qui vous envoie le choix, vendredi au plus tard."
+    },
+    {
+      "id": "A292862E-F101-508D-82BB-4C6EF869955F",
+      "start": 149.7,
+      "end": 157.9,
+      "speakerID": "66B1C542-0A80-5B01-B32B-62A9D5B14463",
+      "source": "mic",
+      "text": "Merci. Autre sujet : le voisin du dessus doit être prévenu avant le carottage de la dalle, il l’a demandé par écrit."
+    },
+    {
+      "id": "666151A8-2AF2-5DA1-85E3-8CF1E7003119",
+      "start": 158.7,
+      "end": 164.1,
+      "speakerID": "1C976FB8-5318-5353-A6A4-E359F19B1696",
+      "source": "system",
+      "text": "Le carottage est prévu dans dix jours, avec la machine du loueur."
+    },
+    {
+      "id": "0BB950E3-E996-5774-92E4-3AAE95CCEF38",
+      "start": 164.7,
+      "end": 169.5,
+      "speakerID": "66B1C542-0A80-5B01-B32B-62A9D5B14463",
+      "source": "mic",
+      "text": "Qui peut récupérer les échantillons de peinture chez le fournisseur ?"
+    },
+    {
+      "id": "B309C09D-4448-520F-A87B-C31D88B3F55A",
+      "start": 174.5,
+      "end": 180.2,
+      "speakerID": "66B1C542-0A80-5B01-B32B-62A9D5B14463",
+      "source": "mic",
+      "text": "Pas de volontaire ? Alors c’est pour moi, je les récupère mardi en fin de journée."
+    },
+    {
+      "id": "E7D3D83A-4EFC-5A26-968D-7F737C19DDC4",
+      "start": 181.3,
+      "end": 189.4,
+      "speakerID": "93E558A5-42B2-54FF-99EE-06C8A4EDDD26",
+      "source": "system",
+      "text": "Et le relevé d’humidité, il ne sert plus à rien maintenant, si ? Les médecins ont déjà opté pour un enduit à la chaux."
+    },
+    {
+      "id": "B4EE1ECD-D0F3-51E7-A15C-44278F9E5188",
+      "start": 190.3,
+      "end": 198.2,
+      "speakerID": "66B1C542-0A80-5B01-B32B-62A9D5B14463",
+      "source": "mic",
+      "text": "Si, je le maintiens. Chaux ou pas, j’ai besoin des mesures pour la garantie décennale. Théo, c’est toujours lundi."
+    },
+    {
+      "id": "E8A48F02-F5C5-543F-9B9F-555FF89E2E52",
+      "start": 198.9,
+      "end": 204.0,
+      "speakerID": "93E558A5-42B2-54FF-99EE-06C8A4EDDD26",
+      "source": "system",
+      "text": "Dernier point : la mairie attend toujours le dossier d’accessibilité."
+    },
+    {
+      "id": "DADD1C15-CBD5-5BD0-8FAB-4BDC9C98C87A",
+      "start": 205.4,
+      "end": 216.8,
+      "speakerID": "66B1C542-0A80-5B01-B32B-62A9D5B14463",
+      "source": "mic",
+      "text": "Je prends ça en charge. L’accusé de réception indique une date limite au 2026-11-27, je l’envoie avant cette date. Merci à vous deux, on se revoit dans une semaine."
+    }
+  ],
+  "transcriptState": "ready",
+  "audioChunks": [],
+  "consentAnnounced": false,
+  "isDemo": true
+}

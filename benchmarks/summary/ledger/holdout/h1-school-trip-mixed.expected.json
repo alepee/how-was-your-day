@@ -1,0 +1,304 @@
+{
+  "schema": "hwyd-ledger-expected/1",
+  "synthetic": true,
+  "split": "holdout",
+  "scenario": "h1-school-trip",
+  "input_language": "mixed",
+  "output_language": "fr",
+  "participants": [
+    "Odile",
+    "Yannick",
+    "Farida"
+  ],
+  "items": [
+    {
+      "id": "E1",
+      "phenomena": [
+        "collective_decision",
+        "alternative_adopted"
+      ],
+      "description": "Collective decision: travel by chartered coach, door to door, there and back, instead of the train.",
+      "match_segment_ids": [
+        "CE4784CF-7480-5474-A112-30E43AA13C73",
+        "8F99065C-48A4-5A93-871D-BED86D1BF98A",
+        "267D7F9C-43C9-579D-9F84-23B232BDBF12",
+        "7C9E7453-65F0-5FEC-9DB5-510AA371BC03"
+      ],
+      "expected_section": "decision",
+      "acceptable_sections": [
+        "decision"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "Proposed by Farida at turn 3, supported by Odile and accepted by Yannick."
+    },
+    {
+      "id": "E2",
+      "phenomena": [
+        "proposal_rejected"
+      ],
+      "description": "Yannick's train proposal (140 euros cheaper, two connections) was rejected for safety reasons.",
+      "match_segment_ids": [
+        "6198F93A-59F4-5484-A2A0-1A37C39D9E9A",
+        "CE4784CF-7480-5474-A112-30E43AA13C73",
+        "8F99065C-48A4-5A93-871D-BED86D1BF98A",
+        "267D7F9C-43C9-579D-9F84-23B232BDBF12"
+      ],
+      "expected_section": "open",
+      "acceptable_sections": [
+        "open",
+        "decision"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "Rejected proposal. Reporting it as dropped inside the adopted decision (E1) is acceptable; reporting the train as adopted is not."
+    },
+    {
+      "id": "E3",
+      "phenomena": [
+        "third_party_assignment",
+        "relative_deadline"
+      ],
+      "description": "Yannick books the chartered coach with the usual company, calling tomorrow to lock in the date; asked by Odile and accepted by Yannick.",
+      "match_segment_ids": [
+        "7C9E7453-65F0-5FEC-9DB5-510AA371BC03",
+        "A3310774-FBE1-525C-AAC0-35B82E9D2684"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Yannick",
+      "final_status": "active",
+      "due_text_contains": [
+        "demain"
+      ],
+      "due_date": null,
+      "notes": ""
+    },
+    {
+      "id": "E4",
+      "phenomena": [
+        "late_withdrawal"
+      ],
+      "description": "Farida asks two insurers for cancellation insurance quotes; Farida later withdrew this because the centre's package already includes the insurance.",
+      "match_segment_ids": [
+        "3E1B9F9C-600D-5BB0-A30E-D340045C7C64",
+        "2FD87FC9-BCAF-5D96-B23A-68F08E88D202"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Farida",
+      "final_status": "withdrawn",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "Original statement at turn 8; change at turn 18, 10 turns later."
+    },
+    {
+      "id": "E5",
+      "phenomena": [
+        "explicit_date",
+        "relative_deadline"
+      ],
+      "description": "Odile hands out the parental consent forms on Monday and collects them signed before November 20.",
+      "match_segment_ids": [
+        "93CCAE94-0D0B-5273-894E-BC09E7B54F63"
+      ],
+      "expected_section": "task",
+      "acceptable_sections": [
+        "task"
+      ],
+      "owner": "Odile",
+      "final_status": "active",
+      "due_text_contains": [
+        "20 novembre"
+      ],
+      "due_date": null,
+      "notes": "Monday is the hand-out day; November 20 is the deadline for the signed forms."
+    },
+    {
+      "id": "E6",
+      "phenomena": [
+        "absent_assignee"
+      ],
+      "description": "Subsidy application to the county council for families who cannot afford 180 euros: left to Mrs Garnier, the bursar, who is absent; no participant owns it.",
+      "match_segment_ids": [
+        "6471752D-7C48-5545-B4AE-49B0E9B452AD",
+        "F2B82888-0308-5918-ADFD-F87CDACDA6F4"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": ""
+    },
+    {
+      "id": "E7",
+      "phenomena": [
+        "reported_speech",
+        "quoted_never_commits"
+      ],
+      "description": "Presenting at the parents' information meeting has no owner: Farida quoted a remark by Yannick, who said it was a joke and declined.",
+      "match_segment_ids": [
+        "86DC603D-8F1E-5BCA-9584-AE46BC860441",
+        "503D9E7C-141C-528D-85EC-4D104C702A08"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm",
+        "open"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "The first-person promise at turn 12 is Farida quoting Yannick, who never commits."
+    },
+    {
+      "id": "E8",
+      "phenomena": [
+        "hesitant_commitment"
+      ],
+      "description": "Booklet for the peat bog workshop: Farida could possibly prepare it, provided her class councils are finished in time.",
+      "match_segment_ids": [
+        "1EC6EB7D-6ABA-5EDF-A361-2558033EE91F",
+        "052E23F8-C99B-579F-ABAB-CAFF112A3C2A"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm"
+      ],
+      "owner": "Farida",
+      "final_status": "active",
+      "due_text_contains": [],
+      "due_date": null,
+      "notes": "Odile's 'that would be nice' does not turn the conditional offer into a commitment."
+    },
+    {
+      "id": "E9",
+      "phenomena": [
+        "unidentified_voice",
+        "relative_deadline"
+      ],
+      "description": "List of pupils with allergies or medication, requested by the centre: an unidentified voice promised to forward it tonight, so the owner cannot be confirmed.",
+      "match_segment_ids": [
+        "052E23F8-C99B-579F-ABAB-CAFF112A3C2A",
+        "72A65354-F3B8-5845-ADC8-B90E7CBE95B7"
+      ],
+      "expected_section": "to_confirm",
+      "acceptable_sections": [
+        "to_confirm"
+      ],
+      "owner": null,
+      "final_status": "active",
+      "due_text_contains": [
+        "ce soir"
+      ],
+      "due_date": null,
+      "notes": ""
+    }
+  ],
+  "forbidden": [
+    {
+      "id": "F1",
+      "phenomena": [
+        "reported_speech"
+      ],
+      "description": "No task owned by Yannick for the parents' meeting: the promise was quoted by Farida and Yannick declined.",
+      "section": "task",
+      "owner": "Yannick",
+      "match_segment_ids": [
+        "86DC603D-8F1E-5BCA-9584-AE46BC860441",
+        "503D9E7C-141C-528D-85EC-4D104C702A08"
+      ]
+    },
+    {
+      "id": "F2",
+      "phenomena": [
+        "reported_speech"
+      ],
+      "description": "No task owned by Farida for the parents' meeting: quoting someone is not committing.",
+      "section": "task",
+      "owner": "Farida",
+      "match_segment_ids": [
+        "86DC603D-8F1E-5BCA-9584-AE46BC860441"
+      ]
+    },
+    {
+      "id": "F3",
+      "phenomena": [
+        "hesitant_commitment"
+      ],
+      "description": "The workshop booklet is not a firm task for Farida.",
+      "section": "task",
+      "owner": "Farida",
+      "match_segment_ids": [
+        "1EC6EB7D-6ABA-5EDF-A361-2558033EE91F"
+      ]
+    },
+    {
+      "id": "F4",
+      "phenomena": [
+        "absent_assignee"
+      ],
+      "description": "No task for the subsidy application: it is left to Mrs Garnier, who is absent.",
+      "section": "task",
+      "owner": null,
+      "match_segment_ids": [
+        "F2B82888-0308-5918-ADFD-F87CDACDA6F4"
+      ]
+    },
+    {
+      "id": "F5",
+      "phenomena": [
+        "unidentified_voice"
+      ],
+      "description": "No task, for anyone, to forward the allergy list: the promising voice is unidentified.",
+      "section": "task",
+      "owner": null,
+      "match_segment_ids": [
+        "72A65354-F3B8-5845-ADC8-B90E7CBE95B7"
+      ]
+    },
+    {
+      "id": "F6",
+      "phenomena": [
+        "third_party_assignment"
+      ],
+      "description": "The coach booking is not Odile's task: she asked, Yannick accepted.",
+      "section": "task",
+      "owner": "Odile",
+      "match_segment_ids": [
+        "7C9E7453-65F0-5FEC-9DB5-510AA371BC03",
+        "A3310774-FBE1-525C-AAC0-35B82E9D2684"
+      ]
+    }
+  ],
+  "forbidden_claims": [
+    "The pupils travel by train.",
+    "Yannick presents the parents' information meeting.",
+    "Farida has committed to preparing the peat bog booklet.",
+    "Farida is still collecting cancellation insurance quotes.",
+    "A participant files the subsidy application.",
+    "Yannick, Farida or Odile forwards the allergy list tonight.",
+    "Kayaking is part of the programme.",
+    "A calendar date (day number) is given for Yannick's call 'tomorrow', Odile's Monday hand-out or the voice's 'tonight'."
+  ],
+  "detail_checks": [
+    "Two seventh-grade classes: fifty-two pupils and six chaperones, three days in December at the Combe Noire centre.",
+    "The train would be 140 euros cheaper but involves two connections.",
+    "The trip costs 180 euros per pupil.",
+    "Cancellation insurance is already included in the centre's package.",
+    "Activities: snowshoe hiking and a cheese dairy visit; kayaking is closed in December; the centre provides all snowshoe equipment."
+  ]
+}

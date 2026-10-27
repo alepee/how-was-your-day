@@ -1,0 +1,496 @@
+{
+  "id": "2E51CE34-4CB7-57DA-9B08-8F4A29ADC217",
+  "title": "Synthetic spring list editorial meeting (en)",
+  "kind": "meeting",
+  "startedAt": 814176000,
+  "duration": 465,
+  "state": "sealed",
+  "revision": 0,
+  "transcriptVersion": 1,
+  "notes": "",
+  "noteEntries": [],
+  "speakers": [
+    {
+      "id": "2AE1D343-25B1-5785-A012-9FF2CBE2374C",
+      "personID": "D11396F1-0A48-5671-99B4-F0AFCE6DACEA",
+      "label": "Agnès",
+      "confirmed": true,
+      "source": "mic"
+    },
+    {
+      "id": "25E700D8-9C25-5449-A4A3-A995F5C62B52",
+      "personID": "4B052F0C-E970-59C0-84CD-821B120F1526",
+      "label": "Benoît",
+      "confirmed": true,
+      "source": "system"
+    },
+    {
+      "id": "E7BE1359-C490-570A-9C03-ED8E9D4F31C2",
+      "personID": "596B10E9-9DE1-583C-8044-59F1CA5C0187",
+      "label": "Nora",
+      "confirmed": true,
+      "source": "system"
+    },
+    {
+      "id": "BCB78629-D7DC-56DC-BD3F-7F9C7B328531",
+      "personID": "573C2595-332D-5610-855C-7F64C2F2C4F7",
+      "label": "Loïc",
+      "confirmed": true,
+      "source": "system"
+    }
+  ],
+  "segments": [
+    {
+      "id": "90CC8602-6E9D-5CCE-98F5-6799009B5D8A",
+      "start": 0.0,
+      "end": 18.2,
+      "speakerID": "2AE1D343-25B1-5785-A012-9FF2CBE2374C",
+      "source": "mic",
+      "text": "Hello everyone. Let's go over the spring list: Inès Delorme's debut novel, the essay translated from Italian and the photo book on Breton lighthouses. All three reach bookshops in the second week of March. There's a lot to cover, so let's be quick."
+    },
+    {
+      "id": "CDA93898-87A3-57E2-B7CE-AD2CD94E64CE",
+      "start": 19.5,
+      "end": 26.9,
+      "speakerID": "25E700D8-9C25-5449-A4A3-A995F5C62B52",
+      "source": "system",
+      "text": "Before we start, the printer has confirmed his lead time: three weeks between sign-off and delivery."
+    },
+    {
+      "id": "A5584B70-CDF4-5CA2-9B9B-1AA887713019",
+      "start": 28.0,
+      "end": 40.3,
+      "speakerID": "25E700D8-9C25-5449-A4A3-A995F5C62B52",
+      "source": "system",
+      "text": "On production, the novel runs to two hundred and eighty pages. For the print run, I suggest three thousand copies: that's the threshold where the unit cost falls below two euros."
+    },
+    {
+      "id": "4D949FBD-AB6A-5191-9B50-0F1C03794728",
+      "start": 41.2,
+      "end": 48.6,
+      "speakerID": "BCB78629-D7DC-56DC-BD3F-7F9C7B328531",
+      "source": "system",
+      "text": "The sales reps are confident, the novel went down well at the launch meeting. Three thousand suits me."
+    },
+    {
+      "id": "A82D5F21-6B4A-5ADD-BA72-2C6F49BB746E",
+      "start": 49.3,
+      "end": 51.2,
+      "speakerID": "E7BE1359-C490-570A-9C03-ED8E9D4F31C2",
+      "source": "system",
+      "text": "Three thousand for me too."
+    },
+    {
+      "id": "DB721A23-2E4F-55E7-9EA3-A153D7C059AD",
+      "start": 52.6,
+      "end": 58.9,
+      "speakerID": "2AE1D343-25B1-5785-A012-9FF2CBE2374C",
+      "source": "mic",
+      "text": "Understood, we're going ahead with a first print run of three thousand copies for the novel."
+    },
+    {
+      "id": "FD2D54A3-4D5C-570C-A6C1-F6AEC012F1E4",
+      "start": 60.1,
+      "end": 68.9,
+      "speakerID": "25E700D8-9C25-5449-A4A3-A995F5C62B52",
+      "source": "system",
+      "text": "For the paper, the printer is offering an ivory bulky stock at eighty grams, the same as for last year's novel."
+    },
+    {
+      "id": "E006B331-B9F3-5604-AC24-25F5B6BC537A",
+      "start": 69.9,
+      "end": 82.1,
+      "speakerID": "2AE1D343-25B1-5785-A012-9FF2CBE2374C",
+      "source": "mic",
+      "text": "Benoît, can you also ask him for a quote on an equivalent recycled paper? I'd like to compare, as long as we stay within the forty-two thousand euro production budget."
+    },
+    {
+      "id": "AA0D81AE-67F5-538D-9EB9-2B40B5683ECD",
+      "start": 82.9,
+      "end": 85.8,
+      "speakerID": "25E700D8-9C25-5449-A4A3-A995F5C62B52",
+      "source": "system",
+      "text": "Sure, I'll ask him for the quote tomorrow."
+    },
+    {
+      "id": "37A58F00-E53E-5F9A-B840-C933220D8123",
+      "start": 86.4,
+      "end": 93.6,
+      "speakerID": "E7BE1359-C490-570A-9C03-ED8E9D4F31C2",
+      "source": "system",
+      "text": "On the press side, I'll send you the full press kit, including the author interview, by Wednesday."
+    },
+    {
+      "id": "5998985E-6093-5085-9AFB-507D51FB212E",
+      "start": 94.9,
+      "end": 107.9,
+      "speakerID": "2AE1D343-25B1-5785-A012-9FF2CBE2374C",
+      "source": "mic",
+      "text": "Very good, two regional radio stations have already asked for copies. Nora, for the booksellers' presentation evening in early December, can you book the room at Les Rives bookshop?"
+    },
+    {
+      "id": "C110EC5F-E245-5315-8F54-E2AF08BD9FC1",
+      "start": 109.0,
+      "end": 113.2,
+      "speakerID": "E7BE1359-C490-570A-9C03-ED8E9D4F31C2",
+      "source": "system",
+      "text": "Will do, I'll call the bookshop tomorrow to block a date."
+    },
+    {
+      "id": "DEF0FE6D-E400-516D-8B86-EE366E8D5604",
+      "start": 114.1,
+      "end": 122.7,
+      "speakerID": "BCB78629-D7DC-56DC-BD3F-7F9C7B328531",
+      "source": "system",
+      "text": "For the sales reps, I'll prepare a selling sheet on the three titles by Friday, for their sales meeting."
+    },
+    {
+      "id": "5840E4E2-ACFA-5ADF-8888-9FA0ED736297",
+      "start": 123.4,
+      "end": 132.4,
+      "speakerID": "E7BE1359-C490-570A-9C03-ED8E9D4F31C2",
+      "source": "system",
+      "text": "And the author's bookshop tour, I'll organize it: about ten dates between March and April, mostly in Brittany and Paris."
+    },
+    {
+      "id": "B1544F92-6D0A-5DD4-9911-7407A9A9AF3C",
+      "start": 133.8,
+      "end": 141.2,
+      "speakerID": "25E700D8-9C25-5449-A4A3-A995F5C62B52",
+      "source": "system",
+      "text": "For the photo book, I'll order the colour proofs from the printer and follow them through to sign-off."
+    },
+    {
+      "id": "870A4021-5320-584F-BA0A-C93F17213F9D",
+      "start": 142.4,
+      "end": 150.3,
+      "speakerID": "BCB78629-D7DC-56DC-BD3F-7F9C7B328531",
+      "source": "system",
+      "text": "The photo book is still our biggest risk: a hundred and twenty pages in full colour, selling at twenty-nine euros."
+    },
+    {
+      "id": "7A19ED51-28E9-5391-BED2-BE81DD934A9E",
+      "start": 151.3,
+      "end": 161.3,
+      "speakerID": "2AE1D343-25B1-5785-A012-9FF2CBE2374C",
+      "source": "mic",
+      "text": "Perfect. Another point: the rights to the book's three archive photos still haven't been checked, and that has to be sorted before sign-off."
+    },
+    {
+      "id": "94EB9980-6A64-538E-8F9A-581BEFE1725B",
+      "start": 162.1,
+      "end": 168.7,
+      "speakerID": "BCB78629-D7DC-56DC-BD3F-7F9C7B328531",
+      "source": "system",
+      "text": "For the essay, Pascale, our translator, will take care of proofreading the translation."
+    },
+    {
+      "id": "9FBCDD0D-9237-52BB-AE30-8A25844AF9E7",
+      "start": 169.3,
+      "end": 176.1,
+      "speakerID": "25E700D8-9C25-5449-A4A3-A995F5C62B52",
+      "source": "system",
+      "text": "The essay runs to a hundred and ninety pages, and the translation is eighty percent done."
+    },
+    {
+      "id": "3F1D5B7A-59D1-594E-88D5-20E573593B97",
+      "start": 177.4,
+      "end": 184.5,
+      "speakerID": "E7BE1359-C490-570A-9C03-ED8E9D4F31C2",
+      "source": "system",
+      "text": "Loïc, could you contact the Geneva book fair to get us a panel on the essay?"
+    },
+    {
+      "id": "3C10EEAA-1AB1-5992-AE35-45A282FB1214",
+      "start": 185.6,
+      "end": 190.7,
+      "speakerID": "BCB78629-D7DC-56DC-BD3F-7F9C7B328531",
+      "source": "system",
+      "text": "Not for now, with the winter fairs I'm swamped. Let's move on."
+    },
+    {
+      "id": "938CB749-FF0A-557B-A3B4-4E5CE767FB91",
+      "start": 191.6,
+      "end": 195.4,
+      "speakerID": "2AE1D343-25B1-5785-A012-9FF2CBE2374C",
+      "source": "mic",
+      "text": "Pity, Geneva worked well for us two years ago."
+    },
+    {
+      "id": "2D3C8B22-218B-5D86-896A-A07CB52BBA58",
+      "start": 196.1,
+      "end": 202.9,
+      "speakerID": "2AE1D343-25B1-5785-A012-9FF2CBE2374C",
+      "source": "mic",
+      "text": "Benoît, that idea of a paperback edition of last year's novel, have you had a chance to look at it?"
+    },
+    {
+      "id": "C9C52D9A-5B95-5CDA-8D20-3575E19D40E6",
+      "start": 204.3,
+      "end": 210.8,
+      "speakerID": "25E700D8-9C25-5449-A4A3-A995F5C62B52",
+      "source": "system",
+      "text": "Not yet. I could cost it out if the printer gets back to me quickly, but no promises."
+    },
+    {
+      "id": "69A58BC2-046E-56EA-8D1A-F10A95F2CB05",
+      "start": 212.0,
+      "end": 220.7,
+      "speakerID": "E7BE1359-C490-570A-9C03-ED8E9D4F31C2",
+      "source": "system",
+      "text": "For the covers, I propose all three titles follow the new graphic guidelines, with the colour band at the bottom."
+    },
+    {
+      "id": "83CE2720-1914-5C66-899F-42C301FE9D34",
+      "start": 221.7,
+      "end": 227.1,
+      "speakerID": "BCB78629-D7DC-56DC-BD3F-7F9C7B328531",
+      "source": "system",
+      "text": "Yes, the new guidelines for all three, booksellers will recognize the house."
+    },
+    {
+      "id": "D2858505-507E-5058-9BAD-7D39D24C41ED",
+      "start": 227.9,
+      "end": 233.5,
+      "speakerID": "25E700D8-9C25-5449-A4A3-A995F5C62B52",
+      "source": "system",
+      "text": "Fine by me, even though the band costs two cents more per copy."
+    },
+    {
+      "id": "CCD0A668-7E9D-5212-842C-33A1B7BB49A1",
+      "start": 234.1,
+      "end": 238.1,
+      "speakerID": "2AE1D343-25B1-5785-A012-9FF2CBE2374C",
+      "source": "mic",
+      "text": "Adopted: all three covers follow the new guidelines."
+    },
+    {
+      "id": "B4EDE25B-A647-50CA-B0F5-4C0B47060924",
+      "start": 239.4,
+      "end": 247.7,
+      "speakerID": "E7BE1359-C490-570A-9C03-ED8E9D4F31C2",
+      "source": "system",
+      "text": "Personally, I'm dropping phone follow-ups with journalists, I'll only use email from now on. It suits me better."
+    },
+    {
+      "id": "FB44B1CD-6C2B-5A89-A8A1-4A6E5ABB6A89",
+      "start": 248.8,
+      "end": 254.5,
+      "speakerID": "BCB78629-D7DC-56DC-BD3F-7F9C7B328531",
+      "source": "system",
+      "text": "What about an audiobook of the novel? Several booksellers have mentioned it to me."
+    },
+    {
+      "id": "41FE8037-0645-5814-99A5-5F7BF69F777A",
+      "start": 255.4,
+      "end": 261.7,
+      "speakerID": "2AE1D343-25B1-5785-A012-9FF2CBE2374C",
+      "source": "mic",
+      "text": "It's tempting, but not for this spring. We'll set the idea aside until next autumn."
+    },
+    {
+      "id": "F06C7A51-E38E-5036-9CA4-5796904FDA71",
+      "start": 262.4,
+      "end": 266.7,
+      "speakerID": "E7BE1359-C490-570A-9C03-ED8E9D4F31C2",
+      "source": "system",
+      "text": "We're still missing the back cover text for the photo book."
+    },
+    {
+      "id": "2D129AE8-D0DA-5EFC-8433-8D2E033663D5",
+      "start": 268.1,
+      "end": 269.7,
+      "speakerID": "2AE1D343-25B1-5785-A012-9FF2CBE2374C",
+      "source": "mic",
+      "text": "Who can write it?"
+    },
+    {
+      "id": "4C4A015F-54A4-5E85-ACE8-99A955A4DF1C",
+      "start": 274.7,
+      "end": 279.9,
+      "speakerID": "2AE1D343-25B1-5785-A012-9FF2CBE2374C",
+      "source": "mic",
+      "text": "Well, since nobody's stepping up, I'll do it: I'll write it for Monday."
+    },
+    {
+      "id": "83ACE709-57D8-5F49-A853-ECF416522C39",
+      "start": 280.9,
+      "end": 286.3,
+      "speakerID": "E7BE1359-C490-570A-9C03-ED8E9D4F31C2",
+      "source": "system",
+      "text": "Thanks. Careful, the series limits the back cover to twelve hundred characters."
+    },
+    {
+      "id": "0DDF7EB4-1425-50DB-875C-0DDFD385CF85",
+      "start": 287.1,
+      "end": 299.7,
+      "speakerID": "BCB78629-D7DC-56DC-BD3F-7F9C7B328531",
+      "source": "system",
+      "text": "A word on pre-orders: the distributor reports six hundred and forty copies for the novel, half of what we expected. The essay is at four hundred, which is in line."
+    },
+    {
+      "id": "8596E461-B56E-58CE-A88C-F54019CD7223",
+      "start": 300.3,
+      "end": 305.5,
+      "speakerID": "E7BE1359-C490-570A-9C03-ED8E9D4F31C2",
+      "source": "system",
+      "text": "Not all the independent bookshops have answered yet, but it won't double."
+    },
+    {
+      "id": "B08F69AF-64CE-5073-BBFE-7106FEA1D87F",
+      "start": 306.8,
+      "end": 311.2,
+      "speakerID": "25E700D8-9C25-5449-A4A3-A995F5C62B52",
+      "source": "system",
+      "text": "That will weigh on the print run, we'll have to come back to it."
+    },
+    {
+      "id": "2E75046D-C4A2-52CC-BD0D-1A9591C24F2D",
+      "start": 312.3,
+      "end": 322.4,
+      "speakerID": "2AE1D343-25B1-5785-A012-9FF2CBE2374C",
+      "source": "mic",
+      "text": "Yes. Benoît, by the way, forget the recycled paper quote, I no longer need it: the printer only has one in stock and it's too thin."
+    },
+    {
+      "id": "312BCB86-E1C0-5BB9-9BD6-B4E113A22DB2",
+      "start": 323.3,
+      "end": 325.5,
+      "speakerID": "25E700D8-9C25-5449-A4A3-A995F5C62B52",
+      "source": "system",
+      "text": "Fine, I won't ask for it."
+    },
+    {
+      "id": "E128A1B1-EF9C-51C4-9C50-1E1854ED39ED",
+      "start": 326.2,
+      "end": 338.3,
+      "speakerID": "E7BE1359-C490-570A-9C03-ED8E9D4F31C2",
+      "source": "system",
+      "text": "A small change on the press kit: on Wednesday, I'll only send the press release, without the interview. The author is only available for the interview the following week."
+    },
+    {
+      "id": "D2CDAFA7-C96B-5340-A5BE-96B9270381D8",
+      "start": 339.7,
+      "end": 347.9,
+      "speakerID": "BCB78629-D7DC-56DC-BD3F-7F9C7B328531",
+      "source": "system",
+      "text": "Actually, with so few pre-orders, the room at Les Rives bookshop is becoming unnecessary, don't you think?"
+    },
+    {
+      "id": "45E46594-C409-55AC-8E6C-83EB1A4B962B",
+      "start": 349.1,
+      "end": 354.0,
+      "speakerID": "25E700D8-9C25-5449-A4A3-A995F5C62B52",
+      "source": "system",
+      "text": "I agree with Loïc, an evening event is a lot for that figure."
+    },
+    {
+      "id": "53E94A1D-BE36-5BB7-898B-A841459D2339",
+      "start": 355.0,
+      "end": 358.7,
+      "speakerID": "2AE1D343-25B1-5785-A012-9FF2CBE2374C",
+      "source": "mic",
+      "text": "Let's move on to the novel's print run, as it happens."
+    },
+    {
+      "id": "297894DB-524B-5E29-8F42-8E18CC3D006E",
+      "start": 359.5,
+      "end": 378.1,
+      "speakerID": "25E700D8-9C25-5449-A4A3-A995F5C62B52",
+      "source": "system",
+      "text": "With six hundred and forty pre-orders, three thousand copies is too risky. I suggest we revisit our earlier choice and print two thousand, with a quick reprint if it sells well. A reprint of a thousand copies takes ten days at our printer."
+    },
+    {
+      "id": "175F310A-7553-53B9-BDD1-F6C02D704382",
+      "start": 378.7,
+      "end": 380.7,
+      "speakerID": "BCB78629-D7DC-56DC-BD3F-7F9C7B328531",
+      "source": "system",
+      "text": "I agree, two thousand."
+    },
+    {
+      "id": "5317593B-7C0D-578B-85D1-98E8593A3CC8",
+      "start": 382.0,
+      "end": 384.1,
+      "speakerID": "E7BE1359-C490-570A-9C03-ED8E9D4F31C2",
+      "source": "system",
+      "text": "Two thousand works for me too."
+    },
+    {
+      "id": "B2E0DD0A-FC1D-5CA2-84B4-17D24DD3B1FA",
+      "start": 385.2,
+      "end": 394.2,
+      "speakerID": "2AE1D343-25B1-5785-A012-9FF2CBE2374C",
+      "source": "mic",
+      "text": "Then we drop the three thousand: first print run of two thousand copies, reprint if needed. That's agreed for everyone."
+    },
+    {
+      "id": "F3760E24-AAEF-5787-8FB0-64E0FFB3AC24",
+      "start": 395.1,
+      "end": 405.8,
+      "speakerID": "BCB78629-D7DC-56DC-BD3F-7F9C7B328531",
+      "source": "system",
+      "text": "Something else: the selling sheet for the reps, don't count on me after all. The distributor is doing one on their side, I won't prepare it."
+    },
+    {
+      "id": "B91B026B-5585-5317-BEBD-2D38CB09B66B",
+      "start": 406.5,
+      "end": 419.7,
+      "speakerID": "E7BE1359-C490-570A-9C03-ED8E9D4F31C2",
+      "source": "system",
+      "text": "I have a problem too: the bookshop tour, I can't organize it on top of the press work. Loïc, would you be up for handling it instead of me? You know the booksellers better than I do."
+    },
+    {
+      "id": "16279C61-5DC6-5BB2-B422-62581C36048D",
+      "start": 421.1,
+      "end": 428.4,
+      "speakerID": "BCB78629-D7DC-56DC-BD3F-7F9C7B328531",
+      "source": "system",
+      "text": "OK, the tour is mine from now on. I'll send you a calendar of the dates by the end of the month."
+    },
+    {
+      "id": "48BBDF36-193A-5997-AA2D-E9DF53C10860",
+      "start": 429.6,
+      "end": 437.0,
+      "speakerID": "25E700D8-9C25-5449-A4A3-A995F5C62B52",
+      "source": "system",
+      "text": "As for the colour proofs for the photo book, I'd happily hand them to Nora, if she wants to deal with them."
+    },
+    {
+      "id": "6C718500-BAA8-588C-90D9-5438A6A55C1C",
+      "start": 438.0,
+      "end": 447.9,
+      "speakerID": "2AE1D343-25B1-5785-A012-9FF2CBE2374C",
+      "source": "mic",
+      "text": "Last point, the schedule: the novel's signed-off proof must go to the printer by November 12 at the latest. Benoît, will you make sure of that?"
+    },
+    {
+      "id": "7C699760-C5B9-58A0-98DF-9ACC45FC3A03",
+      "start": 448.7,
+      "end": 453.5,
+      "speakerID": "25E700D8-9C25-5449-A4A3-A995F5C62B52",
+      "source": "system",
+      "text": "Yes, I'll make sure: the signed-off proof will go out on November 12."
+    },
+    {
+      "id": "8C74D790-6FF2-5655-8F72-5D923098F543",
+      "start": 454.1,
+      "end": 458.3,
+      "speakerID": "BCB78629-D7DC-56DC-BD3F-7F9C7B328531",
+      "source": "system",
+      "text": "That leaves four months before release, we're on schedule."
+    },
+    {
+      "id": "703A61E4-5279-5967-82BE-32A177FF5161",
+      "start": 459.6,
+      "end": 462.9,
+      "speakerID": "2AE1D343-25B1-5785-A012-9FF2CBE2374C",
+      "source": "mic",
+      "text": "Thanks, everyone. We'll meet again in two weeks."
+    }
+  ],
+  "transcriptState": "ready",
+  "audioChunks": [],
+  "consentAnnounced": false,
+  "isDemo": true
+}

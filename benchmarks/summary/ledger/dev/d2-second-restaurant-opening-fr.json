@@ -1,0 +1,480 @@
+{
+  "id": "DBA16BE9-1401-5F9B-8F1B-293BC6D58F10",
+  "title": "Synthetic second restaurant opening (fr)",
+  "kind": "meeting",
+  "startedAt": 813587400,
+  "duration": 479,
+  "state": "sealed",
+  "revision": 0,
+  "transcriptVersion": 1,
+  "notes": "",
+  "noteEntries": [],
+  "speakers": [
+    {
+      "id": "1C028FD2-63DC-5960-AEE6-E98ED64BB360",
+      "personID": "F2CA3EA1-A308-5F50-8BEB-F52CA5C29E0B",
+      "label": "Lucie",
+      "confirmed": true,
+      "source": "mic"
+    },
+    {
+      "id": "38439220-955C-57AC-AFEA-D9AD9F1C6712",
+      "personID": "A7354A5E-6D2E-573E-928A-A18CC2A30747",
+      "label": "Karim",
+      "confirmed": true,
+      "source": "system"
+    },
+    {
+      "id": "AFA01661-88A3-5B3D-BDD2-32ACED1A462E",
+      "personID": "34C1A3CA-00CE-561B-8016-C4ABC33606D0",
+      "label": "Sophie",
+      "confirmed": true,
+      "source": "system"
+    },
+    {
+      "id": "6361EE92-43D2-5CA9-858A-00FA9C6757DB",
+      "personID": "57897F08-7D04-5F6C-B92A-7A24C8F4B7AF",
+      "label": "Thomas",
+      "confirmed": true,
+      "source": "system"
+    }
+  ],
+  "segments": [
+    {
+      "id": "3969E7A9-1C70-53AD-BC36-F96272E3FBC5",
+      "start": 0.0,
+      "end": 18.1,
+      "speakerID": "1C028FD2-63DC-5960-AEE6-E98ED64BB360",
+      "source": "mic",
+      "text": "Merci d’être là. Point d’étape sur l’ouverture du deuxième restaurant, rue des Tanneurs : le bail est signé, trois mille huit cents euros par mois, et on ouvre dans cinq semaines. On passe en revue la cuisine, le recrutement, l’administratif et la communication."
+    },
+    {
+      "id": "D1D6ABDE-9574-5FD4-9E11-B0BFFF3CB881",
+      "start": 19.4,
+      "end": 32.8,
+      "speakerID": "38439220-955C-57AC-AFEA-D9AD9F1C6712",
+      "source": "system",
+      "text": "La cuisine est livrée à quatre-vingt-dix pour cent. La chambre froide est en place, il ne manque que le four mixte, qui arrive jeudi. C’est le même modèle à dix niveaux qu’au premier restaurant."
+    },
+    {
+      "id": "74D688DC-0311-5F14-96C5-4AB607ACADA9",
+      "start": 33.9,
+      "end": 45.9,
+      "speakerID": "AFA01661-88A3-5B3D-BDD2-32ACED1A462E",
+      "source": "system",
+      "text": "Côté budget, on a dépensé cent douze mille euros sur les cent trente prévus pour les travaux. Il reste dix-huit mille euros de marge, pas plus."
+    },
+    {
+      "id": "96862E34-2924-54F8-8DE6-65D8289DD5D0",
+      "start": 46.8,
+      "end": 54.9,
+      "speakerID": "6361EE92-43D2-5CA9-858A-00FA9C6757DB",
+      "source": "system",
+      "text": "La salle est peinte depuis hier, il ne reste que l’enseigne de la façade, que le fabricant pose la semaine prochaine."
+    },
+    {
+      "id": "96BE8D4C-8F5A-5040-9249-6AA79BF0E4FA",
+      "start": 55.6,
+      "end": 66.4,
+      "speakerID": "1C028FD2-63DC-5960-AEE6-E98ED64BB360",
+      "source": "mic",
+      "text": "Karim, quand le four arrive, tu peux faire l’essai complet avec le technicien ? Je veux un essai vapeur et un essai convection avant de signer la réception."
+    },
+    {
+      "id": "7EC86DA6-777F-5277-ABFE-9F7AC38CDDBE",
+      "start": 67.8,
+      "end": 74.1,
+      "speakerID": "38439220-955C-57AC-AFEA-D9AD9F1C6712",
+      "source": "system",
+      "text": "Oui, je m’en occupe. Je fais l’essai lundi avec le technicien, vapeur et convection."
+    },
+    {
+      "id": "2F4EEEA3-D557-5DD5-A3E8-9886BEEB7C5D",
+      "start": 75.3,
+      "end": 80.1,
+      "speakerID": "6361EE92-43D2-5CA9-858A-00FA9C6757DB",
+      "source": "system",
+      "text": "Et la carte, on en est où ? L’imprimeur des menus attend le texte."
+    },
+    {
+      "id": "98627C9B-58C7-58C3-A5B9-E5A18E8F7BE6",
+      "start": 81.1,
+      "end": 87.5,
+      "speakerID": "38439220-955C-57AC-AFEA-D9AD9F1C6712",
+      "source": "system",
+      "text": "Je vous envoie la carte définitive d’ici vendredi : six entrées, huit plats et cinq desserts."
+    },
+    {
+      "id": "04FAD942-42D8-5DE5-A5D4-ECD74E1B8E63",
+      "start": 88.3,
+      "end": 100.6,
+      "speakerID": "6361EE92-43D2-5CA9-858A-00FA9C6757DB",
+      "source": "system",
+      "text": "Super. Pour les vins, Karim m’a dit hier soir : « je vous prépare les accords mets-vins pour la semaine prochaine ». Donc on attend ça avant de commander chez le caviste."
+    },
+    {
+      "id": "004A3B6E-C823-59C3-AE74-65E6CA024883",
+      "start": 101.2,
+      "end": 108.6,
+      "speakerID": "1C028FD2-63DC-5960-AEE6-E98ED64BB360",
+      "source": "mic",
+      "text": "D’accord. Autre sujet, les jours d’ouverture. Je propose qu’on ferme le lundi, comme au premier restaurant."
+    },
+    {
+      "id": "A2F34114-BA0B-50C2-9510-45FAEDD039F2",
+      "start": 109.9,
+      "end": 113.5,
+      "speakerID": "AFA01661-88A3-5B3D-BDD2-32ACED1A462E",
+      "source": "system",
+      "text": "Oui, fermeture le lundi, ça simplifie les plannings."
+    },
+    {
+      "id": "B63D60F1-9D6B-50E4-ADE2-87B11751A1FB",
+      "start": 114.6,
+      "end": 116.9,
+      "speakerID": "38439220-955C-57AC-AFEA-D9AD9F1C6712",
+      "source": "system",
+      "text": "Pour moi aussi, va pour le lundi."
+    },
+    {
+      "id": "A6A37D8A-B859-59AF-B97C-F3408C3EA076",
+      "start": 117.8,
+      "end": 119.4,
+      "speakerID": "6361EE92-43D2-5CA9-858A-00FA9C6757DB",
+      "source": "system",
+      "text": "D’accord pour le lundi."
+    },
+    {
+      "id": "C09F1E6C-C451-50AB-AD74-FA4607108035",
+      "start": 120.1,
+      "end": 126.7,
+      "speakerID": "1C028FD2-63DC-5960-AEE6-E98ED64BB360",
+      "source": "mic",
+      "text": "Parfait, c’est décidé : le nouveau restaurant fermera le lundi. Sophie, côté administratif ?"
+    },
+    {
+      "id": "6A579470-8DA8-5659-9B86-EE88F6988035",
+      "start": 128.1,
+      "end": 143.9,
+      "speakerID": "AFA01661-88A3-5B3D-BDD2-32ACED1A462E",
+      "source": "system",
+      "text": "Le dossier de licence doit être déposé à la mairie. Sur le portail, la date limite affichée est le 2026-11-10. Je le dépose au plus tard à cette date. La commission de sécurité, elle, sera programmée par la mairie après le dépôt."
+    },
+    {
+      "id": "F555A922-7963-5EB4-A0D0-5A92E0987181",
+      "start": 145.1,
+      "end": 155.0,
+      "speakerID": "1C028FD2-63DC-5960-AEE6-E98ED64BB360",
+      "source": "mic",
+      "text": "Très bien. Il faudra aussi déclarer le nouveau local à l’assurance avant l’ouverture, sinon les travaux de la hotte ne sont pas couverts."
+    },
+    {
+      "id": "FFA462DD-746D-56CA-BAB4-06152E815061",
+      "start": 156.0,
+      "end": 169.9,
+      "speakerID": "6361EE92-43D2-5CA9-858A-00FA9C6757DB",
+      "source": "system",
+      "text": "Côté recrutement, il nous faut trois serveurs et un plongeur. En ce moment, une annonce de serveur reçoit une dizaine de candidatures par semaine. Je rédige les annonces et je les publie d’ici mercredi."
+    },
+    {
+      "id": "CD401C09-B101-52F5-8967-15C903CC3718",
+      "start": 170.7,
+      "end": 180.2,
+      "speakerID": "38439220-955C-57AC-AFEA-D9AD9F1C6712",
+      "source": "system",
+      "text": "Il me faut aussi deux commis. Et tous les nouveaux devront suivre la formation hygiène : je m’occupe de les y inscrire."
+    },
+    {
+      "id": "83BA4348-FE0A-5910-97AD-044C6246A2D7",
+      "start": 180.8,
+      "end": 190.8,
+      "speakerID": "1C028FD2-63DC-5960-AEE6-E98ED64BB360",
+      "source": "mic",
+      "text": "Pour la caisse, je propose qu’on garde le même logiciel que dans le premier restaurant, pour avoir des chiffres comparables. Vous êtes d’accord ?"
+    },
+    {
+      "id": "EFDDF30C-5BB5-5405-9E67-4FA34457F3BF",
+      "start": 192.1,
+      "end": 194.7,
+      "speakerID": "AFA01661-88A3-5B3D-BDD2-32ACED1A462E",
+      "source": "system",
+      "text": "Oui, même logiciel, ça me va."
+    },
+    {
+      "id": "31F795DB-6D38-5237-B956-4A4C76D31852",
+      "start": 195.8,
+      "end": 197.4,
+      "speakerID": "6361EE92-43D2-5CA9-858A-00FA9C6757DB",
+      "source": "system",
+      "text": "D’accord aussi."
+    },
+    {
+      "id": "7E2E9F14-8DFE-5300-B741-E450F1441C37",
+      "start": 198.3,
+      "end": 205.8,
+      "speakerID": "AFA01661-88A3-5B3D-BDD2-32ACED1A462E",
+      "source": "system",
+      "text": "Par contre, moi, je garde mon propre tableur pour les rapprochements bancaires. C’est ma façon de travailler."
+    },
+    {
+      "id": "5D4ED5C7-76C0-50FB-A7F3-A051BACFD47D",
+      "start": 206.5,
+      "end": 219.5,
+      "speakerID": "1C028FD2-63DC-5960-AEE6-E98ED64BB360",
+      "source": "mic",
+      "text": "C’est noté. Donc c’est acté : même logiciel de caisse dans les deux restaurants. Sophie, pour la terrasse, tu peux demander trois devis de mobilier ? Tables et chaises pour vingt couverts."
+    },
+    {
+      "id": "D3861B07-F95E-53D5-A057-A7E05E9D3409",
+      "start": 220.9,
+      "end": 224.1,
+      "speakerID": "AFA01661-88A3-5B3D-BDD2-32ACED1A462E",
+      "source": "system",
+      "text": "Oui, je demande les trois devis cette semaine."
+    },
+    {
+      "id": "BE2104C7-C066-512A-9D8D-8BA94E319686",
+      "start": 225.3,
+      "end": 233.7,
+      "speakerID": "6361EE92-43D2-5CA9-858A-00FA9C6757DB",
+      "source": "system",
+      "text": "Côté communication, je crée le compte Instagram du restaurant et je poste les premières photos du chantier d’ici vendredi."
+    },
+    {
+      "id": "3D4E0C37-95CE-5F35-99CD-4CF1AE9CC287",
+      "start": 234.7,
+      "end": 237.8,
+      "speakerID": "1C028FD2-63DC-5960-AEE6-E98ED64BB360",
+      "source": "mic",
+      "text": "Et les photos des plats pour le site ?"
+    },
+    {
+      "id": "EA0E4683-A07A-5407-9475-58A3D3ECC71D",
+      "start": 238.6,
+      "end": 245.6,
+      "speakerID": "6361EE92-43D2-5CA9-858A-00FA9C6757DB",
+      "source": "system",
+      "text": "Je pourrai peut-être les faire pendant les essais en cuisine, si j’ai un moment. Je ne garantis rien."
+    },
+    {
+      "id": "06E9DBFF-78E1-59A1-826A-C4BA3A1A23B8",
+      "start": 246.2,
+      "end": 252.1,
+      "speakerID": "38439220-955C-57AC-AFEA-D9AD9F1C6712",
+      "source": "system",
+      "text": "Attention, les dressages ne seront pas définitifs avant la fin des essais en cuisine."
+    },
+    {
+      "id": "AF5CB784-1285-516D-A828-0A072AC40E3A",
+      "start": 253.4,
+      "end": 259.3,
+      "speakerID": "6361EE92-43D2-5CA9-858A-00FA9C6757DB",
+      "source": "system",
+      "text": "Karim, tu pourrais organiser une dégustation pour la presse locale avant l’ouverture ?"
+    },
+    {
+      "id": "0C56EEBE-1546-5247-97FA-81CDF699A35B",
+      "start": 260.4,
+      "end": 268.3,
+      "speakerID": "38439220-955C-57AC-AFEA-D9AD9F1C6712",
+      "source": "system",
+      "text": "Ça, je ne te le promets pas. Une dégustation sans brigade complète, c’est risqué. Parlons plutôt des fournisseurs."
+    },
+    {
+      "id": "2E4140B9-8E00-5C29-8212-1F45B5048AE3",
+      "start": 269.2,
+      "end": 272.2,
+      "speakerID": "1C028FD2-63DC-5960-AEE6-E98ED64BB360",
+      "source": "mic",
+      "text": "Bonne transition. Le poissonnier a répondu ?"
+    },
+    {
+      "id": "8203AE56-ADC1-5C2D-9F27-65C468CAAA45",
+      "start": 272.9,
+      "end": 282.5,
+      "speakerID": "38439220-955C-57AC-AFEA-D9AD9F1C6712",
+      "source": "system",
+      "text": "Oui. Le poissonnier de Pornic accepte de livrer les deux restaurants trois fois par semaine, avec cinq pour cent de remise sur les volumes."
+    },
+    {
+      "id": "060A42FC-ED89-55A9-A466-D4061F527F4E",
+      "start": 283.9,
+      "end": 289.4,
+      "speakerID": "1C028FD2-63DC-5960-AEE6-E98ED64BB360",
+      "source": "mic",
+      "text": "Cinq pour cent, sur nos volumes, ça fait à peu près quatre cents euros par mois."
+    },
+    {
+      "id": "77FAC62C-8D0E-5BE5-A91E-72A46C429F63",
+      "start": 290.6,
+      "end": 295.1,
+      "speakerID": "6361EE92-43D2-5CA9-858A-00FA9C6757DB",
+      "source": "system",
+      "text": "Autre idée : une carte de fidélité commune aux deux restaurants ?"
+    },
+    {
+      "id": "0311BF7B-CB0A-506C-BCDA-968817657B91",
+      "start": 296.1,
+      "end": 302.4,
+      "speakerID": "1C028FD2-63DC-5960-AEE6-E98ED64BB360",
+      "source": "mic",
+      "text": "L’idée est bonne, mais on la garde pour après l’ouverture. On en reparlera en janvier."
+    },
+    {
+      "id": "E530A60C-845B-58D6-9B4C-BD7F7D18EABE",
+      "start": 303.2,
+      "end": 307.8,
+      "speakerID": "AFA01661-88A3-5B3D-BDD2-32ACED1A462E",
+      "source": "system",
+      "text": "Et la déclaration de TVA du nouvel établissement, qui s’en charge ?"
+    },
+    {
+      "id": "F0BA0860-5A63-5E43-97C0-2D423657B96B",
+      "start": 308.4,
+      "end": 313.8,
+      "speakerID": "1C028FD2-63DC-5960-AEE6-E98ED64BB360",
+      "source": "mic",
+      "text": "C’est Gilles, notre expert-comptable, qui la fera. Il n’est pas là aujourd’hui."
+    },
+    {
+      "id": "CA9E5EC2-4050-585B-A9C2-3F47F2C9FE2A",
+      "start": 315.1,
+      "end": 327.9,
+      "speakerID": "38439220-955C-57AC-AFEA-D9AD9F1C6712",
+      "source": "system",
+      "text": "Je reviens sur la carte. Je corrige ce que j’ai dit : vendredi, vous aurez seulement une version provisoire, sans les desserts. La carte définitive attendra la fin des essais en cuisine."
+    },
+    {
+      "id": "6FC6EB06-16E3-5B97-BB41-862BDC617113",
+      "start": 329.0,
+      "end": 338.1,
+      "speakerID": "6361EE92-43D2-5CA9-858A-00FA9C6757DB",
+      "source": "system",
+      "text": "Au fait, l’essai du four mixte, on peut s’en passer, non ? Le fournisseur m’a dit que le four est testé en usine avant l’expédition."
+    },
+    {
+      "id": "8A3FE590-00C0-51BF-9F03-36E3C747B6F3",
+      "start": 339.0,
+      "end": 347.0,
+      "speakerID": "38439220-955C-57AC-AFEA-D9AD9F1C6712",
+      "source": "system",
+      "text": "Non, je le garde. Le test en usine ne dit rien sur notre installation. Je fais l’essai lundi comme prévu."
+    },
+    {
+      "id": "FC50BE5A-CF6B-5691-A597-9E4F35B796D4",
+      "start": 347.7,
+      "end": 356.2,
+      "speakerID": "6361EE92-43D2-5CA9-858A-00FA9C6757DB",
+      "source": "system",
+      "text": "D’accord. Pour les annonces de recrutement, par contre, je n’y arriverai pas avec le reste. Sophie, tu peux les reprendre ?"
+    },
+    {
+      "id": "DDB543FD-D41D-546D-B9F8-E4075F670DE7",
+      "start": 357.6,
+      "end": 362.6,
+      "speakerID": "AFA01661-88A3-5B3D-BDD2-32ACED1A462E",
+      "source": "system",
+      "text": "Oui, je les reprends. Je les publie vendredi sur les deux sites d’emploi."
+    },
+    {
+      "id": "CE5511B9-65DD-5A4C-9308-E7366496AEB6",
+      "start": 363.8,
+      "end": 372.4,
+      "speakerID": "38439220-955C-57AC-AFEA-D9AD9F1C6712",
+      "source": "system",
+      "text": "Et pour les vins, je confirme ce que disait Thomas : je prépare les accords mets-vins, vous les aurez mardi."
+    },
+    {
+      "id": "47237B31-41FD-5815-9E7C-0DE4151920F6",
+      "start": 373.4,
+      "end": 382.4,
+      "speakerID": "1C028FD2-63DC-5960-AEE6-E98ED64BB360",
+      "source": "mic",
+      "text": "Merci. Sophie, pour les devis de mobilier de terrasse, j’annule ma demande : le propriétaire nous laisse ses tables et ses chaises."
+    },
+    {
+      "id": "57F1D5DF-2D45-55A2-B2BC-6FB6741528F5",
+      "start": 383.2,
+      "end": 385.5,
+      "speakerID": "AFA01661-88A3-5B3D-BDD2-32ACED1A462E",
+      "source": "system",
+      "text": "Parfait, ça me libère du temps."
+    },
+    {
+      "id": "0BE11567-7E87-50E2-A9EC-87B598FEEC1D",
+      "start": 386.1,
+      "end": 393.8,
+      "speakerID": "1C028FD2-63DC-5960-AEE6-E98ED64BB360",
+      "source": "mic",
+      "text": "Karim, et si Sophie reprenait aussi les inscriptions à la formation hygiène ? C’est surtout de l’administratif."
+    },
+    {
+      "id": "68D1C414-0EC1-5911-A7DE-375C53FC8825",
+      "start": 395.1,
+      "end": 401.4,
+      "speakerID": "AFA01661-88A3-5B3D-BDD2-32ACED1A462E",
+      "source": "system",
+      "text": "Pas cette semaine, je suis prise par la licence et les annonces. Je ne peux pas les prendre."
+    },
+    {
+      "id": "58B9E2B1-BC05-5A72-B393-C229F1D2592E",
+      "start": 402.5,
+      "end": 414.5,
+      "speakerID": "6361EE92-43D2-5CA9-858A-00FA9C6757DB",
+      "source": "system",
+      "text": "Je dois aussi revenir sur Instagram : je retire mon engagement, je ne créerai pas le compte. Avec mes services au premier restaurant, je n’aurai pas le temps de l’animer."
+    },
+    {
+      "id": "462AB36E-4A38-5836-B962-C985780141AF",
+      "start": 415.4,
+      "end": 436.2,
+      "speakerID": "38439220-955C-57AC-AFEA-D9AD9F1C6712",
+      "source": "system",
+      "text": "Dernier point pour moi, le jour de fermeture. J’ai regardé les chiffres du premier restaurant : le lundi midi, c’est notre meilleur service de la semaine, quatre-vingt-cinq couverts en moyenne contre quarante le mardi. Je propose qu’on revienne sur la fermeture du lundi et qu’on ferme plutôt le mardi."
+    },
+    {
+      "id": "0189123E-6A7D-5D27-B70C-BC8DFB0E0ECC",
+      "start": 436.9,
+      "end": 442.3,
+      "speakerID": "AFA01661-88A3-5B3D-BDD2-32ACED1A462E",
+      "source": "system",
+      "text": "Ça change les plannings, mais les chiffres sont clairs. D’accord pour le mardi."
+    },
+    {
+      "id": "FB8CF0CA-0425-5EAB-84EC-F4612CE39B61",
+      "start": 443.7,
+      "end": 448.8,
+      "speakerID": "6361EE92-43D2-5CA9-858A-00FA9C6757DB",
+      "source": "system",
+      "text": "Pour moi aussi, même si le mardi était notre jour de livraison du poisson."
+    },
+    {
+      "id": "F1B63581-EEA7-5F6B-87E3-73ED89603EC0",
+      "start": 450.0,
+      "end": 463.1,
+      "speakerID": "1C028FD2-63DC-5960-AEE6-E98ED64BB360",
+      "source": "mic",
+      "text": "Alors on revient sur la décision de tout à l’heure : le nouveau restaurant ouvrira le lundi et fermera le mardi. Qui peut appeler le poissonnier pour caler les livraisons sur ce changement ?"
+    },
+    {
+      "id": "BA824B96-A7A8-5909-A9D6-F7DAEB594A1B",
+      "start": 468.1,
+      "end": 472.0,
+      "speakerID": "1C028FD2-63DC-5960-AEE6-E98ED64BB360",
+      "source": "mic",
+      "text": "Personne ? Bon, je l’appelle moi-même demain matin."
+    },
+    {
+      "id": "3657068A-0CE3-588F-9225-A6693E04C032",
+      "start": 472.8,
+      "end": 476.2,
+      "speakerID": "1C028FD2-63DC-5960-AEE6-E98ED64BB360",
+      "source": "mic",
+      "text": "Merci à tous, on refait le point dans une semaine."
+    }
+  ],
+  "transcriptState": "ready",
+  "audioChunks": [],
+  "consentAnnounced": false,
+  "isDemo": true
+}

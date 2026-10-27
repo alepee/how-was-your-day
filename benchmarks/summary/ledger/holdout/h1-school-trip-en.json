@@ -1,0 +1,201 @@
+{
+  "id": "670441DF-F452-5CF3-8F4B-86615BC456F3",
+  "title": "Synthetic school trip planning (en)",
+  "kind": "meeting",
+  "startedAt": 814113900,
+  "duration": 181,
+  "state": "sealed",
+  "revision": 0,
+  "transcriptVersion": 1,
+  "notes": "",
+  "noteEntries": [],
+  "speakers": [
+    {
+      "id": "65D060BB-2174-56C4-96FF-47A27D5F93C5",
+      "personID": "6582B59C-6120-50C0-9546-675AAC4CD93A",
+      "label": "Odile",
+      "confirmed": true,
+      "source": "mic"
+    },
+    {
+      "id": "E8BBB6E2-4D4B-54CB-9631-C1547637A0F3",
+      "personID": "190091FB-12B8-5723-8D38-5D2233C5CA74",
+      "label": "Yannick",
+      "confirmed": true,
+      "source": "system"
+    },
+    {
+      "id": "F8EFC256-5BE7-54FA-A089-25AA1E1F902A",
+      "personID": "AFBF7BC3-DBC4-5E3B-90DD-EC637C4CE1BD",
+      "label": "Farida",
+      "confirmed": true,
+      "source": "system"
+    }
+  ],
+  "segments": [
+    {
+      "id": "6060389B-C24A-51FB-9CBA-7CF1161B1755",
+      "start": 0.0,
+      "end": 15.9,
+      "speakerID": "65D060BB-2174-56C4-96FF-47A27D5F93C5",
+      "source": "mic",
+      "text": "I'd like us to make headway on the trip for the two seventh-grade classes to the Combe Noire centre, three days in December. We're taking fifty-two pupils and six chaperones, and transport and paperwork still need sorting out."
+    },
+    {
+      "id": "3416154E-7801-5B61-9467-31A0617A42EA",
+      "start": 17.2,
+      "end": 24.1,
+      "speakerID": "E8BBB6E2-4D4B-54CB-9631-C1547637A0F3",
+      "source": "system",
+      "text": "For transport, I suggest the train to Morez. It's a hundred and forty euros less than the coach."
+    },
+    {
+      "id": "6BF93142-B696-5FD5-B4A7-CDE9F983E4F4",
+      "start": 25.2,
+      "end": 38.2,
+      "speakerID": "F8EFC256-5BE7-54FA-A089-25AA1E1F902A",
+      "source": "system",
+      "text": "With fifty-two pupils and two connections, I really don't like the train idea. We could lose someone at Bourg-en-Bresse station. I'd rather have a chartered coach, door to door."
+    },
+    {
+      "id": "8F4BC7B4-D777-54F1-B008-DD3CDDCFC0DF",
+      "start": 39.1,
+      "end": 44.0,
+      "speakerID": "65D060BB-2174-56C4-96FF-47A27D5F93C5",
+      "source": "mic",
+      "text": "I'm with Farida on this. Yannick, are you OK with ruling out the train?"
+    },
+    {
+      "id": "B314F7F2-D6F9-5BCE-BD8F-3C780F4CBB9F",
+      "start": 44.7,
+      "end": 47.8,
+      "speakerID": "E8BBB6E2-4D4B-54CB-9631-C1547637A0F3",
+      "source": "system",
+      "text": "Yes, safety first. Let's go with the coach."
+    },
+    {
+      "id": "84F7D6A3-C03E-5B8D-856B-AA2DD47D2B1C",
+      "start": 49.2,
+      "end": 56.6,
+      "speakerID": "65D060BB-2174-56C4-96FF-47A27D5F93C5",
+      "source": "mic",
+      "text": "Chartered coach it is, there and back. Yannick, can you book it with our usual company?"
+    },
+    {
+      "id": "1202025B-A669-57C5-8843-0FF8EA96D51C",
+      "start": 57.8,
+      "end": 62.3,
+      "speakerID": "E8BBB6E2-4D4B-54CB-9631-C1547637A0F3",
+      "source": "system",
+      "text": "No problem. I'll call the company tomorrow and lock in the date."
+    },
+    {
+      "id": "E68F4006-242C-5A38-96F2-7CF0D6E0B63C",
+      "start": 63.3,
+      "end": 69.6,
+      "speakerID": "F8EFC256-5BE7-54FA-A089-25AA1E1F902A",
+      "source": "system",
+      "text": "For cancellation insurance, I'll ask two insurers for quotes and pass them on to you."
+    },
+    {
+      "id": "702704B0-2BB0-58A8-A7E8-92B3A95D595C",
+      "start": 70.4,
+      "end": 79.4,
+      "speakerID": "65D060BB-2174-56C4-96FF-47A27D5F93C5",
+      "source": "mic",
+      "text": "Thanks. The parental consent forms: I'll hand them out to the pupils on Monday and collect them signed before November 20."
+    },
+    {
+      "id": "2D8A7E01-B76C-5226-94BF-F60302AE27DF",
+      "start": 80.0,
+      "end": 87.7,
+      "speakerID": "E8BBB6E2-4D4B-54CB-9631-C1547637A0F3",
+      "source": "system",
+      "text": "On the budget, the trip comes to a hundred and eighty euros per pupil. Some families won't be able to keep up."
+    },
+    {
+      "id": "4F2C9466-CF7D-57EE-AFFD-A29CCCB6982C",
+      "start": 89.0,
+      "end": 98.0,
+      "speakerID": "65D060BB-2174-56C4-96FF-47A27D5F93C5",
+      "source": "mic",
+      "text": "For that, we go through Mrs Garnier, the bursar: she's the one who will put together the subsidy application to the county council."
+    },
+    {
+      "id": "CDC7BAE9-EC3A-599E-9955-2A84166B448C",
+      "start": 99.1,
+      "end": 111.2,
+      "speakerID": "F8EFC256-5BE7-54FA-A089-25AA1E1F902A",
+      "source": "system",
+      "text": "There's also the information evening for parents. Yesterday, in the staff room, Yannick said to me: “I'll take the parents' meeting, I know all the families.”"
+    },
+    {
+      "id": "41220B9E-DFEF-52F5-993E-044BE1E7F3CE",
+      "start": 112.1,
+      "end": 120.3,
+      "speakerID": "E8BBB6E2-4D4B-54CB-9631-C1547637A0F3",
+      "source": "system",
+      "text": "That was a joke on my way out of a class council, I'm not taking that meeting. Let's talk about the activities instead."
+    },
+    {
+      "id": "B94336AD-77E8-5E8E-B360-CE1A0F1F4DD3",
+      "start": 121.0,
+      "end": 132.0,
+      "speakerID": "F8EFC256-5BE7-54FA-A089-25AA1E1F902A",
+      "source": "system",
+      "text": "For the peat bog workshop, I could possibly put together a booklet for the pupils, provided my class councils are wrapped up in time."
+    },
+    {
+      "id": "EB28E452-651C-5DD7-9BF8-82C3A554D9EC",
+      "start": 133.4,
+      "end": 141.0,
+      "speakerID": "65D060BB-2174-56C4-96FF-47A27D5F93C5",
+      "source": "mic",
+      "text": "That would be nice. We also need the list of pupils with allergies or medication, the centre is asking for it."
+    },
+    {
+      "id": "4DAC990F-0C10-5A35-A79E-E6094DBBD5FE",
+      "start": 142.2,
+      "end": 146.7,
+      "speakerID": null,
+      "source": "system",
+      "text": "I'll forward you that list tonight, I have it in my locker."
+    },
+    {
+      "id": "536E7265-A81E-5317-8D1E-0D7B57D699E3",
+      "start": 147.7,
+      "end": 156.1,
+      "speakerID": "E8BBB6E2-4D4B-54CB-9631-C1547637A0F3",
+      "source": "system",
+      "text": "For activities, the centre offers snowshoe hiking and a visit to the cheese dairy. Kayaking is closed in December."
+    },
+    {
+      "id": "E551A968-2A2F-5963-A89D-38F4EEEDEB04",
+      "start": 156.9,
+      "end": 166.2,
+      "speakerID": "F8EFC256-5BE7-54FA-A089-25AA1E1F902A",
+      "source": "system",
+      "text": "Forget what I said about cancellation insurance: I won't be asking for quotes after all. The centre already includes it in its package."
+    },
+    {
+      "id": "53A7F838-2A28-5040-BD4E-D61657102E92",
+      "start": 166.8,
+      "end": 172.4,
+      "speakerID": "E8BBB6E2-4D4B-54CB-9631-C1547637A0F3",
+      "source": "system",
+      "text": "For the snowshoes, the centre provides all the equipment, there's nothing to buy."
+    },
+    {
+      "id": "A7AC1166-5B30-5CBF-A8A8-583C0517A2F8",
+      "start": 173.7,
+      "end": 179.0,
+      "speakerID": "65D060BB-2174-56C4-96FF-47A27D5F93C5",
+      "source": "mic",
+      "text": "Perfect. Let's meet again after the class councils to finalize the programme."
+    }
+  ],
+  "transcriptState": "ready",
+  "audioChunks": [],
+  "consentAnnounced": false,
+  "isDemo": true
+}
