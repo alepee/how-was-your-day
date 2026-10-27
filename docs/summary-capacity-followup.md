@@ -11,7 +11,7 @@ The 4B failures left on the frozen system (ledger-v2 prompt, final deterministic
 - Same commit and script as the 4B final system: `scripts/ledger-summary.py` sha256 `2a094d46…a180`, prompt `ledger-v2` (hash `b48433b9…`), frozen fixtures and expectations checked before the run, deterministic tests passing.
 - `qwen/qwen3.5-9b`, MLX 4-bit, reasoning disabled, temperature 0, one request at a time, parallel 1, the only model loaded. As with the 4B, 32,768 tokens were requested and the server advertised 262,144.
 - Shipped bounds: 24,000-character user-prompt ceiling, 12,000-character windows (one window per case), carried ledger of 12 items or 3,000 characters, 4,000-character writer slice, at most 12 calls per case.
-- Each case's `benchmark.json` was compared with the 4B reference: only the model identifier differs. The 4B reference applies the final rules to cached ledger-v2 responses (`rederive`); the 9B applies them live. Rules and prompt are identical.
+- The configured prompt version, budgets and reasoning settings in each case's `benchmark.json` match the 4B reference; the model identifier differs. The 4B reference applies the final rules to cached ledger-v2 responses (`rederive`); the 9B applies them live. Rules and prompt are identical.
 - Nine development cases: Atlas, `d1` and `d2`, each in French, English and mixed French/English. 18 expected decisions, 36 expected tasks. The holdout was not run with the 9B, as planned.
 
 Recall and gates come from manual review of every case against its cited turns. A task with a wrong deadline is not counted, as in the 4B review. A gate is any of: unsupported task in next steps, wrong owner, invented or wrong deadline, wrong status (unsupported change applied, or an old state left active), an unowned or hesitant item promoted to a task, a proposal promoted to a decision.
@@ -66,11 +66,11 @@ The prose has the same writer defects as before, sometimes in contradiction with
 
 ## Verdict
 
-Capacity alone: **no**. The 9B recovers three decisions net and none of its gates comes from a code bug, but it lists two unsupported tasks, drops a correction the 4B handled, and goes from one to five development cases with a gate, for 34% more inference time and about 2.5 GiB more peak memory. Its failures belong to the classes already seen on the 4B holdout: the right voice with the wrong meaning, a replacement linked to the wrong item, an old value kept next to a cited correction. Rules that only check who speaks do not catch them. Following the plan, neither a 9B holdout nor the 90-minute run was attempted.
+Switching to this 9B model with the frozen workflow: **not sufficient in this experiment**. The 9B recovers three decisions net and none of its gates comes from a code bug, but it lists two unsupported tasks, drops a correction the 4B handled, and goes from one to five development cases with a gate, for 34% more inference time and about 2.5 GiB more peak memory. Its failures belong to the classes already seen on the 4B holdout: the right voice with the wrong meaning, a replacement linked to the wrong item, an old value kept next to a cited correction. Rules that only check who speaks do not catch them. Following the plan, neither a 9B holdout nor the 90-minute run was attempted.
 
 ## Limits
 
-- One pass at temperature 0 on nine synthetic development cases; a rerun would not measure sampling variance, and moving errors between cases is expected (see the ledger experiment).
+- One pass at temperature 0 on nine synthetic development cases; earlier Atlas reruns were byte-identical, but deterministic decoding does not establish stability across hardware, runtime versions or all inputs.
 - The development set was read while tuning the 4B system, so it favours the 4B prompt. The 9B was not tuned; a prompt adapted to the 9B was not tested.
 - The 4B reference was re-derived from cached responses, the 9B run was live; prompt, rules and budgets are identical.
 - Memory peaks are sampled every 0.5 s and include the LM Studio interface; brief peaks may be missed. The loaded context (262,144 tokens) is larger than any prompt here.
