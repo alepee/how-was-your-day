@@ -28,6 +28,7 @@ brew upgrade --cask how-was-your-day
 - Review waveforms, play both tracks, solo or mute each track, and correct speaker assignments.
 - Keep editable notes alongside the transcript and audio.
 - Optional summaries: local through an OpenAI-compatible server such as LM Studio, hosted through the Mistral, OpenAI, Anthropic or Google Gemini APIs with your own API key, or written by your own coding agent over the Agent Client Protocol (Claude Code, Codex, Mistral Vibe, Grok, Gemini CLI), which can use what it knows about you in a separate context section. Reports include an overview, decisions, next steps and topic details with source references.
+- Optional automatic summary (Settings › Summary, off by default): once a session is ready, meaning the transcript is complete and every voice is named, confirmed or ignored, the summary starts on its own after a 10-second pause. A later correction starts it again; a failed or cancelled run is not retried until the transcript changes. Sessions recorded before the setting was turned on are not processed. With a hosted provider, this sends the transcript without a further click.
 - Calendar context and explicit meeting reminders through macOS accounts, including Google and Microsoft accounts configured in Calendar.
 - Light, dark and system appearance, menu bar access and a floating notepad.
 - A global shortcut starts or ends a recording from any application, without bringing the window forward (default ⌃⌥⌘R, configurable or removable in Settings > General). It needs no Accessibility permission.

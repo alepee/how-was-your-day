@@ -59,6 +59,7 @@ struct SettingsView: View {
             }.id(model.settingsCategory)
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .onChange(of: model.summaryEnabled) { _, _ in model.saveSummarySettings() }
+            .onChange(of: model.summaryAutomatic) { _, _ in model.saveSummarySettings() }
             .onChange(of: model.summaryEndpoint) { _, _ in model.saveSummarySettings() }
             .onChange(of: model.summaryModel) { _, _ in model.saveSummarySettings() }
             .onChange(of: model.summaryContextTokens) { _, _ in model.saveSummarySettings() }
@@ -131,8 +132,10 @@ struct SettingsView: View {
                 ForEach(model.people) { person in VoicePersonRow(person: person) }
             }.disabled(model.isDemoMode)
         case .summary:
-            section(String(localized: "Synthèse"), symbol: "sparkles", help: String(localized: "Chaque synthèse est lancée manuellement depuis la session. Les étapes validées sont conservées pour reprendre après une interruption.")) {
+            section(String(localized: "Synthèse"), symbol: "sparkles", help: String(localized: "Une synthèse se lance depuis la session, ou seule quand la session est prête si la génération automatique est activée. Les étapes validées sont conservées pour reprendre après une interruption.")) {
                 toggleRow(String(localized: "Activer la synthèse"), isOn: $model.summaryEnabled)
+                toggleRow(String(localized: "Générer automatiquement"), help: String(localized: "La synthèse démarre seule quelques secondes après que la session est prête : transcript terminé et chaque voix nommée, confirmée ou ignorée. Une correction ultérieure la relance. Les sessions déjà enregistrées ne sont pas traitées. Avec un fournisseur en ligne, le transcript lui est envoyé sans autre action."), isOn: $model.summaryAutomatic)
+                    .disabled(!model.summaryEnabled)
                 row(String(localized: "Fournisseur"), help: String(localized: "Le serveur local garde le transcript sur ce Mac. Un agent ACP (Claude Code, Codex…) rédige avec votre propre contexte. Avec Mistral, OpenAI, Anthropic ou Google Gemini, le transcript est envoyé au fournisseur à chaque synthèse, une fois sa clé API enregistrée.")) {
                     Picker("Fournisseur", selection: Binding(get: { model.summaryService }, set: { model.selectSummaryService($0) })) {
                         ForEach(SummaryService.allCases) { service in Text(service.displayName).tag(service) }

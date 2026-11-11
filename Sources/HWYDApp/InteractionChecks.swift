@@ -56,6 +56,43 @@ import HWYDCore
         }
         print("Summary pending-edit flush, demo exclusion and cancellation: PASS")
     }
+    private static func checkAutomaticSummary(directory: URL) async throws {
+        let suite = "HWYDAutomaticSummaryTests.\(UUID().uuidString)"
+        guard let preferences = UserDefaults(suiteName: suite) else { throw CaptureFailure(message: "Missing isolated preferences") }
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let model = AppModel(directory: directory, preferences: preferences, appliesAppearance: false, persistPreferences: true)
+        await model.load()
+        model.automaticSummaryDelay = .milliseconds(50)
+        // An invalid remote endpoint guarantees this test performs no inference or network call.
+        model.summaryEnabled = true; model.summaryAutomatic = true
+        model.summaryEndpoint = "https://example.com/v1"; model.summaryModel = "fixture"
+        let voice = Speaker(label: "Voix 1")
+        let recording = Recording(title: "Automatic summary fixture", speakers: [voice],
+                                  segments: [TranscriptSegment(start: 0, end: 1, speakerID: voice.id, source: .mic, text: "Bonjour")])
+        model.recordings = [recording]; model.selectedID = recording.id
+        func settle() async throws {
+            try await Task.sleep(for: .milliseconds(300))
+            let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+            while model.summaryID != nil, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        }
+        model.update(recording.id) { $0.notes = "Unnamed voice" }
+        try await settle()
+        guard model.errorMessage == nil else { throw CaptureFailure(message: "Automatic summary started before every voice was resolved") }
+        model.update(recording.id) { try? $0.renameSpeaker(voice.id, to: "Alice") }
+        try await settle()
+        guard model.errorMessage != nil else { throw CaptureFailure(message: "Automatic summary did not start once the session was ready") }
+        model.errorMessage = nil
+        model.update(recording.id) { $0.notes = "Edit after a failed run" }
+        try await settle()
+        guard model.errorMessage == nil else { throw CaptureFailure(message: "Automatic summary retried an unchanged transcript") }
+        model.summaryAutomatic = false
+        model.update(recording.id) { try? $0.renameSpeaker(voice.id, to: "Alice B.") }
+        try await settle()
+        guard model.errorMessage == nil, preferences.bool(forKey: "summary.automatic") == false else {
+            throw CaptureFailure(message: "Automatic summary ran while the setting was off")
+        }
+        print("Automatic summary waits for resolved voices, runs once per transcript and respects the setting: PASS")
+    }
     static func runTranscription(directory: URL) async throws {
         let model = AppModel(directory: directory)
         let previousDiarization = model.diarizationEnabled
@@ -187,6 +224,7 @@ import HWYDCore
         try await PlaybackChecks.run(directory: directory.appendingPathComponent("playback"))
         try checkAppearancePreferences(directory: directory.appendingPathComponent("appearance-test"))
         try await checkSummaryLifecycle(directory: directory.appendingPathComponent("summary-lifecycle-test"))
+        try await checkAutomaticSummary(directory: directory.appendingPathComponent("automatic-summary-test"))
         try await checkAgentSummary(directory: directory.appendingPathComponent("agent-summary-test"))
         try await checkNewSessionAndToasts()
         let model = AppModel(directory: directory)

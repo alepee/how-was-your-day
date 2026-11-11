@@ -120,6 +120,13 @@ public struct Recording: Codable, Identifiable, Equatable, Sendable {
         let ignored = Set(speakers.lazy.filter(\.ignored).map(\.id))
         return ignored.isEmpty ? segments : segments.filter { $0.speakerID.map { !ignored.contains($0) } ?? true }
     }
+    /// Every voice the user kept is named or confirmed: no unidentified voice, no pending proposal.
+    public var voicesResolved: Bool { speakers.allSatisfy { $0.ignored || $0.confirmed } }
+    /// Ready for an automatic summary: transcript done, speech heard, every voice resolved, no summary yet.
+    public var isReadyForSummary: Bool {
+        !isDemo && state != .recording && transcriptState == .ready && summary == nil && voicesResolved
+            && heardSegments.contains { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
     /// Copy whose segments exclude ignored voices, for exports, search and summaries.
     public var withoutIgnoredVoices: Recording { var copy = self; copy.segments = heardSegments; return copy }
     /// Correct this segment only. Naming and biometric enrollment are separate actions.

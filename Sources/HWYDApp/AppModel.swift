@@ -63,6 +63,11 @@ final class AppModel: ObservableObject {
     private let voiceRunner = PipelineRunner()
     @Published var summaryID: UUID?
     @Published var summaryEnabled = UserDefaults.standard.bool(forKey: "summary.enabled")
+    /// Starts the summary on its own once a session is ready: transcript done, every voice resolved.
+    @Published var summaryAutomatic = false
+    /// Transcript version of the last attempt per session, so a failure or a cancel is not retried automatically.
+    private var automaticSummaryVersions: [UUID: Int] = [:]
+    private var automaticSummaryTasks: [UUID: Task<Void, Never>] = [:]
     @Published var summaryEndpoint = UserDefaults.standard.string(forKey: "summary.endpoint") ?? "http://127.0.0.1:1234/v1"
     @Published var summaryModel = UserDefaults.standard.string(forKey: "summary.model") ?? ""
     @Published var summaryContextTokens = 32768
@@ -202,6 +207,7 @@ final class AppModel: ObservableObject {
         self.appliesAppearance = appliesAppearance
         self.persistPreferences = persistPreferences ?? (directory == nil && !preview)
         summaryEnabled = preferences.bool(forKey: "summary.enabled")
+        summaryAutomatic = preferences.bool(forKey: "summary.automatic")
         summaryEndpoint = preferences.string(forKey: "summary.endpoint") ?? "http://127.0.0.1:1234/v1"
         summaryModel = preferences.string(forKey: "summary.model") ?? ""
         summaryContextTokens = preferences.integer(forKey: "summary.contextTokens") == 0 ? 32768 : preferences.integer(forKey: "summary.contextTokens")
@@ -266,7 +272,7 @@ final class AppModel: ObservableObject {
     func update(_ id: UUID, _ edit: (inout Recording) -> Void) {
         guard let index = recordings.firstIndex(where: { $0.id == id }) else { return }
         edit(&recordings[index])
-        if !isDemoMode { dirtyIDs.insert(id); hasUnsavedChanges = true; scheduleSave() }
+        if !isDemoMode { dirtyIDs.insert(id); hasUnsavedChanges = true; scheduleSave(); scheduleAutomaticSummary(id) }
     }
     private func scheduleSave() {
         guard saveTask == nil else { return }
@@ -734,6 +740,7 @@ final class AppModel: ObservableObject {
     func saveSummarySettings() {
         guard !isDemoMode, persistPreferences else { return }
         preferences.set(summaryEnabled, forKey: "summary.enabled")
+        preferences.set(summaryAutomatic, forKey: "summary.automatic")
         preferences.set(summaryEndpoint, forKey: "summary.endpoint")
         preferences.set(summaryModel, forKey: "summary.model")
         preferences.set(summaryContextTokens, forKey: "summary.contextTokens")
@@ -840,9 +847,49 @@ final class AppModel: ObservableObject {
         catch { errorMessage = String(localized: "Clé API : \(error.localizedDescription)") }
     }
     func cancelSummary() { summaryTask?.cancel() }
+    /// Delay after the last change before an automatic summary starts, so a correction can still be undone.
+    var automaticSummaryDelay: Duration = .seconds(10)
+    /// Real sessions only: tests, previews and demo never start a summary on their own.
+    private var automaticSummaryAllowed: Bool {
+        summaryAutomatic && summaryEnabled && persistPreferences && !isDemoMode && store != nil
+            && (!summaryService.isRemote || summaryKeyStored)
+    }
+    /// Waits for the session to stay ready and unchanged, then starts its summary once per transcript version.
+    private func scheduleAutomaticSummary(_ id: UUID) {
+        guard automaticSummaryAllowed, let item = recordings.first(where: { $0.id == id }), item.isReadyForSummary,
+              automaticSummaryVersions[id] != item.transcriptVersion else { return }
+        let version = item.transcriptVersion
+        automaticSummaryTasks[id]?.cancel()
+        automaticSummaryTasks[id] = Task { [weak self] in
+            guard let delay = self?.automaticSummaryDelay else { return }
+            try? await Task.sleep(for: delay)
+            // Another model job (transcription, voices, a summary) finishes first.
+            while let self, !Task.isCancelled, self.modelWorkBusy || self.hasUnsavedChanges { try? await Task.sleep(for: .seconds(2)) }
+            guard let self, !Task.isCancelled else { return }
+            self.automaticSummaryTasks[id] = nil
+            guard self.automaticSummaryAllowed, let current = self.recordings.first(where: { $0.id == id }),
+                  current.transcriptVersion == version, current.isReadyForSummary,
+                  self.automaticSummaryVersions[id] != version else { return }
+            self.generateSummary(recordingID: id, automatic: true)
+        }
+    }
     func generateSummary() {
-        guard summaryEnabled, !modelWorkBusy, !isDemoMode, let recordingID = selected?.id, let store else { return }
+        guard let id = selected?.id else { return }
+        generateSummary(recordingID: id)
+    }
+    func generateSummary(recordingID: UUID, automatic: Bool = false) {
+        guard summaryEnabled, !modelWorkBusy, !isDemoMode, let store,
+              let version = recordings.first(where: { $0.id == recordingID })?.transcriptVersion else { return }
+        automaticSummaryVersions[recordingID] = version
         summaryID = recordingID
+        if automatic {
+            let title = recordings.first { $0.id == recordingID }?.title ?? ""
+            report(String(localized: "Synthèse automatique lancée : \(title)"),
+                   actions: [ToastAction(title: String(localized: "Annuler")) { [weak self] in
+                       guard self?.summaryID == recordingID else { return }
+                       self?.cancelSummary()
+                   }])
+        }
         summaryTask = Task {
             defer { summaryID = nil; summaryTask = nil; summaryProgress = nil }
             do {
@@ -898,6 +945,10 @@ final class AppModel: ObservableObject {
             } catch {
                 if error is CancellationError || Task.isCancelled || (error as? URLError)?.code == .cancelled {
                     notice = String(localized: "Synthèse annulée.")
+                } else if automatic, case SummaryFailure.stale = error {
+                    // The session changed during the run: start again once it is ready and quiet.
+                    automaticSummaryVersions[recordingID] = nil
+                    scheduleAutomaticSummary(recordingID)
                 } else {
                     report(String(localized: "Synthèse : \(error.localizedDescription)"), style: .error, actions: [
                         ToastAction(title: String(localized: "Réessayer")) { [weak self] in
