@@ -41,7 +41,15 @@ Retour retrouve la session ou la bibliothèque précédente. La capture reste ac
 
 ## Compte rendu de session
 
-Toutes les sessions utilisent une structure commune inspirée des notes Google Meet : Résumé et points clés, Décisions, Étapes suivantes, Détails par thème. Les sections sans contenu sont masquées. Chaque thème porte un titre et un paragraphe lisible. Les références horodatées positionnent le lecteur et révèlent le passage source au survol. Les anciennes synthèses restent affichées jusqu'à leur régénération.
+Toutes les sessions utilisent une structure commune inspirée des notes Google Meet : Résumé et points clés, Décisions, Étapes suivantes, Détails par thème, puis Contexte quand un agent en apporte. Les sections sans contenu sont masquées. Les anciennes synthèses restent affichées jusqu'à leur régénération.
+
+The summary reads as a document, not a block of text:
+
+- The reading column is limited to 640 pt. When the pane is wide enough, an outline sits beside it, lists sections and topics, highlights the one on screen and jumps to any entry.
+- The overview opens in 15 pt, followed by counters (decisions, actions, topics, context notes) that scroll to their section, and key points as cards in two columns.
+- Decisions are callouts with a mint edge. Actions are rows: the assignee's initials when the summary names one, the action, its due date in copper, its source.
+- Each item carries one source reference: the first passage's time and how many others back it. Hover lists the passages; a click moves playback to the first one.
+- Topics and context notes fold. Folded, they show their title, first sentence and the time span of their passages; open, the full text and one reference per passage. Summaries with more than three topics start folded; « Tout déplier » opens them all.
 
 ## Voice review
 

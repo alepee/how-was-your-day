@@ -56,6 +56,8 @@ import HWYDCore
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-new-session.png"))
         model.showNewSession = false; model.selectedID = previousSelection
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 1500), to: directory.appendingPathComponent("studio-summary-full.png"))
+        // Wide window: the outline appears beside the reading column.
+        render(RootView().environmentObject(model), size: .init(width: 1440, height: 1500), to: directory.appendingPathComponent("studio-summary-wide.png"))
         model.activeCaptureID = model.selectedID; model.elapsed = 1122; model.micLevel = 0.65; model.systemLevel = 0.35
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 850), to: directory.appendingPathComponent("studio-capture.png"))
         model.isCapturePaused = true; model.micLevel = 0; model.systemLevel = 0

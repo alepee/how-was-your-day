@@ -1201,6 +1201,22 @@
         }
       }
     },
+    "Aller au passage %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go to passage %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aller au passage %@"
+          }
+        }
+      }
+    },
     "Annulation impossible : la session a changé depuis.": {
       "localizations": {
         "en": {
@@ -1277,6 +1293,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Apport retiré de l’empreinte de %@."
+          }
+        }
+      }
+    },
+    "Apports de votre agent, tirés de ce qu’il sait de vous et de vos projets. Ils ne viennent pas de la conversation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added by your agent from what it knows about you and your projects. They do not come from the conversation."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apports de votre agent, tirés de ce qu’il sait de vous et de vos projets. Ils ne viennent pas de la conversation."
           }
         }
       }
@@ -1533,6 +1565,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Aucune parole reconnue"
+          }
+        }
+      }
+    },
+    "Aucune personne désignée": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nobody assigned"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune personne désignée"
           }
         }
       }
@@ -2353,6 +2401,22 @@
         }
       }
     },
+    "Contexte": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Context"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contexte"
+          }
+        }
+      }
+    },
     "Contexte chargé dans le serveur": {
       "localizations": {
         "en": {
@@ -2781,6 +2845,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Démarrer ou terminer un enregistrement"
+          }
+        }
+      }
+    },
+    "Déplier": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expand"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Déplier"
           }
         }
       }
@@ -6241,6 +6321,22 @@
         }
       }
     },
+    "Plan de la synthèse": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Summary outline"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan de la synthèse"
+          }
+        }
+      }
+    },
     "Position de lecture": {
       "localizations": {
         "en": {
@@ -6605,6 +6701,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Remplacer le transcript ?"
+          }
+        }
+      }
+    },
+    "Replier": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collapse"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Replier"
           }
         }
       }
@@ -7345,6 +7457,22 @@
         }
       }
     },
+    "Sources : %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sources: %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sources : %@"
+          }
+        }
+      }
+    },
     "Stockée dans le trousseau de ce Mac, jamais dans les réglages, les exports ou la base. Les requêtes sont facturées sur votre compte %@.": {
       "localizations": {
         "en": {
@@ -7789,6 +7917,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tous les types"
+          }
+        }
+      }
+    },
+    "Tout déplier": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expand all"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tout déplier"
+          }
+        }
+      }
+    },
+    "Tout replier": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collapse all"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tout replier"
           }
         }
       }
@@ -8625,6 +8785,38 @@
         }
       }
     },
+    "action": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "action"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "action"
+          }
+        }
+      }
+    },
+    "actions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "actions"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "actions"
+          }
+        }
+      }
+    },
     "arrêt : %@": {
       "localizations": {
         "en": {
@@ -8686,6 +8878,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "claude-agent-acp"
+          }
+        }
+      }
+    },
+    "décision": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "decision"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "décision"
+          }
+        }
+      }
+    },
+    "décisions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "decisions"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "décisions"
           }
         }
       }
@@ -8802,6 +9026,38 @@
         }
       }
     },
+    "note de contexte": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "context note"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "note de contexte"
+          }
+        }
+      }
+    },
+    "notes de contexte": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "context notes"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "notes de contexte"
+          }
+        }
+      }
+    },
     "reprise du cache": {
       "localizations": {
         "en": {
@@ -8830,6 +9086,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "système"
+          }
+        }
+      }
+    },
+    "thème": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "topic"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "thème"
+          }
+        }
+      }
+    },
+    "thèmes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "topics"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "thèmes"
           }
         }
       }
