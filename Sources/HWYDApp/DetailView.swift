@@ -47,10 +47,12 @@ struct DetailView: View {
             }.padding(.horizontal, 32).padding(.top, 28)
             if model.activeTab == .transcript {
                 TranscriptPane(recording: recording, header: transcriptHeader, onSplit: { splittingSegment = $0 })
+            } else if model.activeTab == .summary {
+                SummaryPane(recording: recording, header: summaryControls).id(recording.id)
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 15) {
-                        if model.activeTab == .notes { NotesEditor(recording: recording) } else { summary }
+                        NotesEditor(recording: recording)
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(32).padding(.top, 0)
                 }
             }
@@ -94,7 +96,8 @@ struct DetailView: View {
             }
         }
     }
-    @ViewBuilder private var summary: some View {
+    /// Generation controls above the summary, or the empty state when there is none yet.
+    @ViewBuilder private var summaryControls: some View {
         if !recording.isDemo {
             HStack {
                 Button(model.summaryID == recording.id ? "Génération…" : recording.summary == nil ? "Générer une synthèse" : "Régénérer") { model.generateSummary() }
@@ -112,38 +115,7 @@ struct DetailView: View {
             Label("Brouillon local, à relire", systemImage: "info.circle").font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted)
                 .help(summaryHint)
         }
-        if let summary = recording.summary {
-            if let structured = recording.summaryProvenance?.structured, structured.details != nil {
-                summaryHeading("Résumé")
-                summaryParagraph(structured.overview)
-                summaryTopics(structured.key_points ?? [])
-                if !structured.decisions.isEmpty {
-                    summaryHeading("Décisions")
-                    ForEach(Array(structured.decisions.enumerated()), id: \.offset) { _, decision in
-                        summaryParagraph("• " + decision.text)
-                        summaryReferences(decision.evidence_segment_ids)
-                    }
-                }
-                if !structured.action_items.isEmpty {
-                    summaryHeading("Étapes suivantes")
-                    ForEach(Array(structured.action_items.enumerated()), id: \.offset) { _, action in
-                        summaryParagraph("• " + (action.assignee_name.map { String(localized: "\($0) : \(action.text)") } ?? action.text) + (action.due_date.map { " (" + $0 + ")" } ?? ""))
-                        summaryReferences(action.evidence_segment_ids)
-                    }
-                }
-                if let details = structured.details, !details.isEmpty {
-                    summaryHeading("Détails")
-                    summaryTopics(details)
-                }
-            } else {
-            ForEach(Array(summary.components(separatedBy: "\n\n").enumerated()), id: \.offset) { _, paragraph in
-                if paragraph.hasPrefix("### ") { Text(String(paragraph.dropFirst(4))).font(.system(size: Studio.Size.body, weight: .semibold)).padding(.top, 6) }
-                else if paragraph.hasPrefix("## ") { Text(paragraph.replacingOccurrences(of: "## ", with: "")).font(.system(size: Studio.Size.heading, weight: .medium)).foregroundStyle(Studio.mint).padding(.top, 12) }
-                else { Text(paragraph).font(.system(size: Studio.Size.body)).lineSpacing(7).textSelection(.enabled) }
-            }
-            }
-            if recording.isDemo { Badge(text: String(localized: "SYNTHÈSE FICTIVE · EXEMPLE D’INTERFACE")).padding(.top, 15) }
-        } else {
+        if recording.summary == nil {
             EmptyPanel(symbol: "sparkles", title: model.summaryEnabled ? String(localized: "Pas encore de synthèse") : String(localized: "La synthèse est facultative"), detail: model.summaryEnabled ? model.summaryService == .agent ? String(localized: "Votre agent ACP rédigera la synthèse à partir du transcript et de son propre contexte. Vos notes restent sur ce Mac.") : model.summaryService.isRemote ? String(localized: "Le transcript sera envoyé à \(model.summaryService.displayName). Vos notes restent sur ce Mac.") : String(localized: "Lancez la génération avec votre modèle local. Vos notes et votre transcript restent indépendants.") : String(localized: "Activez un modèle dans les réglages pour générer une synthèse."))
             Button("Voir les réglages") { model.settingsCategory = .summary; model.showSettings = true }.buttonStyle(StudioButtonStyle())
         }
@@ -154,31 +126,6 @@ struct DetailView: View {
             text += "\n\(provenance.model) · \(provenance.promptVersion) · transcript v\(provenance.transcriptVersion)"
         }
         return text
-    }
-    private func summaryHeading(_ title: LocalizedStringKey) -> some View {
-        Text(title).font(.system(size: Studio.Size.heading, weight: .semibold)).foregroundStyle(Studio.mint).padding(.top, 12)
-    }
-    private func summaryParagraph(_ text: String) -> some View {
-        Text(text).font(.system(size: Studio.Size.body)).lineSpacing(7).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
-    }
-    private func summaryTopics(_ topics: [SummaryTopic]) -> some View {
-        ForEach(Array(topics.enumerated()), id: \.offset) { _, topic in
-            VStack(alignment: .leading, spacing: 8) {
-                Text(topic.title).font(.system(size: Studio.Size.body, weight: .semibold))
-                summaryParagraph(topic.text)
-                summaryReferences(topic.evidence_segment_ids)
-            }.padding(.vertical, 4)
-        }
-    }
-    private func summaryReferences(_ ids: [UUID]) -> some View {
-        HStack(spacing: 12) {
-            ForEach(recording.segments.filter { ids.contains($0.id) }) { segment in
-                Button { model.seekPlayback(to: segment.start) } label: {
-                    Text(timeLabel(segment.start)).padding(.vertical, 4).contentShape(Rectangle())
-                }.buttonStyle(.plain).font(.system(size: Studio.Size.caption, design: .monospaced)).foregroundStyle(Studio.mint)
-                    .help(segment.text)
-            }
-        }
     }
 }
 /// Where the notes stand: example, saving or saved on this Mac.
