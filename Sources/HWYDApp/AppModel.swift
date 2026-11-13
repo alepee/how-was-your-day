@@ -601,6 +601,13 @@ final class AppModel: ObservableObject {
             } else if let capture {
                 micLevel = capture.micLevel; systemLevel = capture.systemLevel
                 if let failure = capture.failure { let id = activeCaptureID; stopCapture(); if let id { update(id) { $0.state = .interrupted } }; errorMessage = failure }
+                else {
+                    let before = elapsed
+                    do {
+                        // Restarting a tap aggregate can block for about a second: the session clock skips it like a pause.
+                        if try capture.restartIfMicrophoneClaimed() { self.captureStart = ContinuousClock.now.advanced(by: .milliseconds(-Int64((before * 1000).rounded()))) }
+                    } catch { let id = activeCaptureID; stopCapture(); if let id { update(id) { $0.state = .interrupted } }; errorMessage = error.localizedDescription }
+                }
             }
         }
         if isPlaying {
