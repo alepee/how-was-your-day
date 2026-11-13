@@ -2,6 +2,13 @@
 
 Statut : proposition d'implémentation du 23 octobre 2026. Référence : [architecture v0.1](architecture.md), laissée intacte. Les amendements sont regroupés en fin de document. Les seuils expérimentaux ne sont pas des résultats mesurés.
 
+> **État actuel** : ce design reste la cible ; le code n'en suit qu'une partie. Écarts principaux, détaillés dans [architecture](architecture.md) § 15 ; les ports en place sont au § 11 :
+> - §§ 2-3 : `HWYDCore` est une seule cible, pas un package multi-cibles (découpage décrit comme étape ultérieure, § 11). Les interfaces de ce document ne sont pas reprises telles quelles : les ports en place (`AudioCapture`, `TranscriptionService`, `RecordingRepository`, `SecretVault`…) en couvrent une partie sous d'autres formes.
+> - § 4 : la pause et la reprise de capture existent ; un changement de périphérique arrête la session au lieu de recréer le graphe.
+> - § 5 : pas d'ASR progressive ni de mode `--follow` ; la transcription démarre après l'arrêt. Le helper expose des sous-commandes ponctuelles, pas `run`, `migrate` ou `maintain`.
+> - § 6 : `CoreAudioCapture` est un actor sur sa propre file et `SessionStore` un actor ; ni `PipelineActor`, ni progression JSONL, ni lease de job : l'app sonde le process du helper. Seuls `capture.lock` et `pipeline.lock` existent. Ni purge, ni maintenance de rétention, ni chiffrement applicatif.
+> - Schéma SQLite : voir l'encadré du [modèle de données](data-model.md).
+
 ## 1. Périmètre et invariants
 
 Jalon 1 : une app signée capture deux pistes synchronisées, ferme des CAF récupérables et survit aux changements de périphérique. Jalon 4 : le CLI produit un transcript anonyme, ses métadonnées calendrier et les exports, sans identité ni LLM requis. Les contrats préparent les jalons suivants sans les rendre bloquants.
@@ -35,7 +42,7 @@ Resources/Prompts/summary-v1.txt
 Resources/Models/manifest.json      # références, licences, hashes ; pas les poids
 ```
 
-`HWYDCore` est un package à plusieurs cibles, pas un module monolithique. L'app Xcode consomme ses produits SwiftPM. SwiftPM construit les deux CLI ; le packaging les copie dans `HWYD.app/Contents/Helpers/`. Un simple executable SwiftPM ne remplace pas un bundle macOS avec permissions et signature.
+Cible, non implémentée : `HWYDCore` est un package à plusieurs cibles, pas un module monolithique. L'app Xcode consomme ses produits SwiftPM. SwiftPM construit les deux CLI ; le packaging les copie dans `HWYD.app/Contents/Helpers/`. Un simple executable SwiftPM ne remplace pas un bundle macOS avec permissions et signature.
 
 | Dépendance | Base retenue, figée à l'intégration | Consommateur |
 |---|---|---|
@@ -68,7 +75,7 @@ Les modèles ont leur propre manifeste : `model_id`, révision amont immuable, S
 | CLI pipeline | Assemblage des adaptateurs, exécution isolée | `hwyd-pipeline run --id UUID --follow` |
 | CLI MCP | Validation MCP, lecture et commandes autorisées | Contrat [MCP](mcp.md) ; pas de lien vers FluidAudio ou MLX |
 
-Les signatures ci-dessous sont **des protocoles HWYD proposés**, pas des signatures Apple ou FluidAudio. Les DTO sont définis par le tableau qui suit et le [modèle de données](data-model.md). Tous les appels sont annulables ; l'annulation ne publie aucun résultat incomplet.
+Les signatures ci-dessous sont **des protocoles HWYD proposés**, pas des signatures Apple ou FluidAudio. Certains ont un équivalent en place sous une autre forme, par exemple `AudioCapture`, `LLMProvider`, `SpeechRecognizing` (pour `ASRProvider`), `OfflineDiarizing` (pour `Diarizer`) ou `SecretVault` (pour `VectorVault`) ; les ports réellement en place sont listés dans [architecture](architecture.md) § 11, « Ports after the refactor ». Les DTO sont définis par le tableau qui suit et le [modèle de données](data-model.md). Tous les appels sont annulables ; l'annulation ne publie aucun résultat incomplet.
 
 ```swift
 public protocol AudioCapture: Sendable {
@@ -212,6 +219,8 @@ L'endpoint local est limité par défaut à loopback. Une URL non locale exige l
 EventKit reste dans l'app, confiné à un adaptateur. Pour J4, choisir manuellement un événement parmi ceux chevauchant la session ; sans choix, calendrier null. Copier les valeurs dans un snapshot Sendable avant envoi au store. Extraire uniquement les `mailto:` valides des URL de participants ; noms et emails peuvent manquer. Liens candidats depuis URL, location et notes, dédupliqués ; pièces jointes non vérifiées laissées vides. Ne pas déduire qu'un invité est présent. Les mots-clés sensibles empêchent le démarrage automatique proposé et demandent une dérogation explicite avant capture contextualisée.
 
 ## 6. Processus, acteurs et verrous
+
+Cible : hors de `CaptureActor` (réalisé par `CoreAudioCapture`), les acteurs, la progression JSONL, les leases et la plupart des verrous ci-dessous ne sont pas implémentés (voir l'encadré en tête).
 
 | Propriétaire | Travail | Accès |
 |---|---|---|

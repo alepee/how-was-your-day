@@ -2,6 +2,7 @@
 
 > App macOS native, barre de menus, qui enregistre, transcrit, diarise et nomme les speakers d'une réunion, entièrement on-device, et expose le résultat en Markdown (frontmatter YAML) dans un dossier au choix. L'app est **autonome** : aucun memory system, skill ou agent n'est requis pour qu'elle soit utile ; ils ne sont que des consommateurs possibles de ses notes.
 > Statut : brouillon révisé le 2026-10-23 après deux passes de revue (vérifications factuelles, revue d'architecture). Les points **[spike]** sont à trancher par expérimentation.
+> Ce plan décrit l'intention. Ce qui est réellement en place et les écarts acceptés sont au § 15 (état actuel et cible) ; l'architecture applicative en place est décrite au § 11.
 
 ## 1. Positionnement, objectifs et non-objectifs
 
@@ -47,8 +48,8 @@
                 │
 ┌───────────────▼──────────────────────────────────────────────────┐
 │ Store local (SQLite + fichiers)                                  │
-│  - réunions, segments, vecteurs, empreintes par personne/canal   │
-│  - audio brut avec rétention 7-30 jours, chiffré au repos        │
+│  - réunions, segments, personnes (vecteurs : trousseau seul)     │
+│  - audio brut ; cible : rétention et chiffrement (§ 15)          │
 └───────────────┬──────────────────────────────────────────────────┘
                 │ export (sans vecteurs)
 ┌───────────────▼──────────────────────────────────────────────────┐
@@ -57,7 +58,7 @@
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-Deux process seulement : l'app (UI + capture) et le CLI de pipeline. Un crash ou un pic mémoire CoreML ne tue jamais la capture ; le CLI est testable seul, relançable par un agent, et permet de retraiter d'anciennes réunions quand un modèle change.
+Deux process de traitement : l'app (UI + capture) et le CLI de pipeline ; le serveur MCP (§ 13) est un troisième exécutable. Un crash ou un pic mémoire CoreML ne tue jamais la capture ; le CLI est testable seul, relançable par un agent, et permet de retraiter d'anciennes réunions quand un modèle change.
 
 ## 3. Capture
 
@@ -75,7 +76,7 @@ Deux process seulement : l'app (UI + capture) et le CLI de pipeline. Un crash ou
 
 | Étape | Modèle / mécanisme | Alternative | Remarques |
 |---|---|---|---|
-| ASR | SpeechAnalyzer `SpeechTranscriber`, locale choisie par session ou détectée par piste (0.11.0, voir [design technique](technical-design.md)), attribut `audioTimeRange` par token, **au fil de l'eau par tranche de 5 min et par piste** | Parakeet TDT 0.6B v3 (FluidAudio, 25 langues dont français), WhisperKit | **[spike]** : présence de `fr-FR` dans `supportedLocales`, timestamps par mot, code-switching fr/en (une locale par session, à tester). |
+| ASR | SpeechAnalyzer `SpeechTranscriber`, locale choisie par session ou détectée par piste (0.11.0, voir [design technique](technical-design.md)), attribut `audioTimeRange` par token, **au fil de l'eau par tranche de 5 min et par piste** (cible, non implémentée : aujourd'hui la transcription démarre après l'arrêt de la session, voir § 15) | Parakeet TDT 0.6B v3 (FluidAudio, 25 langues dont français), WhisperKit | **[spike]** : présence de `fr-FR` dans `supportedLocales`, timestamps par mot, code-switching fr/en (une locale par session, à tester). |
 | VAD | Aucun dédié | Silero v6 (FluidAudio) seulement si besoin de filtrer musique/notifs sur la piste système | Pyannote et SpeechAnalyzer ont le leur. |
 | Diarisation | **Pyannote community-1 offline** (FluidAudio `OfflineDiarizerManager` : segmentation powerset, WeSpeaker, VBx), sortie exclusive, par piste, **en fin de réunion** sur le fichier complet | NVIDIA Nemotron 3 diarization (challenger : 8 speakers, ~100 Mo, CoreML/MLX, pas d'embeddings, NVIDIA Open Model License) ; Pyannote 3.1 allégé en repli si trop lourd ; WHO en 3e option seulement si sa licence source-available et son ping mensuel conviennent | Le défaut doit tenir sur le cas difficile (micro en salle). Sortformer écarté : 4 slots fixes. `max_speakers` = invités calendrier + 2, jamais un nombre exact. |
 | Alignement | Chaque mot va au speaker qui recouvre le plus son intervalle ; phrases ASR découpées aux changements de speaker ; tours < 0,5 s ou 2 mots absorbés sauf aux frontières de piste | ASR par tour de parole, seulement en rattrapage des zones de faible confiance | Le vote par phrase attribue faussement toute phrase qui chevauche un changement. |
@@ -157,7 +158,7 @@ Le risque principal est le RGPD, pas l'article 226-1 : des empreintes vocales qu
 - Effacement par personne : purge des vecteurs, anonymisation de l'historique.
 - Annonce en début de réunion, consignée (`consent_announced`).
 - Exclusion par défaut des 1:1 RH, entretiens annuels, sujets médicaux (mots-clés calendrier).
-- Audio brut supprimé après 7-30 jours, chiffré au repos.
+- Audio brut supprimé après 7-30 jours, chiffré au repos. Cible non implémentée : aucune purge automatique ni chiffrement applicatif aujourd'hui ; l'audio d'une session part avec elle quand elle est supprimée (§ 15).
 - Dire aux participants que les transcripts sont lus par des agents LLM cloud ; vérifier la politique IT Evaneos.
 - À faire valider par le DPO avant usage avec des collègues. Sources juridiques secondaires (cabinets), pas la CNIL : à compléter.
 
@@ -178,9 +179,9 @@ Le risque principal est le RGPD, pas l'article 226-1 : des empreintes vocales qu
 | Couche | Choix | Pourquoi |
 |---|---|---|
 | UI | SwiftUI, `MenuBarExtra`, fenêtres auxiliaires (notepad flottant, relecture) | Natif, léger, déjà maîtrisé |
-| Concurrence | Swift 6 strict concurrency, actors pour capture et store | Sécurité des accès audio/DB |
+| Concurrence | Swift 6 strict concurrency, actors pour capture et store (`CoreAudioCapture` et `SessionStore` sont des actors, § 11) | Sécurité des accès audio/DB |
 | Store | SQLite via **GRDB** (migrations, FTS5 pour la recherche plein texte des transcripts) | Même choix qu'Anarlog, robuste, requêtable par le serveur MCP |
-| Fichiers | Dossier de données app (`~/Library/Application Support/HWYD`) + dossier d'export Markdown configurable. `SessionFiles` (HWYDCore) recense les fichiers d'une session hors SQLite : `audio/<id>/`, `cache/summaries/<ID>/`, `cache/waveforms/<chunk>-<bins>.json`, `jobs/<uuid>/` et `jobs/voice-<uuid>/` dont la requête nomme la session. `RecordingRepository.remove` refuse une session en cours d'enregistrement, supprime la ligne puis ces fichiers et rend leur bilan dans `RecordingRemoval.files` ; un échec est signalé, et `SessionLibrary.load` le reprend au lancement par `removeOrphanFiles`, en tâche de fond une fois la bibliothèque prête, hors de l'acteur du store : seulement si la racine de composition l'active, si `pipeline.lock` est libre et la bibliothèque non vide. Il ne prend jamais `capture.lock`, une capture peut donc démarrer pendant le balayage ; il garde toute entrée écrite depuis moins d'une heure, car le dossier d'une capture qui démarre précède sa ligne SQLite. Jamais hors du dossier de données, jamais à travers un lien symbolique | Séparation état interne / contrat public ; aucune session sans son audio, aucun audio sans session |
+| Fichiers | Dossier de données app (`~/Library/Application Support/HWYD`) + dossier d'export Markdown configurable. `SessionFiles` (HWYDCore) recense les fichiers d'une session hors SQLite : son dossier audio (`DataDirectoryAudio.relativeFolder`, `audio/<id>/`), `cache/summaries/<ID>/`, ses enveloppes dans `DataDirectoryAudio.waveformFolder` (`cache/waveforms/<chunk>-<bins>.json`), `jobs/<uuid>/` et `jobs/voice-<uuid>/` dont la requête nomme la session. `RecordingRepository.remove` refuse une session en cours d'enregistrement, supprime la ligne puis ces fichiers et rend leur bilan dans `RecordingRemoval.files` ; un échec est signalé, et `SessionLibrary.load` le reprend au lancement par `removeOrphanFiles`, en tâche de fond une fois la bibliothèque prête, hors de l'acteur du store : seulement si la racine de composition l'active, si `pipeline.lock` est libre et la bibliothèque non vide. Il ne prend jamais `capture.lock`, une capture peut donc démarrer pendant le balayage ; il garde toute entrée écrite depuis moins d'une heure, car le dossier d'une capture qui démarre précède sa ligne SQLite. Jamais hors du dossier de données, jamais à travers un lien symbolique | Séparation état interne / contrat public ; aucune session sans son audio, aucun audio sans session |
 | Audio | Core Audio taps, AVAudioEngine, fichiers CAF par tranches | § 3 |
 | Modèles audio | SpeechAnalyzer, FluidAudio (Pyannote, WeSpeaker), Nemotron 3 en challenger | § 4 |
 | Pipeline | Exécutable CLI embarqué `hwyd-pipeline` (SwiftPM, cible séparée) | Isolation mémoire, retraitement, tests |
@@ -198,7 +199,7 @@ Un enregistrement (`Recording`) porte quatre artefacts, chacun avec son cycle de
 
 | Artefact | Contenu | Rétention | Produit par |
 |---|---|---|---|
-| **Audio** | pistes micro et système, CAF | **X heures** configurable (défaut 72 h), purge automatique, suppression immédiate possible ; purge différée tant que le pipeline n'a pas fini | capture |
+| **Audio** | pistes micro et système, CAF | Cible : **X heures** configurable (défaut 72 h), purge automatique, suppression immédiate possible ; purge différée tant que le pipeline n'a pas fini. Aujourd'hui : ni réglage ni purge ; l'audio est supprimé avec sa session (§ 15) | capture |
 | **Transcript** | segments (début, fin, piste, speaker, texte, confiance), speakers résolus ou `speaker-xxxx` | permanent, versionné à chaque correction ou retraitement | pipeline |
 | **Summary** | synthèse, action items, décisions ; avec provenance (fournisseur, modèle, version du prompt, date) | permanent, régénérable | LLM provider (opt-in) |
 | **Notes** | notes manuelles, horodatées sur l'horloge de session, éditables après coup (fenêtre à la manière de Notion : titre, notes libres, transcript dépliable) | permanent | utilisateur |
@@ -269,7 +270,7 @@ Sessions go through one port and one application service, both in HWYDCore.
 - **Publication.** Every commit of a sealed session and every deletion leaves an outbox entry in the same transaction. The library drains the outbox (`ExportOutbox.drain`) into the publisher of the moment after its own commits, after each commit it sees from another process, at load, and when a publication folder is chosen; `hwyd-mcp` drains it after its own write when a folder is set. A failing entry holds back only the later entries of its own session; the others are published, the failure is reported once and retried at the next drain. A one-off export to a folder the user picks uses the same `FolderExportPublisher`.
 - **Readiness and changes.** `await library.ready` returns once the first load is done (launch actions from the calendar and `hwyd://` links wait on it). `changes` streams `LibraryChange` (saved, save failed, external, rebased, export deferred, removed elsewhere, files left by the launch sweep, sweep failed); `AppModel` turns failures and conflicts into notices.
 - **Deletion.** `remove(id)` returns a `RecordingRemoval`: the removed session, and `files`, the `SessionFiles.Report` of what the repository removed or could not remove (nil for `InMemoryRecordingRepository`, which keeps no files). Both repositories refuse a session that is recording (`StoreError.capturing`); the library publishes the withdrawal itself. A failure to remove a file is reported, and the files stay until the next launch sweep.
-- **Launch sweep.** A library built with `sweepsFiles` starts `fileSweep` after a successful load of a non-empty library: it runs `removeOrphanFiles` in the background: it holds no library operation and does not delay `ready`. It reports only what it could not remove (`filesLeft`, `fileSweepFailed`).
+- **Launch sweep.** A library built with `sweepsFiles` starts `fileSweep` after a successful load of a non-empty library: `removeOrphanFiles` runs in the background, holds no library operation and does not delay `ready`. It reports only what it could not remove (`filesLeft`, `fileSweepFailed`).
 
 `AppModel` keeps the projection only: `recordings` and `hasUnsavedChanges` read the library of the workspace shown (the stored one, or a volatile one for the examples and previews). Work keeps the library it was requested in, so its result never lands in another one.
 
@@ -333,7 +334,7 @@ Two more ports keep adapters from depending on the store, a data directory or th
 | `AudioLocator` (`AudioLocator.swift`) | `url(for: chunk)`, `sessionFolder(for: session)`, `waveformCache`, `captureLockFile` | `DataDirectoryAudio` (`SessionStore.audio`) | `TemporaryAudioLocator` |
 | `SecretVault` (`SecretVault.swift`) | `read`, `contains`, `write`, `remove` of a `SecretItem` (service, account) | `KeychainVault` | `InMemorySecretVault` |
 
-- **Audio.** `CoreAudioCapture(audio:)`, `SessionPlayback`, `WaveformReader`, `TranscriptionPipeline.run(_:audio:recognizer:)` and the helper's assembly, echo and diarization stages take an `AudioLocator`, not a store or a folder. The layout is unchanged (`audio/<session>/<chunk>.caf`, `cache/waveforms`, `capture.lock`), so the store, `hwyd-pipeline`, `hwyd-mcp` and recovery keep reading the same files. The path rule moved with it: a chunk whose relative path leaves the data directory (`..`, an absolute path, a symbolic link to an existing file outside) is refused with `StoreError.invalidPath`. The examples and previews have no locator: they hold no audio.
+- **Audio.** `CoreAudioCapture(audio:)`, `SessionPlayback`, `WaveformReader`, `TranscriptionPipeline.run(_:audio:recognizer:)` and the helper's assembly, echo and diarization stages take an `AudioLocator`, not a store or a folder. The layout is unchanged (`audio/<session>/<chunk>.caf`, `cache/waveforms`, `capture.lock`), and `SessionFiles` takes the session folder and the waveform folder from `DataDirectoryAudio` instead of spelling them, so the store, `hwyd-pipeline`, `hwyd-mcp` and recovery keep reading the same files. The path rule moved with it: a chunk whose relative path leaves the data directory (`..`, an absolute path, a symbolic link to an existing file outside) is refused with `StoreError.invalidPath`. The examples and previews have no locator: they hold no audio.
 - **Secrets.** `SummaryKeys` (API keys, service `dev.lepee.hwyd.summary-api-key`, one account per provider) and `VoicePrints` (voice exemplars, service `dev.lepee.hwyd.voice.we-speaker-v1`, account `<person>.<channel>`, former `near` and `room` folded into `mic`) replace the static `SummaryKeychain` and `VoiceKeychain`. `KeychainVault` writes generic passwords with the attributes every version used (not synchronized, `WhenUnlockedThisDeviceOnly`), so existing keys and prints still resolve; a vault failure keeps each caller's message.
 - **Who gets the keychain.** `AppEnvironment.installed` gives `KeychainVault` to `SummarySettings` and the summarizer factory; every other environment gives an `InMemorySecretVault`. `hwyd-pipeline` picks its vault from `HWYD_SECRET_VAULT`, which `PipelineRunner` sets from `HelperLocator.secrets`: `keychain` for the installed app (and the default for a helper started by hand, as `scripts/test-voice-memory.sh` does on purpose), `memory` for the synthetic checks' helper. `--ui-test` checks every synthetic environment's vault. Voice prints never leave the vault: no export, SQLite row, job file or log carries one.
 
@@ -423,3 +424,44 @@ Ressources : `hwyd://recording/<id>/transcript.md`, `/summary.md`, `/notes.md`. 
 - Fuite de données biométriques ou de contenu vers les agents : aucun vecteur exporté, transcripts documentés comme sortant vers un LLM.
 - Dépendance à macOS 26 (SpeechAnalyzer) : acceptable pour un outil perso.
 - Anarlog (ex-Hyprnote, open source MIT ; Char est désormais un autre produit de la même équipe) fait déjà des empreintes persistantes WeSpeaker ; le différenciant est la vocation general usage, les catégories de canal, la boucle de correction et un contrat de sortie Markdown ouvert à n'importe quel consommateur.
+
+## 15. Current state and target
+
+Status: the code after the port refactor (step 8 of the refactor stack, on top of 0.13.0). §§ 1 to 14 describe the intent. § 11 describes the application architecture in place: ports, services and the composition root, with the port table in « Ports after the refactor ». This section lists the executables, then the gaps between the intent and the code that are accepted for now. Nothing marked as a target is active.
+
+### 15.1 Executables and targets
+
+| Executable | SwiftPM target | Role |
+|---|---|---|
+| `How Was Your Day.app` | `HWYDApp` (+ `HWYDRealtime`, Sparkle) | UI, composition root (`AppRoot`, `AppEnvironment`), app adapters: `CoreAudioCapture`, the `Helper…` pipeline adapters, `ToastCenter`, `LoginShellAgentDiscovery` |
+| `hwyd-pipeline` | `HWYDPipeline` (+ `HWYDEcho`, FluidAudio) | One-shot subcommands: `transcribe`, `languages`, `install-model`, `diarizer-status`, `install-diarizer`, voice commands (`enroll-voice`, `identify-voices`, `probe-voice`, `forget-voice`, `forget-voice-source`, `voice-sources`), `echo-diagnostic`, `inspect`, `diagnose`. One process per job: JSON request in, JSON result out, `pipeline.lock` held for transcription and voice commands |
+| `hwyd-mcp` | `HWYDMCP` | MCP server over stdio (§ 13) |
+
+`HWYDCore` is one target. It holds the domain, the application services, every port with its in-memory double, and a few adapters (GRDB store, `KeychainVault`, `DataDirectoryAudio`, `AppleSpeechRecognizer`, `ACPSummaryAgent`, the HTTP providers). Splitting it is a later step (§ 11, « Later: splitting HWYDCore »).
+
+### 15.2 Application layer
+
+SwiftUI views read `AppModel`, which keeps the published projection, turns user actions into requests and words most notices. The rules live in HWYDCore services (`SessionLibrary`, `CaptureSession`, `WorkCoordinator`, `VoiceRequests`, `EnrollVoice`, `SummarySettings`), which reach the outside only through ports. `AppEnvironment` picks every adapter once from the launch mode; no mode flag is tested in the use cases. A capability states its own availability, and a caller requests work and gets it accepted, queued or refused with a reason.
+
+Session files follow the same path: `RecordingRepository.remove` deletes the session, then its files (`SessionFiles`, with paths from `DataDirectoryAudio`), and returns what it could not remove; `SessionLibrary.load` sweeps the files of sessions deleted earlier, in the background, once the library is ready, when the composition root asks it to (the installed app on its data folder, a synthetic check on its own folder).
+
+### 15.3 Gaps between the documents and the code
+
+| Documented intent | Current state | Target |
+|---|---|---|
+| Streaming ASR, per 5-minute chunk and per track (§ 4; [technical design](technical-design.md) § 5, `--follow`) | Capture writes 300 s CAF chunks, but transcription starts after the session stops, in one helper run on the whole session, queued by the `WorkCoordinator`. Nothing is transcribed during capture | Kept, not scheduled |
+| Audio encrypted at rest, purged after 72 h (§§ 2, 9, 11) | No app-level encryption: exports declare `encryption: volume_only`. No automatic purge and no retention setting. Deleting a session deletes its audio and derived files, not manual exports, copies made by agents, backups or the freed pages of the SQLite file | Milestone 7 (§ 10), not scheduled |
+| Actors for capture and store (§ 11) | In place: `CoreAudioCapture` is an actor on its own serial queue, `SessionStore` is an actor. The realtime callback stays outside, without allocation, disk write or blocking lock | None |
+| « Normative » relational schema ([data model](data-model.md) § 2) | Bootstrap schema: one JSON payload per session (`ui_recordings`), its versions, `voice_people`, FTS5, integration settings, mutation receipts, export outbox | Kept as the migration target; `RecordingRepository` isolates the choice |
+| Multi-target package and ten protocols ([technical design](technical-design.md) §§ 2-3) | One `HWYDCore` target; the ports of § 11 cover part of those protocols under other names | Split deferred (§ 11) |
+| `CaptureActor`, `PipelineActor`, `StoreActor`, JSONL progress, job leases, per-session locks ([technical design](technical-design.md) § 6) | `CoreAudioCapture` plays the capture actor. The `WorkCoordinator` serializes heavy work inside the app; the helper keeps `pipeline.lock` as a second line of defense. `PipelineRunner` polls the helper process every 200 ms and reads no progress. No lease, no job resume | Kept as targets |
+| A device change rebuilds the graph and records a gap ([technical design](technical-design.md) § 4) | A change of the default input or output device stops the session (interrupted, sealed audio kept) | Kept, not scheduled |
+| No user pause in v1 ([technical design](technical-design.md) § 4) | Pause and resume exist; the audio timeline and the session clock skip the pause | Documented, no change |
+
+### 15.4 Known gaps in the application layer
+
+- `PipelineRunner` polls the helper process (§ 11, « Pipeline ports »).
+- Transcription, summary and library notices are still worded in `AppModel` (§ 11, « User notices »).
+- `SummarySettings.isDemo` is a flag set on a workspace switch, not a capability of the workspace (§ 11, « Composition root »).
+- The heavy-work queue lives in memory: quitting drops waiting work (§ 11, « Heavy work »).
+- The launch sweep takes `pipeline.lock` outside the `WorkCoordinator`. A helper job that starts during the sweep is refused by the helper's lock, as on 0.13.0; the sweep skips its run when a job already holds the lock.

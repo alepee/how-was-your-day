@@ -1,6 +1,8 @@
 # Modèle de données HWYD
 
-Version interne SQLite : migrations nommées, indépendante de `hwyd_schema: 1`. Référence : [design technique](technical-design.md). J4 crée le schéma complet mais laisse les tables biométriques vides.
+Version interne SQLite : migrations nommées, indépendante de `hwyd_schema: 1`. Référence : [design technique](technical-design.md). Cible : J4 crée le schéma complet mais laisse les tables biométriques vides.
+
+> **État actuel** : ce document décrit le schéma **cible**, non implémenté. Le store en place (`SessionStore`, migrations `ui_v001_sessions` à `ui_v003_integrations`) est un schéma d'amorçage : `ui_recordings` garde **un payload JSON par session** (`Recording` encodé) avec sa révision, `ui_recording_versions` les versions précédentes, `voice_people` les métadonnées des personnes (sans vecteur), plus `recording_search` (FTS5), `integration_settings`, `mutation_receipts`, `export_outbox`, `export_deletions` et `integration_sequence`. Les vecteurs restent dans le trousseau. Le port `RecordingRepository` isole ce choix. Les fichiers d'une session (audio, cache) sont supprimés avec elle (`SessionFiles`). Voir [architecture](architecture.md) § 15.
 
 ## 1. Conventions
 
@@ -20,7 +22,7 @@ Dossier interne privé, permissions 0700 ; fichiers 0600. Voir [GRDB](https://gi
 
 Current state: one GRDB `DatabaseQueue` per process (the app, `hwyd-mcp`, `hwyd-pipeline`), rollback journal, `synchronous=FULL` set explicitly on each connection, busy timeout 5 s, short transactions. A `DatabasePool` in WAL mode is not used: the app is the only regular writer, each session is one row written in one short transaction, and readers (MCP, helper) are separate processes that a pool does not serve; a read-only `hwyd-mcp` opens the file without having to create the `-wal` and `-shm` files. WAL can return if concurrent readers inside one process appear. `ValueObservation` is not a cross-process bus: the app polls `integration_sequence.seq` (the role of `change_log.seq` below) and reads only the sessions whose revision moved (architecture.md § 11, Sessions and persistence).
 
-## 2. Schéma relationnel normatif
+## 2. Schéma relationnel cible (normatif pour la migration, non implémenté)
 
 Notation : `PK`, `FK`, `UQ`, `?` nullable. Toute FK porte un index si elle ne commence pas déjà une PK ou un index unique. Les champs non marqués `?` sont NOT NULL. Les enums sont des TEXT avec CHECK, jamais des ordinals Swift.
 
