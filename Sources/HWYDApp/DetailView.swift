@@ -103,6 +103,14 @@ struct DetailView: View {
                 Button(model.summaryID == recording.id ? "Génération…" : recording.summary == nil ? "Générer une synthèse" : "Régénérer") { model.generateSummary() }
                     .buttonStyle(StudioButtonStyle(primary: true)).disabled(!model.summaryEnabled || model.modelWorkBusy || recording.segments.isEmpty)
                 if model.summaryID == recording.id { Button("Annuler") { model.cancelSummary() }.buttonStyle(StudioButtonStyle()) }
+                if recording.summary != nil {
+                    Menu {
+                        Button("PDF…") { model.exportSummary(.pdf) }
+                        Button("Markdown…") { model.exportSummary(.markdown) }
+                    } label: { Label("Exporter la synthèse", systemImage: "square.and.arrow.up") }
+                        .menuStyle(.borderlessButton).fixedSize()
+                        .disabled(model.summaryID == recording.id)
+                }
                 Spacer()
                 Button("Réglages du modèle") { model.settingsCategory = .summary; model.showSettings = true }.buttonStyle(StudioButtonStyle())
             }

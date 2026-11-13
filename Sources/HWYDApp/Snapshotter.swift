@@ -43,6 +43,28 @@ import HWYDCore
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-notes.png"))
         model.activeTab = .summary
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-summary.png"))
+        // Summary export of the demo session, laid out as the user would receive it. No real data.
+        if let item = model.selected, item.summary != nil {
+            try? SummaryPDF.write(item, to: directory.appendingPathComponent("summary-export.pdf"))
+            // A long synthetic summary checks pagination, assignees and due dates.
+            if var long = item.summaryProvenance, let firstAction = long.structured.action_items.first {
+                let sample = long.structured
+                long.structured.decisions = Array(repeating: sample.decisions, count: 6).flatMap { $0 }
+                long.structured.action_items = (0..<6).map { index in
+                    var action = firstAction
+                    action.assignee_name = ["Camille Durand", nil, "Léa"][index % 3]; action.due_date = index.isMultiple(of: 2) ? "vendredi" : nil // l10n:ignore
+                    return action
+                }
+                long.structured.details = (0..<9).compactMap { index in
+                    guard var topic = sample.details?[index % (sample.details?.count ?? 1)] else { return nil }
+                    topic.text = Array(repeating: topic.text, count: index == 4 ? 40 : 1 + index % 3).joined(separator: "\n")
+                    return topic
+                }
+                var copy = item; copy.summaryProvenance = long
+                try? SummaryPDF.write(copy, to: directory.appendingPathComponent("summary-export-long.pdf"))
+            }
+            try? SummaryExport.markdown(item)?.write(to: directory.appendingPathComponent("summary-export.md"), atomically: true, encoding: .utf8)
+        }
         model.report(String(localized: "Synthèse : \(SummaryFailure.outputTruncated.localizedDescription)"), style: .error,
                      actions: [ToastAction(title: String(localized: "Réessayer")) {}, ToastAction(title: String(localized: "Réglages")) {}])
         let sampleTitle = "Point produit" // l10n:ignore
