@@ -143,7 +143,7 @@ public struct Recording: Codable, Identifiable, Equatable, Sendable {
     }
 }
 public enum StoreError: LocalizedError, Equatable {
-    case notFound, conflict, invalidName, invalidPath, incompatibleSpeaker
+    case notFound, conflict, invalidName, invalidPath, incompatibleSpeaker, capturing
     public var errorDescription: String? {
         switch self {
         case .notFound: String(localized: "Cette session n’est plus disponible.", bundle: .hwyd)
@@ -151,6 +151,7 @@ public enum StoreError: LocalizedError, Equatable {
         case .invalidName: String(localized: "Saisissez un nom de 1 à 120 caractères.", bundle: .hwyd)
         case .incompatibleSpeaker: String(localized: "Cette voix appartient à une autre piste audio.", bundle: .hwyd)
         case .invalidPath: String(localized: "Le chemin du fichier audio n’est pas valide.", bundle: .hwyd)
+        case .capturing: String(localized: "Cette session est en cours d’enregistrement.", bundle: .hwyd)
         }
     }
 }
