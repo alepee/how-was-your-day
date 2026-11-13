@@ -9,8 +9,10 @@ Entries describe what a user observes. The detailed release notes published on G
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-13
+
 ### Added
-- **In-app updates** with Sparkle: **Check for Updates…** in the app menu and the menu bar, and an Updates section in Settings › General. Automatic checks stay off until you accept the first-run prompt, no system profile is sent, and scheduled checks and relaunches wait until a capture or processing ends ([#21](https://github.com/alepee/how-was-your-day/pull/21)).
+- **In-app updates** with Sparkle: **Check for Updates…** in the app menu and the menu bar, and an Updates section in Settings › General. Automatic checks stay off until you accept the prompt shown on the second launch, no system profile is sent, and scheduled checks and relaunches wait until a capture or processing ends ([#21](https://github.com/alepee/how-was-your-day/pull/21)).
 - **Summary export.** The summary tab has an export menu: PDF (A4, following the summary layout, every topic expanded) or Markdown (title, date and confirmed participants before the summary). Context notes from a coding agent stay out of both exports, since they can hold private information unrelated to the session.
 
 ### Changed
@@ -173,7 +175,8 @@ Entries describe what a user observes. The detailed release notes published on G
 ### Added
 - First experimental release for Apple Silicon and macOS 26+: separate microphone and system audio recording, local French transcription, optional diarization, notes and speaker corrections, optional local summaries, calendar reminders, Markdown/JSON exports and a standalone MCP server.
 
-[Unreleased]: https://github.com/alepee/how-was-your-day/compare/v0.12.1...HEAD
+[Unreleased]: https://github.com/alepee/how-was-your-day/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/alepee/how-was-your-day/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/alepee/how-was-your-day/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/alepee/how-was-your-day/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/alepee/how-was-your-day/compare/v0.10.0...v0.11.0
