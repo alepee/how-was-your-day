@@ -10,6 +10,9 @@ Entries describe what a user observes. The detailed release notes published on G
 ## [Unreleased]
 
 ### Changed
+- When a capture ends while other processing runs (a summary, a voice job, a model install), its transcription now waits its turn and starts on its own, instead of having to be started by hand. The transcript says it is waiting and can be cancelled.
+- A processing request that cannot start now (another one runs, the session has no audio, the examples are open) says why in a message instead of doing nothing.
+- A session being processed, voice recognition included, cannot be deleted until the processing ends or is cancelled; a message says so.
 - When a summary cannot be generated (no API key, no model, no local server address, no agent command), a line under the Generate button says why.
 
 ### Fixed
