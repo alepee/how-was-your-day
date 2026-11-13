@@ -852,8 +852,34 @@ final class AppModel: ObservableObject {
         catch { errorMessage = String(localized: "Clé API : \(error.localizedDescription)") }
     }
     func cancelSummary() { summaryTask?.cancel() }
+    /// Every summary setting as one value, read by the summarizer.
+    var summaryConfiguration: SummaryConfiguration {
+        SummaryConfiguration(enabled: summaryEnabled, service: summaryService, localEndpoint: summaryEndpoint, localModel: summaryModel,
+                             contextTokens: summaryContextTokens, reasoningDisabled: summaryReasoningDisabled, hostedModel: summaryRemoteModel,
+                             keyStored: summaryKeyStored, agentCommand: summaryAgentCommand, agentDirectory: summaryAgentDirectory)
+    }
+    private var summarizerEnvironment: SummarizerEnvironment {
+        // Previews, demos and tests never touch the keychain.
+        let readsKeychain = persistPreferences
+        return SummarizerEnvironment(dataDirectory: dataDirectory,
+                                     mcpExecutable: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/hwyd-mcp")) { service in
+            readsKeychain ? try SummaryKeychain.key(for: service) : nil
+        }
+    }
+    /// Replaces the configured summarizer in synthetic checks, so they run no model and no network call.
+    var summarizerOverride: (any Summarizer)?
+    /// The summarizer for the current settings. It owns whether a summary can run and why not.
+    var summarizer: any Summarizer { summarizerOverride ?? SummarizerFactory.make(summaryConfiguration, environment: summarizerEnvironment) }
+    var summaryAvailability: SummaryAvailability { summarizer.availability }
+    private func openSummarySettings() { settingsCategory = .summary; showSettings = true }
     func generateSummary() {
-        guard summaryEnabled, !modelWorkBusy, !isDemoMode, let recordingID = selected?.id, let store else { return }
+        guard !modelWorkBusy, !isDemoMode, let recordingID = selected?.id, let store else { return }
+        let summarizer = summarizer
+        if case .unavailable(let reason) = summarizer.availability {
+            report(String(localized: "Synthèse : \(reason.localizedDescription)"), style: .error, actions: [
+                ToastAction(title: String(localized: "Réglages")) { [weak self] in self?.openSummarySettings() }])
+            return
+        }
         summaryID = recordingID
         summaryTask = Task {
             defer { summaryID = nil; summaryTask = nil; summaryProgress = nil }
@@ -864,34 +890,8 @@ final class AppModel: ObservableObject {
                 try Task.checkCancellation()
                 guard !hasUnsavedChanges else { return } // flush already exposes the save error.
                 guard !isDemoMode, let item = recordings.first(where: { $0.id == recordingID }) else { throw SummaryFailure.stale }
-                let service = summaryService
-                let result: SummaryProvenance
-                if service == .agent {
-                    let workingDirectory = URL(fileURLWithPath: (summaryAgentDirectory as NSString).expandingTildeInPath, isDirectory: true)
-                    result = try await ACPSummaryAgent.run(item, command: summaryAgentCommand, workingDirectory: workingDirectory,
-                        mcpExecutable: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/hwyd-mcp"), storeDirectory: dataDirectory) { value in
-                            await MainActor.run { self.summaryProgress = value }
-                        }
-                } else {
-                let provider: any LLMProvider, modelName: String, identity: String, inputLimit: Int
-                if service.isRemote {
-                    guard persistPreferences, let key = try SummaryKeychain.key(for: service) else { throw SummaryFailure.apiKeyMissing(service.displayName) }
-                    let remote = try RemoteLLMProvider(service: service, model: summaryRemoteModel, apiKey: key)
-                    provider = remote; modelName = remote.model; identity = remote.identity; inputLimit = remote.requestCharacterCeiling
-                } else {
-                    guard let url = URL(string: summaryEndpoint) else { throw SummaryFailure.invalidEndpoint }
-                    provider = try LocalLLMProvider(endpoint: url, model: summaryModel,
-                        reasoningEffort: summaryReasoningDisabled ? "none" : nil)
-                    modelName = summaryModel
-                    identity = url.absoluteString + "|reasoning=" + (summaryReasoningDisabled ? "none" : "server-default")
-                    inputLimit = max(12_000, (summaryContextTokens - 10_000) * 2)
-                }
-                result = try await SummaryPipeline.run(item, provider: provider, model: modelName,
-                    inputCharacterLimit: inputLimit,
-                    cacheDirectory: dataDirectory.appendingPathComponent("cache/summaries/" + item.id.uuidString), reuseCache: item.summary == nil,
-                    providerIdentity: identity) { value in
-                        await MainActor.run { self.summaryProgress = value }
-                    }
+                let result = try await summarizer.summarize(item) { value in
+                    await MainActor.run { self.summaryProgress = value }
                 }
                 try Task.checkCancellation()
                 guard let latest = recordings.first(where: { $0.id == item.id }), latest.transcriptVersion == item.transcriptVersion,
@@ -916,7 +916,7 @@ final class AppModel: ObservableObject {
                             guard let self, let item = self.recordings.first(where: { $0.id == recordingID }) else { return }
                             self.select(item); self.activeTab = .summary; self.generateSummary()
                         },
-                        ToastAction(title: String(localized: "Réglages")) { [weak self] in self?.settingsCategory = .summary; self?.showSettings = true }])
+                        ToastAction(title: String(localized: "Réglages")) { [weak self] in self?.openSummarySettings() }])
                 }
             }
         }
