@@ -218,7 +218,7 @@ import HWYDCore
                 mcp.stdin.close(); mcp.wait(timeout=10)
                 send({"jsonrpc": "2.0", "id": msg["id"], "result": {"stopReason": "end_turn"}})
         """.write(to: script, atomically: true, encoding: .utf8)
-        let helper = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/hwyd-mcp")
+        let helper = model.helpers.mcp
         let result = try await ACPSummaryAgent.run(stored, command: "python3 " + script.path, workingDirectory: directory,
                                                    mcpExecutable: helper, storeDirectory: directory)
         guard result.structured.action_items.first?.evidence_segment_ids == [stored.segments[1].id],

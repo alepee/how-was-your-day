@@ -57,7 +57,7 @@ final class AppModel: ObservableObject {
     @Published var enrollmentCandidateID: UUID?
     /// What each session added to a person's voice print, loaded on demand in the settings.
     @Published var voiceContributions: [UUID: [VoiceContribution]] = [:]
-    private let voiceRunner = PipelineRunner()
+    private let voiceRunner: PipelineRunner
     @Published var summaryID: UUID?
     @Published var summaryEnabled = false
     @Published var summaryEndpoint = ""
@@ -87,7 +87,7 @@ final class AppModel: ObservableObject {
     @Published var isInstallingModel = false
     /// Language installing right now, shown next to its row.
     @Published var installingSpeechLocale: String?
-    private let pipelineRunner = PipelineRunner()
+    private let pipelineRunner: PipelineRunner
     /// Session whose language should be chosen again, from a detection notice.
     @Published var languageChoiceID: UUID?
     /// System-wide shortcut that starts or ends a recording. Nil when the user cleared it.
@@ -125,7 +125,7 @@ final class AppModel: ObservableObject {
     func refreshSpeechLanguages() {
         guard !isDemoMode else { return }
         Task {
-            guard let data = try? await PipelineRunner.query(["languages"]),
+            guard let data = try? await PipelineRunner.query(["languages"], helpers: helpers),
                   let locales = try? JSONDecoder().decode(SpeechLocales.self, from: data) else { return }
             installedSpeechLocales = SpeechLanguage.oneLocalePerLanguage(locales.installed)
             supportedSpeechLocales = SpeechLanguage.oneLocalePerLanguage(locales.supported)
@@ -179,6 +179,8 @@ final class AppModel: ObservableObject {
     private let appliesAppearance: Bool
     private let persistPreferences: Bool
     let calendar: CalendarIntegration
+    /// Paths to `hwyd-pipeline` and `hwyd-mcp`.
+    let helpers: HelperLocator
     let dataDirectory: URL
     var store: SessionStore?
     var showWindow: (() -> Void)?
@@ -193,11 +195,14 @@ final class AppModel: ObservableObject {
 
     /// `settings` defaults to the user's preferences for the installed app only; previews and
     /// models opened on another directory get an empty in-memory store and never read them.
-    init(directory: URL? = nil, preview: Bool = false, settings: SettingsStore? = nil, appliesAppearance: Bool = true, persistPreferences: Bool? = nil) {
+    init(directory: URL? = nil, preview: Bool = false, settings: SettingsStore? = nil, helpers: HelperLocator = .app,
+         appliesAppearance: Bool = true, persistPreferences: Bool? = nil) {
         let installed = directory == nil && !preview
         let settings = settings ?? (installed ? UserDefaultsSettings() : InMemorySettings())
         calendar = CalendarIntegration(settings: settings, allowed: installed)
         self.settings = settings
+        self.helpers = helpers
+        pipelineRunner = PipelineRunner(helpers: helpers); voiceRunner = PipelineRunner(helpers: helpers)
         self.appliesAppearance = appliesAppearance
         self.persistPreferences = persistPreferences ?? installed
         summaryEnabled = settings.value(.summaryEnabled)
@@ -550,7 +555,7 @@ final class AppModel: ObservableObject {
                 let job = dataDirectory.appendingPathComponent("jobs/\(UUID().uuidString)")
                 try FileManager.default.createDirectory(at: job, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
                 let input = job.appendingPathComponent("request.json"), output = job.appendingPathComponent("result.json")
-                if let data = try? await PipelineRunner.query(["languages"]),
+                if let data = try? await PipelineRunner.query(["languages"], helpers: helpers),
                    let locales = try? JSONDecoder().decode(SpeechLocales.self, from: data) {
                     installedSpeechLocales = SpeechLanguage.oneLocalePerLanguage(locales.installed)
                     supportedSpeechLocales = SpeechLanguage.oneLocalePerLanguage(locales.supported)
@@ -860,7 +865,7 @@ final class AppModel: ObservableObject {
         // Previews, demos and tests never touch the keychain.
         let readsKeychain = persistPreferences
         return SummarizerEnvironment(dataDirectory: dataDirectory,
-                                     mcpExecutable: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/hwyd-mcp")) { service in
+                                     mcpExecutable: helpers.mcp) { service in
             readsKeychain ? try SummaryKeychain.key(for: service) : nil
         }
     }

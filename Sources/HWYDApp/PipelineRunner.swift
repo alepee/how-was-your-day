@@ -2,14 +2,21 @@ import Foundation
 import Darwin
 import HWYDCore
 
+extension HelperLocator {
+    /// Helpers bundled with the running app.
+    static let app = HelperLocator(appBundle: Bundle.main.bundleURL)
+}
+
 @MainActor final class PipelineRunner {
+    private let helpers: HelperLocator
     private var process: Process?
+    init(helpers: HelperLocator = .app) { self.helpers = helpers }
     private var cancelled = false
     func prepare() { cancelled = false }
     func cancel() { cancelled = true; if let process, process.isRunning { process.terminate() } }
     func run(arguments: [String], log: URL) async throws {
         guard !cancelled else { throw CancellationError() }
-        let executable = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/hwyd-pipeline")
+        let executable = helpers.pipeline
         guard FileManager.default.isExecutableFile(atPath: executable.path) else {
             throw PipelineFailure(message: String(localized: "Le helper de transcription est absent. Relancez l’app construite par scripts/build-app.sh."))
         }
@@ -41,8 +48,8 @@ import HWYDCore
 }
 extension PipelineRunner {
     /// Runs a short read-only helper command and returns its standard output.
-    nonisolated static func query(_ arguments: [String], timeout: Duration = .seconds(30)) async throws -> Data {
-        let executable = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/hwyd-pipeline")
+    nonisolated static func query(_ arguments: [String], helpers: HelperLocator = .app, timeout: Duration = .seconds(30)) async throws -> Data {
+        let executable = helpers.pipeline
         guard FileManager.default.isExecutableFile(atPath: executable.path) else { throw PipelineFailure(message: String(localized: "Le helper de transcription est absent.")) }
         let child = Process(); child.executableURL = executable; child.arguments = arguments
         let pipe = Pipe(); child.standardOutput = pipe; child.standardError = FileHandle.nullDevice; child.standardInput = FileHandle.nullDevice
