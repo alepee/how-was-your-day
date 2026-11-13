@@ -101,7 +101,7 @@ struct DetailView: View {
         if !recording.isDemo {
             HStack {
                 Button(model.summaryID == recording.id ? "Génération…" : recording.summary == nil ? "Générer une synthèse" : "Régénérer") { model.generateSummary() }
-                    .buttonStyle(StudioButtonStyle(primary: true)).disabled(!model.summaryEnabled || model.modelWorkBusy || recording.segments.isEmpty)
+                    .buttonStyle(StudioButtonStyle(primary: true)).disabled(!model.summaryAvailability.isReady || model.modelWorkBusy || recording.segments.isEmpty)
                 if model.summaryID == recording.id { Button("Annuler") { model.cancelSummary() }.buttonStyle(StudioButtonStyle()) }
                 if recording.summary != nil {
                     Menu {
@@ -120,11 +120,14 @@ struct DetailView: View {
                     Text(verbatim: [progress.stage, String(localized: "\(progress.completed) étapes terminées"), progress.cached ? String(localized: "reprise du cache") : nil].compactMap { $0 }.joined(separator: " · ")).font(.caption).foregroundStyle(Studio.muted)
                 }
             }
+            if case .unavailable(let reason) = model.summaryAvailability, reason != .disabled {
+                Label(reason.localizedDescription, systemImage: "exclamationmark.circle").font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted)
+            }
             Label("Brouillon local, à relire", systemImage: "info.circle").font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted)
                 .help(summaryHint)
         }
         if recording.summary == nil {
-            EmptyPanel(symbol: "sparkles", title: model.summaryEnabled ? String(localized: "Pas encore de synthèse") : String(localized: "La synthèse est facultative"), detail: model.summaryEnabled ? model.summaryService == .agent ? String(localized: "Votre agent ACP rédigera la synthèse à partir du transcript et de son propre contexte. Vos notes restent sur ce Mac.") : model.summaryService.isRemote ? String(localized: "Le transcript sera envoyé à \(model.summaryService.displayName). Vos notes restent sur ce Mac.") : String(localized: "Lancez la génération avec votre modèle local. Vos notes et votre transcript restent indépendants.") : String(localized: "Activez un modèle dans les réglages pour générer une synthèse."))
+            EmptyPanel(symbol: "sparkles", title: model.summaryAvailability != .unavailable(.disabled) ? String(localized: "Pas encore de synthèse") : String(localized: "La synthèse est facultative"), detail: model.summaryAvailability != .unavailable(.disabled) ? model.summaryService == .agent ? String(localized: "Votre agent ACP rédigera la synthèse à partir du transcript et de son propre contexte. Vos notes restent sur ce Mac.") : model.summaryService.isRemote ? String(localized: "Le transcript sera envoyé à \(model.summaryService.displayName). Vos notes restent sur ce Mac.") : String(localized: "Lancez la génération avec votre modèle local. Vos notes et votre transcript restent indépendants.") : String(localized: "Activez un modèle dans les réglages pour générer une synthèse."))
             Button("Voir les réglages") { model.settingsCategory = .summary; model.showSettings = true }.buttonStyle(StudioButtonStyle())
         }
     }

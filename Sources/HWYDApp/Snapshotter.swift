@@ -125,6 +125,10 @@ import HWYDCore
         pending.transcriptVersion = 1
         model.processingID = nil; model.recordings = [pending]
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-asr.png"))
+        // The summary button explains why it is unavailable: a hosted provider without a key. Preview models never read the keychain.
+        model.summaryEnabled = true; model.selectSummaryService(.anthropic); model.activeTab = .summary
+        render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-summary-unavailable.png"))
+        model.summaryEnabled = false; model.selectSummaryService(.local); model.activeTab = .transcript
         model.recordings = []; model.activeCaptureID = nil; model.selectedID = nil; model.isDemoMode = false
         render(RootView().environmentObject(model), size: .init(width: 900, height: 700), to: directory.appendingPathComponent("studio-empty.png"))
         print("Snapshots: \(directory.path)")
