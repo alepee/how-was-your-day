@@ -24,7 +24,7 @@ struct VoiceTilesView: View {
                 }
                 Spacer(minLength: 8)
                 if !voices.isEmpty, model.people.contains(where: { $0.recognitionEnabled && !$0.channels.isEmpty }) {
-                    Button("Reconnaître les voix") { model.runVoice(command: "identify-voices") }.buttonStyle(StudioButtonStyle(compact: true))
+                    Button("Reconnaître les voix") { model.identifyVoices() }.buttonStyle(StudioButtonStyle(compact: true))
                         .disabled(recording.isDemo || model.modelWorkBusy || locked)
                         .help("Compare les voix non confirmées de cette session aux personnes mémorisées. Chaque proposition reste à confirmer.")
                 }

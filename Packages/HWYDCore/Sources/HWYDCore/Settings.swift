@@ -118,8 +118,6 @@ extension SettingKey where Value == Data? {
 }
 extension SettingKey where Value == Bool {
     public static var diarizationEnabled: Self { .init("diarizationEnabled", default: false) }
-    /// Set once the voice models were installed from this app.
-    public static var diarizerInstalled: Self { .init("models.diarizerInstalled", default: false) }
     public static var summaryEnabled: Self { .init("summary.enabled", default: false) }
     public static var summaryReasoningDisabled: Self { .init("summary.reasoningDisabled", default: false) }
     public static var calendarEnabled: Self { .init("calendar.enabled", default: false) }

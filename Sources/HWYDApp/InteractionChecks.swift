@@ -273,7 +273,55 @@ import HWYDCore
         }
         print("New session setup without recording, kind and name, toast stacking, expiry and decisions: PASS")
     }
+    /// The model drives transcription, models and voice memory through their ports: in-memory
+    /// doubles here, no helper and no keychain. A correction never reaches voice memory.
+    private static func checkPipelinePorts(directory: URL) async throws {
+        let memory = InMemoryVoiceMemory(), catalog = InMemorySpeechModelCatalog(installed: ["fr-FR"], supported: ["fr-FR"])
+        let voices = [Speaker(label: "Voix 1"), Speaker(label: "Voix 2")] // l10n:ignore
+        let service = InMemoryTranscriptionService { request in
+            var segment = TranscriptSegment(start: 0, end: 2, speakerID: voices[0].id, source: .mic, text: "Bonjour") // l10n:ignore
+            segment.words = [.init(text: "Bonjour", start: 0, end: 2)] // l10n:ignore
+            var other = TranscriptSegment(start: 2, end: 4, speakerID: voices[1].id, source: .mic, text: "Salut") // l10n:ignore
+            other.words = [.init(text: "Salut", start: 2, end: 4)] // l10n:ignore
+            var result = TranscriptionResult(request: request, segments: [segment, other])
+            result.speakers = voices; result.diarizationEngine = "fixture" // l10n:ignore
+            return result
+        }
+        let model = AppModel(directory: directory, transcription: service, voiceMemory: memory, speechModels: catalog, appliesAppearance: false)
+        await model.load()
+        func idle() async throws {
+            let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+            while model.pipelineBusy, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+            guard !model.pipelineBusy else { throw CaptureFailure(message: "Pipeline port did not finish") }
+        }
+        guard !model.diarizerReady else { throw CaptureFailure(message: "Diarizer must start missing") }
+        model.installDiarizer(); try await idle()
+        guard model.diarizerReady, model.diarizationEnabled else { throw CaptureFailure(message: "Diarizer readiness must come from the catalog") }
+        var recording = Recording(title: "Ports") // l10n:ignore
+        recording.audioChunks = [.init(source: .mic, relativePath: "none.caf", start: 0, duration: 2)]
+        model.recordings = [recording]; model.selectedID = recording.id
+        model.update(recording.id) { $0.title = "Ports" }
+        await model.flush()
+        model.transcribe(recording.id); try await idle()
+        let requests = await service.requests
+        guard requests.count == 1, requests[0].locale == "fr-FR", requests[0].diarize == true,
+              model.selected?.segments.map(\.text) == ["Bonjour", "Salut"] else { throw CaptureFailure(message: "Transcription port not used") } // l10n:ignore
+        guard let first = model.selected?.speakers.first, let second = model.selected?.speakers.last else { throw CaptureFailure(message: "Missing voices") }
+        let known = VoicePerson(name: "Camille")
+        model.linkSpeaker(second.id, to: known)
+        guard await memory.samples.isEmpty, model.selected?.speakers.last?.personID == known.id else { throw CaptureFailure(message: "A correction reached voice memory") }
+        model.rememberSpeaker(name: " Léa ", speakerID: first.id); try await idle() // l10n:ignore
+        let samples = await memory.samples
+        guard samples.count == 1, samples[0].speakerID == first.id, let lea = model.people.first(where: { $0.name == "Léa" }), lea.enrollmentRequestedAt != nil, // l10n:ignore
+              model.selected?.speakers.first?.personID == lea.id, model.selected?.speakers.first?.confirmed == true else {
+            throw CaptureFailure(message: "Enrollment did not go through EnrollVoice")
+        }
+        model.forgetVoice(of: lea); try await idle()
+        guard await memory.samples.isEmpty else { throw CaptureFailure(message: "Forget did not reach voice memory") }
+        print("Pipeline ports: diarizer readiness, transcription request, correction without enrollment, enrollment and erasure: PASS")
+    }
     static func run(directory: URL) async throws {
+        try await checkPipelinePorts(directory: directory.appendingPathComponent("pipeline-ports-test"))
         try await PlaybackChecks.run(directory: directory.appendingPathComponent("playback"))
         try checkAppearancePreferences(directory: directory.appendingPathComponent("appearance-test"))
         try await checkSummaryLifecycle(directory: directory.appendingPathComponent("summary-lifecycle-test"))

@@ -55,7 +55,9 @@ final class AppModel: ObservableObject {
     @Published var enrollmentCandidateID: UUID?
     /// What each session added to a person's voice print, loaded on demand in the settings.
     @Published var voiceContributions: [UUID: [VoiceContribution]] = [:]
-    private let voiceRunner: PipelineRunner
+    /// Voice prints of known people, served by the pipeline helper in the app.
+    let voiceMemory: any VoiceMemory
+    private var voiceTask: Task<Void, Never>?
     @Published var summaryID: UUID?
     /// Provider, model, key and agent settings of the summary. Its changes are republished by this model.
     let summarySettings: SummarySettings
@@ -70,7 +72,12 @@ final class AppModel: ObservableObject {
     @Published var isInstallingModel = false
     /// Language installing right now, shown next to its row.
     @Published var installingSpeechLocale: String?
-    private let pipelineRunner: PipelineRunner
+    /// Transcribes sessions, through the pipeline helper in the app.
+    let transcription: any TranscriptionService
+    private var processingTask: Task<Void, Never>?
+    /// Installed and installable speech languages and voice models.
+    let speechModels: any SpeechModelCatalog
+    private var installTask: Task<Void, Never>?
     /// Session whose language should be chosen again, from a detection notice.
     @Published var languageChoiceID: UUID?
     /// System-wide shortcut that starts or ends a recording. Nil when the user cleared it.
@@ -105,24 +112,18 @@ final class AppModel: ObservableObject {
     @Published var supportedSpeechLocales: [String] = []
     /// Languages offered for a session: automatic detection, then the installed languages.
     var sessionLanguageChoices: [String] { [SpeechLanguage.automatic] + installedSpeechLocales }
+    /// Reads the installed languages and the voice models again.
     func refreshSpeechLanguages() {
         guard !isDemoMode else { return }
         Task {
-            guard let data = try? await PipelineRunner.query(["languages"], helpers: helpers),
-                  let locales = try? JSONDecoder().decode(SpeechLocales.self, from: data) else { return }
-            installedSpeechLocales = SpeechLanguage.oneLocalePerLanguage(locales.installed)
-            supportedSpeechLocales = SpeechLanguage.oneLocalePerLanguage(locales.supported)
-                .sorted { SpeechLanguage.displayName($0).localizedCompare(SpeechLanguage.displayName($1)) == .orderedAscending }
+            diarizerReady = await speechModels.diarizerReady()
+            if let locales = try? await speechModels.locales() { showSpeechLocales(locales) }
         }
     }
-    /// The language a request uses: the session's choice, French for sessions recorded before the
-    /// choice existed, and the fallback for a language uninstalled since.
-    func transcriptionLocale(for item: Recording, override: String? = nil) -> (locale: String, candidates: [String]?, fallback: String?, installable: [String]?) {
-        let requested = override ?? item.speechLanguage ?? SpeechLanguage.defaultLocale
-        guard requested == SpeechLanguage.automatic else { return (requested, nil, nil, nil) }
-        let installed = Set(installedSpeechLocales.map(SpeechLanguage.languageCode))
-        return (requested, installedSpeechLocales, SpeechLanguage.fallback(installed: installedSpeechLocales),
-                supportedSpeechLocales.filter { !installed.contains(SpeechLanguage.languageCode(of: $0)) })
+    private func showSpeechLocales(_ locales: SpeechLocales) {
+        installedSpeechLocales = SpeechLanguage.oneLocalePerLanguage(locales.installed)
+        supportedSpeechLocales = SpeechLanguage.oneLocalePerLanguage(locales.supported)
+            .sorted { SpeechLanguage.displayName($0).localizedCompare(SpeechLanguage.displayName($1)) == .orderedAscending }
     }
     /// Opens the session and its reprocessing choices, wherever the user is.
     func chooseLanguage(for id: UUID) {
@@ -144,9 +145,8 @@ final class AppModel: ObservableObject {
                 .navigate(String(localized: "Choisir la langue"), to: .languageChoice(id))], sticky: true))
         }
     }
-    var diarizerReady: Bool {
-        settings.value(.diarizerInstalled) || recordings.contains { !$0.isDemo && $0.transcription?.diarizationEngine != nil }
-    }
+    /// The voice separation models are on disk, as the pipeline helper reports.
+    @Published private(set) var diarizerReady = false
     var pipelineBusy: Bool { processingID != nil || isInstallingModel || isInstallingDiarizer || voiceBusy }
     var modelWorkBusy: Bool { pipelineBusy || summaryID != nil }
     @Published var savedAt: Date?
@@ -178,7 +178,9 @@ final class AppModel: ObservableObject {
 
     /// `settings` defaults to the user's preferences for the installed app only; previews and
     /// models opened on another directory get an empty in-memory store and never read them.
+    /// The pipeline ports default to the bundled helper working on `dataDirectory`.
     init(directory: URL? = nil, preview: Bool = false, settings: SettingsStore? = nil, helpers: HelperLocator = .app,
+         transcription: (any TranscriptionService)? = nil, voiceMemory: (any VoiceMemory)? = nil, speechModels: (any SpeechModelCatalog)? = nil,
          appliesAppearance: Bool = true, persistPreferences: Bool? = nil) {
         let installed = directory == nil && !preview
         let toastCenter = ToastCenter()
@@ -187,7 +189,6 @@ final class AppModel: ObservableObject {
         calendar = CalendarIntegration(settings: settings, allowed: installed)
         self.settings = settings
         self.helpers = helpers
-        pipelineRunner = PipelineRunner(helpers: helpers); voiceRunner = PipelineRunner(helpers: helpers)
         self.appliesAppearance = appliesAppearance
         self.persistPreferences = persistPreferences ?? installed
         // Previews, demos and tests never touch the keychain nor start a process to find agents.
@@ -199,7 +200,11 @@ final class AppModel: ObservableObject {
             recordingShortcut = data.isEmpty ? nil : (try? JSONDecoder().decode(RecordingShortcut.self, from: data)) ?? .standard
         }
         appearancePreference = AppearancePreference(rawValue: settings.value(.appearance) ?? "") ?? .system
-        dataDirectory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("HWYD")
+        let dataDirectory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("HWYD")
+        self.dataDirectory = dataDirectory
+        self.transcription = transcription ?? HelperTranscriptionService(helpers: helpers, store: dataDirectory)
+        self.voiceMemory = voiceMemory ?? HelperVoiceMemory(helpers: helpers, store: dataDirectory)
+        self.speechModels = speechModels ?? HelperSpeechModelCatalog(helpers: helpers, store: dataDirectory)
         if appliesAppearance { NSApp.appearance = appearancePreference.appearance }
         if preview {
             recordings = DemoContent.recordings(); isDemoMode = true; isLoading = false
@@ -308,17 +313,20 @@ final class AppModel: ObservableObject {
     func rememberSpeaker(name: String, speakerID: UUID) {
         guard let id = selectedID, !voiceEditingLocked, !pipelineBusy, var item = selected,
               let speaker = item.speakers.first(where: { $0.id == speakerID }) else { return }
+        let person: VoicePerson
+        do throws(EnrollmentRefusal) { person = try EnrollVoice.person(named: name, for: speaker, among: people) } catch {
+            switch error {
+            case .invalidName: notifier.notify(.error(String(localized: "Le nom doit contenir entre 1 et 120 caractères.")))
+            case .opposed(let person): notifier.notify(.error(String(localized: "\(person.name) est exclue de la reconnaissance. Levez l’exclusion dans Réglages › Audio et voix.")))
+            }
+            return
+        }
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty, name.count <= 120 else { notifier.notify(.error(String(localized: "Le nom doit contenir entre 1 et 120 caractères."))); return }
-        var person = people.first { $0.id == speaker.personID && $0.name == name }
-            ?? people.first { $0.name.compare(name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame } ?? VoicePerson(name: name)
-        guard !person.opposed else { notifier.notify(.error(String(localized: "\(person.name) est exclue de la reconnaissance. Levez l’exclusion dans Réglages › Audio et voix."))); return }
-        person.enrollmentRequestedAt = Date()
         if !(speaker.confirmed && speaker.label == name) {
             do { try item.renameSpeaker(speakerID, to: name); update(id) { $0 = item } } catch { notifier.notify(.error(error.localizedDescription)); return }
         }
         editingSpeakerID = nil
-        runVoice(command: "enroll-voice", speakerID: speakerID, person: person)
+        enrollVoice(speakerID, as: person)
     }
     /// Asks for confirmation before memorizing an already named voice.
     func requestEnrollment(_ speakerID: UUID) { enrollmentCandidateID = speakerID }
@@ -331,10 +339,11 @@ final class AppModel: ObservableObject {
         guard selectedID != processingID, let speakerID = editingSpeakerID else { return }
         let name = speakerName.trimmingCharacters(in: .whitespacesAndNewlines), people = self.people
         let applied = editVoices({ _ in String(localized: "Voix nommée \(name) dans toute cette session.") }) { item in
+            // Keeping the proposed person's name confirms the proposal; another name only renames.
             let proposal = item.speakers.first { $0.id == speakerID }?.proposedIdentity
-            try item.renameSpeaker(speakerID, to: name)
-            if let proposal, let person = people.first(where: { $0.id == proposal.personID && $0.recognitionEnabled }), person.name == name,
-               let index = item.speakers.firstIndex(where: { $0.id == speakerID }) { item.speakers[index].personID = person.id }
+            if let proposal, let person = people.first(where: { $0.id == proposal.personID && $0.recognitionEnabled }), person.name == name {
+                try item.linkSpeaker(speakerID, to: person)
+            } else { try item.renameSpeaker(speakerID, to: name) }
         }
         if applied { editingSpeakerID = nil }
     }
@@ -467,17 +476,15 @@ final class AppModel: ObservableObject {
             else { transcribe(id) }
         }
     }
-    func cancelProcessing() { pipelineRunner.cancel(); voiceRunner.cancel() }
+    /// Stops the running transcription, installation or voice job.
+    func cancelProcessing() { processingTask?.cancel(); installTask?.cancel(); voiceTask?.cancel() }
     func installSpeechModel(_ locale: String, then completion: (() -> Void)? = nil) {
         guard !modelWorkBusy, !isDemoMode else { return }
-        pipelineRunner.prepare()
         isInstallingModel = true; installingSpeechLocale = locale
-        Task {
-            defer { isInstallingModel = false; installingSpeechLocale = nil; refreshSpeechLanguages() }
+        installTask = Task {
+            defer { isInstallingModel = false; installingSpeechLocale = nil; installTask = nil; refreshSpeechLanguages() }
             do {
-                let directory = dataDirectory.appendingPathComponent("jobs")
-                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-                try await pipelineRunner.run(arguments: ["install-model", locale], log: directory.appendingPathComponent("install-model.log"))
+                try await speechModels.install(locale: locale)
                 notifier.notify(.info(String(localized: "Langue installée : \(SpeechLanguage.displayName(locale)). La transcription reste locale.")))
                 if let completion { isInstallingModel = false; installingSpeechLocale = nil; completion() }
             } catch { notifier.notify(.error(error.localizedDescription)) }
@@ -485,14 +492,12 @@ final class AppModel: ObservableObject {
     }
     func installDiarizer() {
         guard !modelWorkBusy, !isDemoMode else { return }
-        pipelineRunner.prepare(); isInstallingDiarizer = true
-        Task {
-            defer { isInstallingDiarizer = false }
+        isInstallingDiarizer = true
+        installTask = Task {
+            defer { isInstallingDiarizer = false; installTask = nil }
             do {
-                let directory = dataDirectory.appendingPathComponent("jobs")
-                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-                try await pipelineRunner.run(arguments: ["install-diarizer", dataDirectory.path], log: directory.appendingPathComponent("install-diarizer.log"))
-                if persistPreferences { settings.set(true, for: .diarizerInstalled) }
+                try await speechModels.installDiarizer()
+                diarizerReady = await speechModels.diarizerReady()
                 diarizationEnabled = true
                 notifier.notify(.info(String(localized: "Séparation des voix activée pour les prochains traitements.")))
             } catch { notifier.notify(.error(String(localized: "Installation des voix : \(error.localizedDescription)"))) }
@@ -501,35 +506,24 @@ final class AppModel: ObservableObject {
     /// `language` replaces the session's language for this run and becomes its new choice.
     func transcribe(_ id: UUID, language: String? = nil) {
         guard !isDemoMode, !modelWorkBusy, let item = recordings.first(where: { $0.id == id }), item.state != .recording, !item.audioChunks.isEmpty else { return }
-        pipelineRunner.prepare()
         processingID = id
         let originalVersion = item.transcriptVersion
         update(id) { $0.transcriptState = .pending }
-        Task {
-            defer { processingID = nil }
+        processingTask = Task {
+            defer { processingID = nil; processingTask = nil }
             do {
                 await flush()
                 guard !hasUnsavedChanges else { throw PipelineFailure(message: String(localized: "Sauvegardez les modifications avant de transcrire.")) }
-                let job = dataDirectory.appendingPathComponent("jobs/\(UUID().uuidString)")
-                try FileManager.default.createDirectory(at: job, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-                let input = job.appendingPathComponent("request.json"), output = job.appendingPathComponent("result.json")
-                if let data = try? await PipelineRunner.query(["languages"], helpers: helpers),
-                   let locales = try? JSONDecoder().decode(SpeechLocales.self, from: data) {
-                    installedSpeechLocales = SpeechLanguage.oneLocalePerLanguage(locales.installed)
-                    supportedSpeechLocales = SpeechLanguage.oneLocalePerLanguage(locales.supported)
-                }
-                let choice = transcriptionLocale(for: item, override: language)
-                let request = TranscriptionRequest(recordingID: id, locale: choice.locale, chunks: item.audioChunks, diarize: diarizationEnabled,
-                                                   candidateLocales: choice.candidates, fallbackLocale: choice.fallback, installableLocales: choice.installable)
-                try JSONEncoder().encode(request).write(to: input, options: .atomic)
-                try await pipelineRunner.run(arguments: ["transcribe", dataDirectory.path, input.path, output.path], log: job.appendingPathComponent("pipeline.log"))
-                let result = try JSONDecoder().decode(TranscriptionResult.self, from: Data(contentsOf: output))
+                // The languages the transcribing process can use, or the last ones read.
+                let locales = (try? await speechModels.locales()) ?? SpeechLocales(installed: installedSpeechLocales, supported: supportedSpeechLocales)
+                showSpeechLocales(locales)
+                let request = TranscriptionRequest(session: item, language: language, diarize: diarizationEnabled, locales: locales)
+                let result = try await transcription.transcribe(request)
                 guard var latest = recordings.first(where: { $0.id == id }), latest.transcriptVersion == originalVersion else { throw TranscriptionError.staleResult }
                 try latest.applyTranscription(result)
                 if let language { latest.speechLanguage = language }
                 update(id) { $0 = latest }
                 await flush()
-                if !hasUnsavedChanges { try? FileManager.default.removeItem(at: job) }
                 notifier.notify(.info(result.segments.isEmpty ? String(localized: "Traitement terminé : aucune parole reconnue.") : (result.diarizationEngine == nil ? String(localized: "Transcript disponible. Les voix ne sont pas séparées.") : String(localized: "Transcript disponible. Les voix détectées peuvent être nommées dans cette session."))))
                 if let warning = result.identityWarning { notifier.notify(.info(String(localized: "Transcript disponible.") + " " + warning)) }
                 if let detections = result.languageDetection { reportLanguageFindings(detections, id: id) }
@@ -632,78 +626,103 @@ final class AppModel: ObservableObject {
             waveformLoading = false; waveformError = String(localized: "Formes d’onde indisponibles")
         }
     }
-    /// Runs a voice command in the helper, the only process that reads the keychain.
-    func runVoice(command: String, speakerID: UUID? = nil, person: VoicePerson? = nil, personID: UUID? = nil, sourceRecordingID: UUID? = nil,
-                  then: (@MainActor () async throws -> Void)? = nil) {
+    // MARK: Voice memory
+
+    /// Runs one voice memory job at a time, outside demo mode, and reports its failure.
+    private func runVoiceJob(_ job: @escaping @MainActor (SessionStore) async throws -> Void) {
         guard !isDemoMode, !modelWorkBusy, let store else { return }
-        let item = command == "identify-voices" || command == "enroll-voice" ? selected ?? Recording(title: "Gestion des voix") : Recording(title: "Gestion des voix") // l10n:ignore
-        let personID = person?.id ?? personID
-        let name = person?.name ?? people.first { $0.id == personID }?.name ?? ""
-        voiceBusy = true; voiceRunner.prepare()
-        Task {
-            defer { voiceBusy = false }
-            let folder = dataDirectory.appendingPathComponent("jobs/voice-" + UUID().uuidString)
-            do {
-                if let person { try await store.savePerson(person); people = try await store.people() }
-                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-                defer { try? FileManager.default.removeItem(at: folder) }
-                let request = folder.appendingPathComponent("request.json"), result = folder.appendingPathComponent("result.json")
-                try JSONEncoder().encode(VoiceJob(recording: item, speakerID: speakerID, personID: personID, sourceRecordingID: sourceRecordingID)).write(to: request, options: .atomic)
-                try await voiceRunner.run(arguments: [command, dataDirectory.path, request.path, result.path], log: folder.appendingPathComponent("log.txt"))
-                let output = try Data(contentsOf: result)
-                people = try await store.people()
-                switch command {
-                case "voice-sources":
-                    if let personID { voiceContributions[personID] = try JSONDecoder().decode([VoiceContribution].self, from: output) }
-                case "forget-voice":
-                    if let personID { voiceContributions[personID] = nil }
-                    notifier.notify(.info(person?.opposed == true ? String(localized: "Empreintes de \(name) supprimées. Opposition enregistrée.")
-                        : String(localized: "Empreinte de \(name) effacée. Sa voix ne sera plus reconnue avant une nouvelle mémorisation.")))
-                case "forget-voice-source":
-                    if let personID { voiceContributions[personID]?.removeAll { $0.recordingID == sourceRecordingID } }
-                    notifier.notify(.info(String(localized: "Apport retiré de l’empreinte de \(name).")))
-                default:
-                    let matches = try JSONDecoder().decode([String: VoiceMatch].self, from: output)
-                    // A transcript edited meanwhile keeps the user's version.
-                    guard recordings.first(where: { $0.id == item.id })?.transcriptVersion == item.transcriptVersion else {
-                        notifier.notify(.info(command == "enroll-voice" ? String(localized: "Voix de \(name) mémorisée.") : String(localized: "La session a changé pendant la reconnaissance. Aucune proposition appliquée.")))
-                        return
-                    }
-                    var proposed = 0
-                    update(item.id) { current in
-                        var changed = false
-                        for index in current.speakers.indices {
-                            let speaker = current.speakers[index]
-                            if command == "enroll-voice", speaker.id == speakerID, let person {
-                                current.speakers[index].personID = person.id; current.speakers[index].label = person.name
-                                current.speakers[index].confirmed = true; current.speakers[index].proposedIdentity = nil
-                                changed = true
-                            } else if !speaker.confirmed, !speaker.ignored, let match = matches[speaker.id.uuidString],
-                                      let known = people.first(where: { $0.id == match.personID }) {
-                                current.speakers[index].proposedIdentity = match; current.speakers[index].label = known.name
-                                proposed += 1
-                            }
-                        }
-                        if changed { current.transcriptVersion += 1; current.summary = nil }
-                    }
-                    await flush()
-                    let found = proposed == 0 ? nil : proposed == 1 ? String(localized: "Une autre voix ressemble à une personne connue, à confirmer.")
-                        : String(localized: "\(proposed) autres voix ressemblent à des personnes connues, à confirmer.")
-                    notifier.notify(.info(command == "enroll-voice" ? [String(localized: "Voix de \(name) mémorisée."), found].compactMap { $0 }.joined(separator: " ")
-                        : String(localized: "\(proposed) correspondance(s) proposée(s), à confirmer.")))
-                }
-                try await then?()
-            } catch { notifier.notify(.error(String(localized: "Identité vocale : \(error.localizedDescription)"))) }
+        voiceBusy = true
+        voiceTask = Task {
+            defer { voiceBusy = false; voiceTask = nil }
+            do { try await job(store) }
+            catch { notifier.notify(.error(String(localized: "Identité vocale : \(error.localizedDescription)"))) }
+        }
+    }
+    /// Memorizes a voice of the selected session, then shows who its other voices resemble.
+    private func enrollVoice(_ speakerID: UUID, as person: VoicePerson) {
+        guard let item = selected else { return }
+        runVoiceJob { [weak self] store in
+            guard let self else { return }
+            let outcome = try await EnrollVoice(people: store, memory: voiceMemory)(person, speakerID: speakerID, in: item)
+            people = outcome.people
+            let name = outcome.person.name
+            // A transcript edited meanwhile keeps the user's version.
+            guard recordings.first(where: { $0.id == item.id })?.transcriptVersion == item.transcriptVersion else {
+                notifier.notify(.info(String(localized: "Voix de \(name) mémorisée."))); return
+            }
+            var proposed = 0
+            update(item.id) { current in proposed = (try? current.applyEnrollment(outcome, speakerID: speakerID)) ?? 0 }
+            await flush()
+            let found = proposed == 0 ? nil : proposed == 1 ? String(localized: "Une autre voix ressemble à une personne connue, à confirmer.")
+                : String(localized: "\(proposed) autres voix ressemblent à des personnes connues, à confirmer.")
+            notifier.notify(.info([String(localized: "Voix de \(name) mémorisée."), found].compactMap { $0 }.joined(separator: " ")))
+        }
+    }
+    /// Proposes a known person for the unconfirmed voices of the selected session.
+    func identifyVoices() {
+        guard let item = selected else { return }
+        runVoiceJob { [weak self] store in
+            guard let self else { return }
+            let matches = try await voiceMemory.identify(in: item)
+            people = try await store.people()
+            guard recordings.first(where: { $0.id == item.id })?.transcriptVersion == item.transcriptVersion else {
+                notifier.notify(.info(String(localized: "La session a changé pendant la reconnaissance. Aucune proposition appliquée."))); return
+            }
+            var proposed = 0
+            update(item.id) { proposed = $0.proposeIdentities(matches, people: self.people) }
+            await flush()
+            notifier.notify(.info(String(localized: "\(proposed) correspondance(s) proposée(s), à confirmer.")))
+        }
+    }
+    /// Reads what each session added to a person's voice print.
+    func loadVoiceSources(of personID: UUID) {
+        runVoiceJob { [weak self] store in
+            guard let self else { return }
+            let sources = try await voiceMemory.sources(personID: personID)
+            people = try await store.people()
+            voiceContributions[personID] = sources
+        }
+    }
+    /// Erases a person's voice print. The name stays in sessions; the voice can be memorized again.
+    func forgetVoice(of person: VoicePerson) {
+        runVoiceJob { [weak self] store in
+            guard let self else { return }
+            try await voiceMemory.forget(personID: person.id)
+            people = try await store.people(); voiceContributions[person.id] = nil
+            notifier.notify(.info(String(localized: "Empreinte de \(person.name) effacée. Sa voix ne sera plus reconnue avant une nouvelle mémorisation.")))
+        }
+    }
+    /// Records the person's opposition, then erases their voice print. Also retries an erasure
+    /// that failed after an opposition.
+    func opposeVoice(of person: VoicePerson) {
+        var opposed = person; opposed.opposed = true; opposed.consentedAt = nil
+        runVoiceJob { [weak self] store in
+            guard let self else { return }
+            try await store.savePerson(opposed); people = try await store.people()
+            try await voiceMemory.forget(personID: opposed.id)
+            people = try await store.people(); voiceContributions[opposed.id] = nil
+            notifier.notify(.info(String(localized: "Empreintes de \(opposed.name) supprimées. Opposition enregistrée.")))
+        }
+    }
+    /// Withdraws what one session added to a person's voice print.
+    func withdrawVoiceSource(_ recordingID: UUID?, of person: VoicePerson) {
+        runVoiceJob { [weak self] store in
+            guard let self else { return }
+            try await voiceMemory.forget(personID: person.id, source: recordingID)
+            people = try await store.people()
+            voiceContributions[person.id]?.removeAll { $0.recordingID == recordingID }
+            notifier.notify(.info(String(localized: "Apport retiré de l’empreinte de \(person.name).")))
         }
     }
     /// Ends an opposition. Any sample left by an interrupted erasure goes first, so recognition
     /// resumes only after a new enrollment.
     func liftOpposition(_ person: VoicePerson) {
-        guard let store else { return }
-        runVoice(command: "forget-voice", personID: person.id) { [weak self] in
+        runVoiceJob { [weak self] store in
+            guard let self else { return }
+            try await voiceMemory.forget(personID: person.id)
             try await store.liftOpposition(person.id)
-            self?.people = try await store.people()
-            self?.notifier.notify(.info(String(localized: "\(person.name) n’est plus exclue. Mémorisez sa voix depuis une session pour la reconnaître à nouveau.")))
+            people = try await store.people(); voiceContributions[person.id] = nil
+            notifier.notify(.info(String(localized: "\(person.name) n’est plus exclue. Mémorisez sa voix depuis une session pour la reconnaître à nouveau.")))
         }
     }
     func chooseSummaryAgentDirectory() {

@@ -325,7 +325,7 @@ struct VoicePersonRow: View {
             HStack(spacing: 8) {
                 Button {
                     expanded.toggle()
-                    if expanded { model.runVoice(command: "voice-sources", personID: person.id) }
+                    if expanded { model.loadVoiceSources(of: person.id) }
                 } label: {
                     HStack(spacing: 7) {
                         Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(Studio.muted)
@@ -337,7 +337,7 @@ struct VoicePersonRow: View {
                 Spacer(minLength: 12)
                 Text(status).font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted)
                 if person.opposed {
-                    Button("Réessayer l’effacement") { model.runVoice(command: "forget-voice", person: person) }
+                    Button("Réessayer l’effacement") { model.opposeVoice(of: person) }
                         .buttonStyle(StudioButtonStyle(compact: true)).disabled(model.modelWorkBusy)
                         .help("Supprime de nouveau toutes ses empreintes, si un effacement précédent a échoué.")
                     Button("Lever l’exclusion") { model.liftOpposition(person) }.buttonStyle(StudioButtonStyle(compact: true)).disabled(model.modelWorkBusy)
@@ -355,12 +355,9 @@ struct VoicePersonRow: View {
         .confirmationDialog(confirmation == .oppose ? "Effacer et opposer \(person.name) ?" : "Effacer l’empreinte de \(person.name) ?",
                             isPresented: Binding(get: { confirmation != nil }, set: { if !$0 { confirmation = nil } }), titleVisibility: .visible) {
             if confirmation == .oppose {
-                Button("Effacer et opposer", role: .destructive) {
-                    var opposed = person; opposed.opposed = true; opposed.consentedAt = nil
-                    model.runVoice(command: "forget-voice", person: opposed)
-                }
+                Button("Effacer et opposer", role: .destructive) { model.opposeVoice(of: person) }
             } else {
-                Button("Effacer l’empreinte", role: .destructive) { model.runVoice(command: "forget-voice", personID: person.id) }
+                Button("Effacer l’empreinte", role: .destructive) { model.forgetVoice(of: person) }
             }
             Button("Annuler", role: .cancel) {}
         } message: {
@@ -382,7 +379,7 @@ struct VoicePersonRow: View {
                             Text(detail(group)).font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted)
                         }
                         Spacer(minLength: 12)
-                        Button("Retirer") { model.runVoice(command: "forget-voice-source", personID: person.id, sourceRecordingID: recordingID) }
+                        Button("Retirer") { model.withdrawVoiceSource(recordingID, of: person) }
                             .buttonStyle(StudioButtonStyle(compact: true)).disabled(model.modelWorkBusy)
                             .help("Retire de l’empreinte ce que cette session y a ajouté.")
                     }
