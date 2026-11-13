@@ -252,7 +252,7 @@ final class AppModel: ObservableObject {
     }
     var todayRecordings: [Recording] { filteredRecordings.filter { Calendar.current.isDateInToday($0.startedAt) } }
     var olderRecordings: [Recording] { filteredRecordings.filter { !Calendar.current.isDateInToday($0.startedAt) } }
-    func select(_ item: Recording) { showSettings = false; showNewSession = false; stopPlayback(); selectedID = item.id; activeTab = .transcript; playbackTime = 0; playback.activeSegmentIDs = []; mutedTracks = []; soloTracks = []; trackEnvelopes = [:] }
+    func select(_ item: Recording) { showSettings = false; showNewSession = false; stopPlayback(); selectedID = item.id; activeTab = .defaultTab(for: item); playbackTime = 0; playback.activeSegmentIDs = []; mutedTracks = []; soloTracks = []; trackEnvelopes = [:] }
     func library() { showSettings = false; showNewSession = false; stopPlayback(); selectedID = nil; search = "" }
     func enterDemo() {
         guard activeCaptureID == nil, !modelWorkBusy, !hasUnsavedChanges else { return }
@@ -960,7 +960,9 @@ final class AppModel: ObservableObject {
     }
 }
 enum DetailTab: String, CaseIterable {
-    case transcript = "Transcript", notes = "Notes", summary = "Synthèse" // l10n:ignore (rawValue, use title for display)
+    case summary = "Synthèse", transcript = "Transcript", notes = "Notes" // l10n:ignore (rawValue, use title for display)
+    /// The summary once one exists, the transcript otherwise.
+    static func defaultTab(for item: Recording) -> DetailTab { item.summary == nil ? .transcript : .summary }
     var title: String {
         switch self {
         case .transcript: String(localized: "Transcript")

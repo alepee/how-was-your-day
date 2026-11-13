@@ -13,7 +13,8 @@ extension AppModel {
         switch link.artifact {
         case .notes: activeTab = .notes
         case .summary: activeTab = .summary
-        case .transcript, nil: activeTab = .transcript
+        case .transcript: activeTab = .transcript
+        case nil: break
         }
     }
 }

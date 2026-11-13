@@ -53,6 +53,8 @@ The summary reads as a document, not a block of text:
 
 ## Voice review
 
+A session has three tabs, in this order: Synthèse, Transcript, Notes. Opening a session shows the summary when one exists, the transcript otherwise. A link that names a tab opens that tab, and stopping a capture opens the notes.
+
 Every tab of a session shows one tile per detected voice under the player. A tile states the voice, its track and its speech time, plus its state: unidentified (dashed copper border), proposed (copper) or confirmed (mint). Clicking the tile plays only that voice's passages on its own track, back to back with a short silence. The tile action names or confirms the voice for the whole session; its menu also links it to a known person or regroups it with another voice. A voice that is not a participant (usually the speakers' echo on the microphone) can be ignored from the menu: the tile turns grey, moves last and offers "Rétablir"; its passages leave the transcript, the export, search and summaries, but stay stored. Dropping a tile onto another regroups them. On the same track, the passages move to the target voice; across tracks, both clusters keep their own audio and share the name. None of these actions enrolls a voice.
 
 During playback the transcript highlights the passages being heard and keeps them in view. A manual scroll pauses the follow; a « Suivre la lecture » button resumes it, and any new playback resumes it too.
