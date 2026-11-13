@@ -14,6 +14,7 @@ Entries describe what a user observes. The detailed release notes published on G
 - A processing request that cannot start now (another one runs, the session has no audio, the examples are open) says why in a message instead of doing nothing.
 - A session being processed, voice recognition included, cannot be deleted until the processing ends or is cancelled; a message says so.
 - When a summary cannot be generated (no API key, no model, no local server address, no agent command), a line under the Generate button says why.
+- Notes or voice names written by an MCP client now show in the open app within a few seconds, even while you are editing or a processing runs, and are published to the export folder as soon as the app sees them.
 
 ### Fixed
 - The summary tab no longer calls every draft local: with a hosted provider it names the provider the transcript is sent to, with an ACP agent it says the draft comes from the agent.
@@ -21,6 +22,8 @@ Entries describe what a user observes. The detailed release notes published on G
 - When the local data cannot be opened at launch, the app now says so in a message instead of staying silent.
 - Settings › Audio and voice now shows the voice separation models as installed only when they are on disk, instead of guessing from earlier sessions.
 - Lifting an exclusion shows one message instead of two.
+- An edit made in the app while an MCP client changed the same session is no longer stuck as unsaved: both changes are kept, and when both touched the same part (the notes, for instance) the app keeps yours and says so.
+- A session an MCP client deletes while the app holds unsaved edits on it is no longer created again by the app: the edits are dropped and a message says so.
 
 ### Security
 - **Deleting a session now deletes its audio.** Its audio files (both tracks), summary checkpoints, waveform cache and leftover job files are removed from the data folder, not only its notes and transcript. A file that cannot be removed is reported and retried on next launch. The first launch also removes the files left by sessions deleted with an earlier version. A session that is recording, transcribing or summarizing cannot be deleted. Voice fingerprints are unchanged: they belong to a person and are forgotten from the voice settings.
