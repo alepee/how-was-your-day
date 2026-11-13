@@ -121,10 +121,3 @@ extension SessionStore {
         }
     }
 }
-extension SessionStore {
-    /// Transitional: drains the outbox into the configured folder. Callers move to `SessionLibrary`.
-    public func publishPending() async throws {
-        guard let directory = try exportDirectory() else { return }
-        try await ExportOutbox.drain(self, to: FolderExportPublisher(directory: directory))
-    }
-}

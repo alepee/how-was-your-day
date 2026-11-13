@@ -33,5 +33,5 @@ Check both languages with `--snapshot <dir> -AppleLanguages '(en)'` and `'(fr)'`
 
 - Data: demo content, transcripts, notes, session titles, summaries and their Markdown, stored default speaker labels ("Voix 1", "Voix à nommer").
 - Model-facing text: summary prompts, the summary schema, rows sent to models ("Voix non identifiée"), and the summary validation reasons, which are also returned to ACP agents.
-- Exported files (`SessionExporter`), MCP tool schema and protocol text, diagnostic and log lines, `--self-test` output.
+- Exported files (`SessionExporter`, `RecordingText`), MCP tool schema and protocol text, diagnostic and log lines, `--self-test` output.
 - Speech recognition locale: chosen per session or detected per track, independent of the UI language.

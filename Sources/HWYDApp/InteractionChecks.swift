@@ -60,7 +60,7 @@ import HWYDCore
         let model = AppModel(directory: directory, appliesAppearance: false)
         await model.load()
         let recording = Recording(title: "Summary lifecycle fixture", notes: "Before")
-        model.recordings = [recording]; model.selectedID = recording.id
+        model.sessionLibrary.insert(recording); model.selectedID = recording.id
         // The summarizer owns its conditions: off, then a non-loopback server, are refused before any run.
         model.summarySettings.enabled = false
         guard model.summaryAvailability == .unavailable(.disabled) else { throw CaptureFailure(message: "Disabled summary must be unavailable") }
@@ -163,8 +163,7 @@ import HWYDCore
         recording.audioChunks = [
             .init(source: .mic, relativePath: "sample.caf", start: 0, duration: duration),
             .init(source: .system, relativePath: "sample.caf", start: 300, duration: duration)]
-        model.recordings.insert(recording, at: 0)
-        model.update(recording.id) { $0.notes = "Avant traitement" } // l10n:ignore
+        model.sessionLibrary.insert(recording)
         await model.flush()
         model.transcribe(recording.id)
         model.update(recording.id) { $0.notes = "Note écrite pendant la transcription" } // l10n:ignore
@@ -201,8 +200,7 @@ import HWYDCore
         var recording = Recording(title: "Agent fixture", speakers: [camille])
         recording.segments = [TranscriptSegment(start: 0, end: 4, speakerID: camille.id, source: .mic, text: "On valide le lancement."), // l10n:ignore
                               TranscriptSegment(start: 4, end: 8, speakerID: camille.id, source: .mic, text: "Je rédigerai l'annonce.")] // l10n:ignore
-        model.recordings = [recording]; model.selectedID = recording.id
-        model.update(recording.id) { $0.title = "Agent fixture" }
+        model.sessionLibrary.insert(recording); model.selectedID = recording.id
         await model.flush()
         guard let stored = try await model.store?.recording(recording.id) else { throw CaptureFailure(message: "Agent fixture not stored") }
         let script = directory.appendingPathComponent("agent.py")
@@ -310,8 +308,7 @@ import HWYDCore
         guard model.diarizerReady, model.diarizationEnabled else { throw CaptureFailure(message: "Diarizer readiness must come from the catalog") }
         var recording = Recording(title: "Ports") // l10n:ignore
         recording.audioChunks = [.init(source: .mic, relativePath: "none.caf", start: 0, duration: 2)]
-        model.recordings = [recording]; model.selectedID = recording.id
-        model.update(recording.id) { $0.title = "Ports" }
+        model.sessionLibrary.insert(recording); model.selectedID = recording.id
         await model.flush()
         model.transcribe(recording.id); try await idle()
         let requests = await service.requests
@@ -336,7 +333,7 @@ import HWYDCore
         model.toastCenter.dismissAll()
         var queued = Recording(title: "File d’attente") // l10n:ignore
         queued.audioChunks = recording.audioChunks
-        model.recordings.append(queued)
+        model.sessionLibrary.insert(queued)
         let gate = Gate()
         guard await model.requestVoiceJob(session: recording.id, { _ in await gate.wait() }) == .accepted, model.voiceBusy, !model.workAvailability.isReady else {
             throw CaptureFailure(message: "Voice job did not start")
@@ -376,13 +373,25 @@ import HWYDCore
         guard !model.diarizationEnabled else { throw CaptureFailure(message: "A test model read the user's preferences") }
         await model.load()
         let session = Recording(title: "Test UI persistant", notes: "Avant édition") // l10n:ignore
-        model.recordings.insert(session, at: 0)
+        model.sessionLibrary.insert(session)
         model.update(session.id) { $0.notes = "Note enregistrée depuis le modèle UI" } // l10n:ignore
         await model.flush()
         guard !model.hasUnsavedChanges else { throw CaptureFailure(message: "UI notes not saved") }
         let reopened = try SessionStore(directory: directory)
         let persisted = try await reopened.all()
         guard persisted.first?.notes == "Note enregistrée depuis le modèle UI" else { throw CaptureFailure(message: "UI persistence failed") } // l10n:ignore
+        // Another process commits (as hwyd-mcp does) while an edit is pending: both are kept.
+        var external = try await reopened.recording(session.id)
+        external.title = "Titre écrit par un autre processus" // l10n:ignore
+        try await reopened.save(external)
+        model.update(session.id) { $0.notes = "Note locale en attente" } // l10n:ignore
+        await model.sessionLibrary.checkForChanges()
+        await model.flush()
+        let merged = try await reopened.recording(session.id)
+        guard model.recordings.first(where: { $0.id == session.id }) == merged,
+              merged.title == external.title, merged.notes == "Note locale en attente", !model.hasUnsavedChanges else { // l10n:ignore
+            throw CaptureFailure(message: "A commit from another process was lost or overwrote a pending edit")
+        }
         model.enterDemo()
         guard let example = model.recordings.first, let unknown = example.speakers.first(where: { !$0.confirmed }) else { throw CaptureFailure(message: "Missing demo") }
         model.select(example); model.beginSpeakerEdit(unknown); model.speakerName = "Léa"; model.confirmSpeaker() // l10n:ignore
@@ -433,7 +442,7 @@ import HWYDCore
         var splitExample = TranscriptSegment(start: 0, end: 2, speakerID: nil, source: .mic, text: "Oui. Bonjour")
         splitExample.words = [.init(text: "Oui.", start: 0, end: 1), .init(text: " Bonjour", start: 1, end: 2)]
         let splitRecording = Recording(title: "Découpage synthétique", segments: [splitExample], isDemo: true) // l10n:ignore
-        model.recordings.append(splitRecording)
+        model.sessionLibrary.insert(splitRecording)
         guard model.splitSegment(splitExample, beforeWord: 1, recordingID: splitRecording.id),
               model.recordings.first(where: { $0.id == splitRecording.id })?.segments.count == 2 else {
             throw CaptureFailure(message: "UI split failed")
@@ -458,6 +467,6 @@ import HWYDCore
         guard model.selected?.notes == "Note pendant la session", model.selected?.noteEntries.count == 1, model.activeTab == .notes else { throw CaptureFailure(message: "Capture handoff failed") } // l10n:ignore
         let afterDemo = try await reopened.all()
         guard afterDemo.count == 1 else { throw CaptureFailure(message: "Demo leaked into store") }
-        FileHandle.standardOutput.write(Data("UI persistence, speaker correction, merge undo and separation, capture timer, notes handoff and demo isolation: PASS\n".utf8))
+        FileHandle.standardOutput.write(Data("UI persistence, merge with another process, speaker correction, merge undo and separation, capture timer, notes handoff and demo isolation: PASS\n".utf8))
     }
 }

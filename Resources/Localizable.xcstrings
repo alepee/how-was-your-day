@@ -9630,6 +9630,38 @@
         }
       }
     },
+    "« %@ » a aussi été modifiée par un autre outil. Vos modifications ont été gardées.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” was also changed by another tool. Your changes were kept."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "« %@ » a aussi été modifiée par un autre outil. Vos modifications ont été gardées."
+          }
+        }
+      }
+    },
+    "« %@ » a été supprimée par un autre outil. Vos modifications en attente sont abandonnées.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” was deleted by another tool. Your pending changes were discarded."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "« %@ » a été supprimée par un autre outil. Vos modifications en attente sont abandonnées."
+          }
+        }
+      }
+    },
     "« Rejoindre et enregistrer » ouvre la visio et lance la capture ; « Enregistrer sans rejoindre » lance seulement la capture. Sans clic, aucun enregistrement. Les rappels des 7 prochains jours sont préparés tant que HWYD tourne ; un rappel peut s’afficher après sa fermeture.": {
       "localizations": {
         "en": {

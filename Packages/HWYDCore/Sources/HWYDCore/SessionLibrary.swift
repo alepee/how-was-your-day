@@ -16,6 +16,10 @@ public enum LibraryChange: Equatable, Sendable {
     case exportDeferred(String)
     /// Another writer deleted a session that held pending edits: the edits were dropped with it.
     case removedElsewhere(UUID, title: String)
+    /// The launch sweep could not remove some files of deleted sessions; the next launch retries.
+    case filesLeft(SessionFiles.Report)
+    /// The launch sweep could not run. The reason is localized.
+    case fileSweepFailed(String)
 }
 
 /// The session changed since the work read it: its result is not applied.
@@ -65,6 +69,8 @@ public final class SessionLibrary {
     @ObservationIgnored private var observers: [UUID: AsyncStream<LibraryChange>.Continuation] = [:]
     @ObservationIgnored private var operating = false
     @ObservationIgnored private var operationWaiters: [CheckedContinuation<Void, Never>] = []
+    /// The sweep of files left by deleted sessions that the last load started, nil before. Awaited by tests.
+    @ObservationIgnored public private(set) var fileSweep: Task<Void, Never>?
 
     /// `exportTarget` gives the publisher of the moment, nil when publication is off; it is asked
     /// at each drain, so a folder chosen later applies at once. `watchInterval` nil turns off the
@@ -108,16 +114,33 @@ public final class SessionLibrary {
     /// (rebasing pending edits) and publishes what is pending. Returns how many captures were
     /// recovered. The library is ready once this returns, even after a failure; after a failure
     /// the watch reads every session again at its next tick.
+    ///
+    /// After a successful load, `fileSweep` removes in the background the files of sessions deleted
+    /// earlier (`RecordingRepository.removeOrphanFiles`). It starts once the library is ready, holds
+    /// no library operation, and reports through `changes` only what it could not do.
     @discardableResult
     public func load() async throws -> Int {
         defer { becomeReady() }
         guard let repository else { return 0 }
         startWatching()
-        await acquire(); defer { release() }
-        let recovered = try await repository.recoverInterrupted()
-        try await reloadLocked(repository, at: repository.sequence())
-        await publishLocked()
+        let recovered: Int
+        do {
+            await acquire(); defer { release() }
+            recovered = try await repository.recoverInterrupted()
+            try await reloadLocked(repository, at: repository.sequence())
+            await publishLocked()
+        }
+        // Never on an empty library: a missing or replaced database is not evidence that its sessions were deleted.
+        if !recordings.isEmpty { sweepFiles(repository) }
         return recovered
+    }
+
+    private func sweepFiles(_ repository: any RecordingRepository) {
+        fileSweep = Task { [weak self] in
+            do {
+                if let files = try await repository.removeOrphanFiles(now: .now), !files.isComplete { self?.emit(.filesLeft(files)) }
+            } catch { self?.emit(.fileSweepFailed(error.localizedDescription)) }
+        }
     }
 
     /// Merges what other processes committed since the last check, and publishes it. One read of
@@ -245,9 +268,10 @@ public final class SessionLibrary {
     }
 
     /// Publishes what the outbox holds, for instance once a publication folder is chosen.
-    public func publishExports() async {
+    /// Throws the publisher's failure; the entries left wait for the next commit.
+    public func publishExports() async throws {
         await acquire(); defer { release() }
-        await publishLocked()
+        try await drainOutbox()
     }
 
     // MARK: Internals
@@ -360,11 +384,12 @@ public final class SessionLibrary {
     }
 
     private func publishLocked() async {
-        guard let repository else { return }
-        do {
-            guard let publisher = try await exportTarget() else { return }
-            try await ExportOutbox.drain(repository, to: publisher)
-        } catch { emit(.exportDeferred(error.localizedDescription)) }
+        do { try await drainOutbox() } catch { emit(.exportDeferred(error.localizedDescription)) }
+    }
+
+    private func drainOutbox() async throws {
+        guard let repository, let publisher = try await exportTarget() else { return }
+        try await ExportOutbox.drain(repository, to: publisher)
     }
 
     private func emit(_ change: LibraryChange) {

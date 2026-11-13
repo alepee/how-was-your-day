@@ -23,7 +23,8 @@ private actor GatedRepository: RecordingRepository {
     func all() async throws -> [Recording] { await inner.all() }
     func recording(_ id: UUID) async throws -> Recording { try await inner.recording(id) }
     func revisions() async throws -> [UUID: Int] { await inner.revisions() }
-    func remove(_ id: UUID) async throws -> RecordingRemoval { await inner.remove(id) }
+    func remove(_ id: UUID) async throws -> RecordingRemoval { try await inner.remove(id) }
+    func removeOrphanFiles(now: Date) async throws -> SessionFiles.Report? { await inner.removeOrphanFiles(now: now) }
     func recoverInterrupted() async throws -> Int { try await inner.recoverInterrupted() }
     func sequence() async throws -> Int { await inner.sequence() }
     func pendingExports() async throws -> [ExportOutboxEntry] { await inner.pendingExports() }
@@ -38,6 +39,8 @@ private actor FaultyRepository: RecordingRepository {
     func failLoad(_ on: Bool) { failingLoad = on }
     func failSave(_ on: Bool) { failingSave = on }
     func failRead(_ on: Bool) { failingRead = on }
+    private var failingSweep = false
+    func failSweep(_ on: Bool) { failingSweep = on }
 
     func all() async throws -> [Recording] {
         if failingLoad { throw Failure() }
@@ -52,7 +55,11 @@ private actor FaultyRepository: RecordingRepository {
         return try await inner.save(recording)
     }
     func revisions() async throws -> [UUID: Int] { await inner.revisions() }
-    func remove(_ id: UUID) async throws -> RecordingRemoval { await inner.remove(id) }
+    func remove(_ id: UUID) async throws -> RecordingRemoval { try await inner.remove(id) }
+    func removeOrphanFiles(now: Date) async throws -> SessionFiles.Report? {
+        if failingSweep { throw Failure() }
+        return await inner.removeOrphanFiles(now: now)
+    }
     func recoverInterrupted() async throws -> Int { try await inner.recoverInterrupted() }
     func sequence() async throws -> Int { await inner.sequence() }
     func pendingExports() async throws -> [ExportOutboxEntry] { await inner.pendingExports() }
@@ -148,7 +155,7 @@ final class SessionLibraryTests: XCTestCase {
         let kept = await stored("Gardée", in: library), deleted = await stored("Supprimée ailleurs", in: library)
         var external = try await repository.recording(kept.id); external.notes = "Nouvelle note"
         try await repository.save(external)
-        await repository.remove(deleted.id)
+        try await repository.remove(deleted.id)
         await library.checkForChanges()
         XCTAssertEqual(library.recording(kept.id)?.notes, "Nouvelle note")
         XCTAssertNil(library.recording(deleted.id))
@@ -162,7 +169,7 @@ final class SessionLibraryTests: XCTestCase {
         let item = await stored("Supprimée ailleurs", in: library)
 
         library.edit(item.id) { $0.notes = "Note en attente" }
-        await repository.remove(item.id)
+        try await repository.remove(item.id)
         await library.checkForChanges()
         XCTAssertNil(library.recording(item.id))
         XCTAssertFalse(library.hasUnsavedChanges)
@@ -338,7 +345,7 @@ final class SessionLibraryTests: XCTestCase {
         let repository = InMemoryRecordingRepository()
         let library = try await library(repository)
         let item = await stored("Atelier", in: library)
-        await repository.remove(item.id)
+        try await repository.remove(item.id)
         do {
             try await library.apply(item.id, ifStillAt: item.transcriptVersion) { $0.summary = "Synthèse" }
             XCTFail("Applied to a deleted session")
@@ -442,5 +449,73 @@ final class SessionLibraryTests: XCTestCase {
         XCTAssertEqual(merged.title, "Locale")
         XCTAssertEqual(merged.revision, 3)
         XCTAssertEqual(conflicts, [.title])
+    }
+
+    // MARK: Session files
+
+    func testRemovingASessionReturnsWhatHappenedToItsFiles() async throws {
+        let root = try directory(), store = try SessionStore(directory: root)
+        let library = try await library(store)
+        var item = Recording(title: "Avec audio", state: .sealed)
+        let audio = "audio/" + item.id.uuidString.lowercased()
+        item.audioChunks = [AudioChunk(source: .mic, relativePath: audio + "/mic-000000.caf", start: 0, duration: 1)]
+        try FileManager.default.createDirectory(at: root.appendingPathComponent(audio), withIntermediateDirectories: true)
+        try Data("synthetic".utf8).write(to: root.appendingPathComponent(audio + "/mic-000000.caf"))
+        library.insert(item); await library.flush()
+
+        let removal = try await library.remove(item.id)
+        XCTAssertEqual(removal.files?.isComplete, true)
+        XCTAssertTrue(removal.files?.removed.contains(audio) == true)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(audio).path))
+    }
+
+    func testCapturingSessionCannotBeRemoved() async throws {
+        let repository = InMemoryRecordingRepository()
+        let library = try await library(repository)
+        let item = Recording(title: "En cours", state: .recording)
+        library.insert(item); await library.flush()
+        do { try await library.remove(item.id); XCTFail("A capturing session was removed") }
+        catch { XCTAssertEqual(error as? StoreError, .capturing) }
+        XCTAssertNotNil(library.recording(item.id))
+        let removal = try await repository.remove(UUID())
+        XCTAssertNil(removal.files, "The in-memory repository keeps no files")
+    }
+
+    func testLoadSweepsFilesOfSessionsDeletedEarlierOnceReady() async throws {
+        let root = try directory(), store = try SessionStore(directory: root)
+        try await store.save(Recording(title: "Gardée", state: .sealed))
+        let earlier = root.appendingPathComponent("audio/\(UUID().uuidString.lowercased())")
+        try FileManager.default.createDirectory(at: earlier, withIntermediateDirectories: true)
+        try Data("synthetic".utf8).write(to: earlier.appendingPathComponent("mic-000000.caf"))
+        let quiet = Date.now.addingTimeInterval(-2 * SessionFiles.orphanQuietPeriod)
+        for url in [earlier.appendingPathComponent("mic-000000.caf"), earlier] {
+            try FileManager.default.setAttributes([.modificationDate: quiet], ofItemAtPath: url.path)
+        }
+        let library = try await library(store)
+        XCTAssertTrue(library.isReady)
+        await library.fileSweep?.value
+        XCTAssertFalse(FileManager.default.fileExists(atPath: earlier.path))
+    }
+
+    func testEmptyLibraryIsNotSwept() async throws {
+        let root = try directory(), store = try SessionStore(directory: root)
+        let unknown = root.appendingPathComponent("audio/\(UUID().uuidString.lowercased())")
+        try FileManager.default.createDirectory(at: unknown, withIntermediateDirectories: true)
+        let library = try await library(store)
+        XCTAssertNil(library.fileSweep)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: unknown.path))
+    }
+
+    func testFailedSweepIsReported() async throws {
+        let repository = FaultyRepository()
+        try await repository.inner.save(Recording(title: "Hier"))
+        await repository.failSweep(true)
+        let library = SessionLibrary(repository: repository, debounce: .seconds(3600), watchInterval: nil)
+        let changes = library.changes
+        try await library.load()
+        await library.fileSweep?.value
+        var iterator = changes.makeAsyncIterator()
+        let change = await iterator.next()
+        XCTAssertEqual(change, .fileSweepFailed("disque indisponible"))
     }
 }

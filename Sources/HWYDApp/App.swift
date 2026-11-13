@@ -79,7 +79,7 @@ import HWYDCore
         model.calendar.onAction = { [weak model] event, join in
             Task { @MainActor in
                 guard let model else { return }
-                while model.isLoading { try? await Task.sleep(for: .milliseconds(100)) }
+                await model.sessionLibrary.ready
                 model.showWindow?()
                 if let event { model.joinMeeting(event, openLink: join) }
             }
