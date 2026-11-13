@@ -247,7 +247,30 @@ Known gap, for later steps: `PipelineRunner` polls the helper process every 200 
 - **Deletion.** A session with work running or waiting on it (transcription, summary, voice job) cannot be deleted; the user is told why.
 - **Second line of defense.** `hwyd-pipeline` keeps its `flock` on `<store>/pipeline.lock` for transcription and voice commands (model installs take none). It only guards against a process the coordinator cannot see (a second app instance, a script); inside the app, the coordinator decides first.
 
-Known gaps, for later steps: the waiting order lives in memory, so a queued transcription is lost if the app quits (the session keeps its audio and can be transcribed by hand); demo mode is still a flag checked by each request.
+- **Queue and restarts.** The waiting order lives in memory on purpose. Quitting cancels running and waiting work (the termination handler asks for it): a running transcription stops and is marked failed, with its retry (after a crash, the next launch marks it failed). A waiting one simply never started: its session keeps its audio and its « Transcrire » button. Persisting the queue would mean resuming heavy work unasked at launch, a new behavior, so it is not done.
+
+Known gap, for later steps: demo mode is still a flag checked by each request.
+
+### Sessions and persistence
+
+Sessions go through one port and one application service, both in HWYDCore.
+
+| Part | Role | Adapters / doubles |
+|---|---|---|
+| `RecordingRepository` (`RecordingRepository.swift`) | `all`, `recording(id)`, `revisions`, `save` (optimistic: `StoreError.conflict` when another writer committed first, `StoreError.notFound` when the session was deleted since it was read, so a deleted session is never created again), `remove`, `recoverInterrupted`, `sequence` (grows with every commit, by any process), and the export outbox (`pendingExports`, `acknowledgeExport`) | `SessionStore` (GRDB, shared with `hwyd-mcp` and `hwyd-pipeline`), `InMemoryRecordingRepository` |
+| `SessionLibrary` (`SessionLibrary.swift`, `@MainActor`, `@Observable`) | Working copies shown by the app and the rules for changing them | volatile library (previews, demo mode) |
+| `ExportPublisher` (`ExportPublisher.swift`) | `publish(recording)`, `withdraw(id, revision)` | `FolderExportPublisher` (`SessionExporter` generations), `InMemoryExportPublisher` |
+
+`Recording.committed(over:)` holds the commit rules both repositories apply: next revision, notes and summary versions, no summary provenance without a summary.
+
+- **Edits.** `edit(id, mutation)` changes the working copy at once and saves it after 300 ms; `flush()` saves now. An edit made while a save is in flight stays in the working copy and is saved by the next turn. A save that meets another writer's commit reads it, rebases the pending edit on it (`Recording.merge(base:local:remote:)`, per `RecordingPart`) and tries again. A part both sides changed keeps the app's side; the other writer's revision stays in `ui_recording_versions`, and the user is told. A summary follows the transcript it was made from.
+- **Other writers.** `hwyd-mcp` writes from another process. The library reads `sequence()` every 2 seconds (one row); when it moved, it compares `revisions()` with its own and decodes only the sessions that changed. Clean copies are replaced, copies with pending edits are rebased, sessions deleted elsewhere leave; pending edits leave with them and the user is told (`removedElsewhere`). The watch starts with the first load: when that load fails, its next tick reads every session again. SQLite offers no cross-process notification GRDB can observe, and `PRAGMA data_version` would still need the same poll, so the cheap check stays. It replaces the former 3-second poll that swapped the whole list and skipped while anything was unsaved or busy.
+- **Results of work.** Transcription, voice recognition and enrollment, and summaries run on a copy. They apply their result with `apply(id, ifStillAt: transcriptVersion, where:)`: pending edits are saved, the stored session is merged, then the transcript version and the caller's own condition (the summary's input hash) decide. An outdated result, or one for a deleted session, throws `StaleResult` and changes nothing; each flow keeps its own message. Any other failure to read the stored session is thrown as is. A result that cannot be saved throws `UnsavedResult`: it stays a pending edit, and the save failure is the notice. When both sides changed the transcript, the merged one takes a transcript version neither side used, so work that read the other side is stale.
+- **Publication.** Every commit of a sealed session and every deletion leaves an outbox entry in the same transaction. The library drains the outbox (`ExportOutbox.drain`) into the publisher of the moment after its own commits, after each commit it sees from another process, at load, and when a publication folder is chosen; `hwyd-mcp` drains it after its own write when a folder is set. A failing entry holds back only the later entries of its own session; the others are published, the failure is reported once and retried at the next drain. A one-off export to a folder the user picks uses the same `FolderExportPublisher`.
+- **Readiness and changes.** `await library.ready` returns once the first load is done (launch actions from the calendar and `hwyd://` links wait on it). `changes` streams `LibraryChange` (saved, save failed, external, rebased, export deferred, removed elsewhere); `AppModel` turns failures and conflicts into notices.
+- **Deletion.** `remove(id)` returns a `RecordingRemoval`. It carries the removed session today; whatever deletion comes to own (the session's files, for instance) is added there, so callers keep their shape.
+
+`AppModel` keeps the projection only: `recordings` and `hasUnsavedChanges` read the active library (the stored one, or a volatile one in demo mode and previews). Known gap, for later steps: snapshots replace a volatile library's sessions through `show(_:)`, a test seam the composition root (step 7) can remove.
 
 ### User notices
 
