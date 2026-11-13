@@ -1089,6 +1089,22 @@
         }
       }
     },
+    "Afficher dans le Finder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show in Finder"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher dans le Finder"
+          }
+        }
+      }
+    },
     "Afficher le détail de %@": {
       "localizations": {
         "en": {
@@ -3489,6 +3505,22 @@
         }
       }
     },
+    "Export de la synthèse impossible : %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not export the summary: %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export de la synthèse impossible : %@"
+          }
+        }
+      }
+    },
     "Export différé : %@": {
       "localizations": {
         "en": {
@@ -3549,6 +3581,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Exporter ici"
+          }
+        }
+      }
+    },
+    "Exporter la synthèse": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export summary"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exporter la synthèse"
           }
         }
       }
@@ -5377,6 +5425,22 @@
         }
       }
     },
+    "Markdown…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Markdown…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Markdown…"
+          }
+        }
+      }
+    },
     "Masquer le détail de %@": {
       "localizations": {
         "en": {
@@ -6141,6 +6205,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ouvrir les sessions"
+          }
+        }
+      }
+    },
+    "PDF…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PDF…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PDF…"
           }
         }
       }
@@ -7677,6 +7757,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Synthèse annulée."
+          }
+        }
+      }
+    },
+    "Synthèse exportée.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Summary exported."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Synthèse exportée."
           }
         }
       }
