@@ -14,7 +14,7 @@ There is no Xcode project, and SwiftPM does not compile String Catalogs for this
 
 - SwiftUI literals (`Text("…")`, `Button("…")`, `.help("…")`…) resolve from `Bundle.main`.
 - Strings stored as `String` (notices, errors, toasts, enum labels, panel prompts) use `String(localized: "…")` in the app.
-- HWYDCore and the helpers use `String(localized: "…", bundle: .hwyd)`. `Bundle.hwyd` (`HWYDCore/Localization.swift`) is `Bundle.main` in the app. In `Contents/Helpers/hwyd-pipeline` and `hwyd-mcp`, `Bundle.main` is the helper directory, so `Bundle.hwyd` is the app's `.lproj` for the language in `HWYD_LOCALIZATION`. `PipelineRunner` sets that variable from the app's resolved language, so an error raised in the helper and relayed through stderr reaches the user in the app's language. Without the variable, the helper uses the user's preferred languages. In tests and outside the app bundle no catalog is found and the French source text is returned.
+- HWYDCore and the helpers use `String(localized: "…", bundle: .hwyd)`. `Bundle.hwyd` (`HWYDCore/Localization.swift`) is `Bundle.main` in the app. In `Contents/Helpers/hwyd-pipeline` and `hwyd-mcp`, `Bundle.main` is the helper directory, so `Bundle.hwyd` is the app's `.lproj` for the language in `HWYD_LOCALIZATION`. `PipelineRunner`, which starts the helper for the pipeline adapters, sets that variable from the app's resolved language, so an error raised in the helper and relayed through stderr reaches the user in the app's language. Without the variable, the helper uses the user's preferred languages. In tests and outside the app bundle no catalog is found and the French source text is returned.
 - Dates, times and durations use `formatted(...)` with the current locale.
 
 ## Workflow

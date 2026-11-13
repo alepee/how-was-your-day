@@ -214,9 +214,27 @@ Two stores hold settings, each behind typed accessors; no caller spells a key.
 
 `SummarySettings` (HWYDCore) holds the summary preferences shown in the app, loads and saves them through the `SettingsStore`, manages the hosted provider's key and model list, and produces the `SummaryConfiguration` given to `SummarizerFactory` (§ 12). It finds installed ACP agents through the `AgentDiscovery` port: `LoginShellAgentDiscovery` (app, `zsh -lc`) for the installed app, `FixedAgentDiscovery` for previews and tests.
 
-`HelperLocator` (HWYDCore) is the only place that knows where `hwyd-pipeline` and `hwyd-mcp` live. The app builds it once from its bundle (`HelperLocator.app`) and hands it to `PipelineRunner`, the language query and the summarizer environment.
+`HelperLocator` (HWYDCore) is the only place that knows where `hwyd-pipeline` and `hwyd-mcp` live. The app builds it once from its bundle (`HelperLocator.app`) and hands it to the pipeline adapters (below) and the summarizer environment.
 
-Known gaps, for later steps: speech and voice model readiness is still inferred in `AppModel` (a flag set after installation and the transcript history), and the keychain is reached through static enums.
+Known gap, for later steps: the keychain is reached through static enums.
+
+### Pipeline ports
+
+The app reaches `hwyd-pipeline` through three ports declared in HWYDCore, each with an in-memory double used by unit tests and by the `--ui-test` check:
+
+| Port | Operations | App adapter | Double |
+|---|---|---|---|
+| `TranscriptionService` (`TranscriptionService.swift`) | `transcribe(TranscriptionRequest) -> TranscriptionResult` | `HelperTranscriptionService` | `InMemoryTranscriptionService` |
+| `VoiceMemory` (`VoiceMemory.swift`) | `enroll`, `identify`, `forget(person)`, `forget(person, source)`, `sources(person)` | `HelperVoiceMemory` | `InMemoryVoiceMemory` |
+| `SpeechModelCatalog` (`SpeechModelCatalog.swift`) | `locales()`, `install(locale)`, `diarizerReady()`, `installDiarizer()` | `HelperSpeechModelCatalog` | `InMemorySpeechModelCatalog` |
+
+The adapters (`Sources/HWYDApp/HelperPipeline.swift`) are the only code that knows the helper's commands, the job folders under `<store>/jobs`, `request.json` and `result.json`; `PipelineRunner` starts the process for them and nothing else calls it. Cancelling the calling task stops the helper. The transcription job folder is removed once its result is read and kept after a failure, with its log. No voice vector crosses `VoiceMemory`: the helper alone reads the keychain, and its results carry matches and contributions only.
+
+- **Requests.** `TranscriptionRequest(session:language:diarize:locales:)` builds a session's request: the language chosen for this run, else the session's, else French for sessions recorded before the choice existed; with automatic detection, the candidates, fallback and installable languages come from the catalog's `locales()`, as the helper resolves them.
+- **Readiness.** `diarizerReady()` reads the models on disk (`hwyd-pipeline diarizer-status <store>` checks every file the offline diarizer loads). The app no longer infers it from a preference or the transcript history.
+- **Voice identity.** `Recording.linkSpeaker(_:to:)` is the one mutation that confirms a voice as a person (name validation, opposed person refused); the voice tiles, the end of an enrollment and the MCP rename (`SessionStore.mutate`) all use it. It reads and writes no voice print. `EnrollVoice` (`EnrollVoice.swift`) is the only path to a print: `EnrollVoice.person(named:for:among:)` validates the name, finds the person and refuses an opposed one; running it records the user's request on the person through the `VoicePeople` port (`SessionStore`, or `InMemoryVoicePeople`), then calls `VoiceMemory.enroll`. `Recording.applyEnrollment` and `proposeIdentities` apply its outcome. A speaker correction never leads to `EnrollVoice`.
+
+Known gaps, for later steps: `AppModel` still arbitrates one job at a time with its busy flags and waits on them, and the helper polls its process every 200 ms.
 
 ### User notices
 
