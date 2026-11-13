@@ -2,10 +2,12 @@ import Foundation
 import Darwin
 import GRDB
 
-/// Bootstrap UI schema. Production pipeline migrations remain a separate milestone.
-public actor SessionStore {
-    /// Lightweight polling for external MCP changes; do not decode transcripts on every tick.
-    public func recordingRevisions() throws -> [UUID: Int] {
+/// The GRDB adapter of `RecordingRepository`, shared by the app, `hwyd-mcp` and `hwyd-pipeline`.
+/// One `DatabaseQueue` per process, rollback journal, `synchronous=FULL` (see docs/data-model.md § 1).
+/// Bootstrap UI schema: one JSON payload per session. Production pipeline migrations remain a separate milestone.
+public actor SessionStore: RecordingRepository {
+    /// Revisions only, for the library's change check: transcripts are not decoded.
+    public func revisions() throws -> [UUID: Int] {
         try database.read { db in
             var result: [UUID: Int] = [:]
             for row in try Row.fetchAll(db, sql: "SELECT id, revision FROM ui_recordings") {
@@ -24,6 +26,8 @@ public actor SessionStore {
         var config = Configuration()
         config.busyMode = .timeout(5)
         config.readonly = readOnly
+        // Every commit reaches the disk before it returns; the explicit setting does not depend on the SQLite build.
+        config.prepareDatabase { try $0.execute(sql: "PRAGMA synchronous = FULL") }
         database = try DatabaseQueue(path: directory.appendingPathComponent("hwyd.sqlite").path, configuration: config)
         var migrator = DatabaseMigrator()
         migrator.registerMigration("ui_v001_sessions") { db in
@@ -79,11 +83,7 @@ public actor SessionStore {
     static func persist(_ recording: Recording, db: Database) throws -> Recording {
         let oldData = try Data.fetchOne(db, sql: "SELECT payload FROM ui_recordings WHERE id=?", arguments: [recording.id.uuidString])
         let old = try oldData.map { try JSONDecoder().decode(Recording.self, from: $0) }
-        if let old, old.revision != recording.revision { throw StoreError.conflict }
-        var updated = recording; updated.revision += 1
-        if updated.summary == nil { updated.summaryProvenance = nil }
-        updated.notesVersion = max(1, (old?.notesVersion ?? 0) + ((old?.notes != updated.notes || old?.noteEntries != updated.noteEntries) ? 1 : 0))
-        updated.summaryVersion = updated.summary == nil ? nil : (old?.summaryVersion ?? 0) + (old?.summary != updated.summary ? 1 : 0)
+        let updated = try recording.committed(over: old)
         let payload = try JSONEncoder().encode(updated)
         try db.execute(sql: "INSERT INTO ui_recordings(id,started_at,revision,payload) VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET revision=excluded.revision,payload=excluded.payload", arguments: [updated.id.uuidString, updated.startedAt.timeIntervalSince1970, updated.revision, payload])
         try db.execute(sql: "INSERT INTO ui_recording_versions VALUES (?,?,?)", arguments: [updated.id.uuidString, updated.revision, payload])
@@ -96,14 +96,15 @@ public actor SessionStore {
     }
     static func index(_ recording: Recording, db: Database) throws {
         try db.execute(sql: "DELETE FROM recording_search WHERE recording_id=?", arguments: [recording.id.uuidString])
-        for (artifact, text) in [("title", recording.title), ("notes", SessionExporter.artifact(recording, "notes")), ("transcript", SessionExporter.artifact(recording, "transcript")), ("summary", recording.summary ?? "")] {
+        for (artifact, text) in [("title", recording.title), ("notes", RecordingText.artifact(recording, "notes")), ("transcript", RecordingText.artifact(recording, "transcript")), ("summary", recording.summary ?? "")] {
             try db.execute(sql: "INSERT INTO recording_search(recording_id,artifact,text) VALUES (?,?,?)", arguments: [recording.id.uuidString, artifact, text])
         }
     }
-    /// Deletes the session, then its files (`SessionFiles`). The row goes first, in one transaction, so a file that cannot be
-    /// removed never leaves a session without its audio: the report lists it, and `removeOrphanFiles` retries on next launch.
-    /// Refuses a session that is still capturing.
-    @discardableResult public func remove(_ id: UUID) throws -> SessionFiles.Report {
+    /// Deletes the row, its search entries and its pending publications, and queues its withdrawal, in one transaction,
+    /// then the session's files (`SessionFiles`). The row goes first, so a file that cannot be removed never leaves a session
+    /// without its audio: the report lists it, and `removeOrphanFiles` retries on next launch. Refuses a session that is
+    /// still capturing.
+    @discardableResult public func remove(_ id: UUID) throws -> RecordingRemoval {
         let removed: Recording? = try database.write { db in
             let item = try Data.fetchOne(db, sql: "SELECT payload FROM ui_recordings WHERE id=?", arguments: [id.uuidString])
                 .map { try JSONDecoder().decode(Recording.self, from: $0) }
@@ -117,7 +118,8 @@ public actor SessionStore {
             try db.execute(sql: "UPDATE integration_sequence SET seq=seq+1")
             return item
         }
-        return SessionFiles(root: directory).remove(id: id, chunks: removed?.audioChunks ?? [], keeping: try all())
+        let files = SessionFiles(root: directory).remove(id: id, chunks: removed?.audioChunks ?? [], keeping: try all())
+        return RecordingRemoval(removed: removed, files: files)
     }
     /// Removes files left by sessions deleted earlier (before deletion removed files, or after a failed removal).
     /// Returns nil without touching anything while a helper job holds `pipeline.lock`. It never takes `capture.lock`, so a

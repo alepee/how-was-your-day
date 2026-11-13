@@ -49,7 +49,9 @@ extension SessionStore {
     }
     public func setExportDirectory(_ directory: URL) throws { try setSetting(.exportDirectory, value: directory.path) }
     public func sequence() throws -> Int { try database.read { try Int.fetchOne($0, sql: "SELECT seq FROM integration_sequence") ?? 0 } }
-    public func recording(_ id: UUID, revision: Int? = nil) throws -> Recording {
+    public func recording(_ id: UUID) throws -> Recording { try recording(id, revision: nil) }
+    /// The session at `revision`, from its history, or the current one when `revision` is nil.
+    public func recording(_ id: UUID, revision: Int?) throws -> Recording {
         try database.read { db in
             let data: Data?
             if let revision { data = try Data.fetchOne(db, sql: "SELECT payload FROM ui_recording_versions WHERE recording_id=? AND revision=?", arguments: [id.uuidString, revision]) }
@@ -98,18 +100,31 @@ extension SessionStore {
             return receipt
         }
     }
-    public func publishPending() throws {
-        guard let root = try exportDirectory()?.path else { return }
-        let deleted: [(String, Int)] = try database.read { db in try Row.fetchAll(db, sql: "SELECT recording_id,revision FROM export_deletions").map { ($0["recording_id"], $0["revision"]) } }
-        for (id, revision) in deleted {
-            try SessionExporter.delete(id: id.lowercased(), revision: revision, from: URL(fileURLWithPath: root))
-            try database.write { try $0.execute(sql: "DELETE FROM export_deletions WHERE recording_id=?", arguments: [id]) }
+    /// The export outbox: withdrawals of deleted sessions, then committed revisions in commit order.
+    /// Publication itself is the `ExportPublisher`'s.
+    public func pendingExports() throws -> [ExportOutboxEntry] {
+        try database.read { db in
+            let withdrawals = try Row.fetchAll(db, sql: "SELECT recording_id,revision FROM export_deletions ORDER BY recording_id").compactMap { row -> ExportOutboxEntry? in
+                UUID(uuidString: row["recording_id"]).map { .withdraw(id: $0, revision: row["revision"]) }
+            }
+            let revisions = try Data.fetchAll(db, sql: "SELECT payload FROM export_outbox ORDER BY recording_id,revision")
+                .map { ExportOutboxEntry.publish(try JSONDecoder().decode(Recording.self, from: $0)) }
+            return withdrawals + revisions
         }
-        let pending = try database.read { try Data.fetchAll($0, sql: "SELECT payload FROM export_outbox ORDER BY recording_id,revision") }
-        for data in pending {
-            let item = try JSONDecoder().decode(Recording.self, from: data)
-            try SessionExporter.export(item, to: URL(fileURLWithPath: root))
-            try database.write { try $0.execute(sql: "DELETE FROM export_outbox WHERE recording_id=? AND revision=?", arguments: [item.id.uuidString, item.revision]) }
+    }
+    public func acknowledgeExport(_ entry: ExportOutboxEntry) throws {
+        try database.write { db in
+            switch entry {
+            case .withdraw(let id, _): try db.execute(sql: "DELETE FROM export_deletions WHERE recording_id=?", arguments: [id.uuidString])
+            case .publish(let item): try db.execute(sql: "DELETE FROM export_outbox WHERE recording_id=? AND revision=?", arguments: [item.id.uuidString, item.revision])
+            }
         }
+    }
+}
+extension SessionStore {
+    /// Transitional: drains the outbox into the configured folder. Callers move to `SessionLibrary`.
+    public func publishPending() async throws {
+        guard let directory = try exportDirectory() else { return }
+        try await ExportOutbox.drain(self, to: FolderExportPublisher(directory: directory))
     }
 }

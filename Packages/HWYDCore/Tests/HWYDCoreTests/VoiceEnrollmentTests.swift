@@ -25,10 +25,10 @@ final class VoiceEnrollmentTests: XCTestCase {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try SessionStore(directory: root)
-        let initial = try await store.recordingRevisions()
+        let initial = try await store.revisions()
         XCTAssertTrue(initial.isEmpty)
         let recording = try await store.save(Recording(title: "Synthetic"))
-        let revisions = try await store.recordingRevisions()
+        let revisions = try await store.revisions()
         XCTAssertEqual(revisions[recording.id], recording.revision)
     }
     func testLiftingAnOppositionRequiresANewEnrollment() async throws {

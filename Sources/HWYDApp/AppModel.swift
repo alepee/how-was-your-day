@@ -637,7 +637,7 @@ final class AppModel: ObservableObject {
             lastRefresh = Date()
             refreshTask = Task {
                 defer { refreshTask = nil }
-                if let revisions = try? await store.recordingRevisions(),
+                if let revisions = try? await store.revisions(),
                    revisions != Dictionary(uniqueKeysWithValues: recordings.map { ($0.id, $0.revision) }),
                    let latest = try? await store.all(), !hasUnsavedChanges, !isBusy { recordings = latest }
             }
@@ -945,7 +945,7 @@ final class AppModel: ObservableObject {
         }
         do {
             await flush()
-            let files = isDemoMode ? nil : try await store?.remove(item.id)
+            let files = isDemoMode ? nil : try await store?.remove(item.id).files
             recordings.removeAll { $0.id == item.id }; dirtyIDs.remove(item.id)
             if selectedID == item.id { selectedID = nil }
             if let files, !files.isComplete { reportLeftoverFiles(files) }
