@@ -32,7 +32,16 @@ Read [AGENTS.md](AGENTS.md) first: it holds the project rules (privacy, realtime
 - **Base branch**: always `main`.
 - **Squash merged**: each PR becomes a single commit on `main`.
 - Explain what changes and why.
-- The `ci` check must pass before merge. It builds the app, runs the core, pipeline, realtime and contract tests, checks the localization catalog and runs the synthetic app checks. A PR touching only documentation skips the build.
+- The `ci` check must pass before merge. CI runs only the jobs a change can break (see `.github/workflows/ci.yml`):
+
+  | Job | Runner | Runs when you change |
+  |-----|--------|----------------------|
+  | `core` | macOS | `Packages/HWYDCore`, `scripts/test-summary.py` |
+  | `realtime` | macOS | `Sources/HWYDRealtime`, its C tests |
+  | `app` | macOS | app sources, resources, packages, build script: pipeline tests, localization catalog, app build, synthetic checks |
+  | `scripts` | Linux | Python scripts: contract tests |
+
+  A documentation-only PR runs none of them. Changing the workflow runs everything, and so does a manual run (**Run workflow**).
 
 ## Changelog
 

@@ -87,6 +87,6 @@ Commit `Resources/SparklePublicKey.txt`. The private key stays in the maintainer
 
 ## CI and public files
 
-GitHub Actions runs on `xcode-27` (Apple Silicon), runs core/pipeline tests and synthetic app checks, and publishes a short-lived CI ZIP. These artifacts are not user releases and must not be used to update the cask.
+GitHub Actions runs the Swift jobs on `xcode-27` (Apple Silicon) and the Python contract tests on Linux, each only when its files change (see [CONTRIBUTING.md](../CONTRIBUTING.md#pull-requests)). The `app` job publishes a short-lived CI ZIP. These artifacts are not user releases and must not be used to update the cask.
 
 Build directories, audio, databases, signing keys and private calibration reports are ignored. The original architecture documents are retained in French. New public documentation and release notes are written in English; app localization is unchanged.
