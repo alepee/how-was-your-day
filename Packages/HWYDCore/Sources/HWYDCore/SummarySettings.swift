@@ -25,8 +25,8 @@ import Foundation
     @Published public private(set) var detectedAgents: [String] = []
     /// Demo mode: nothing is saved, no key is touched, no request or process starts.
     public var isDemo = false
-    /// Messages for the user, as an error or a notice.
-    public var report: @MainActor (_ message: String, _ isError: Bool) -> Void = { _, _ in }
+    /// Tells the user about key and model list failures.
+    private let notifier: any UserNotifier
 
     private let store: SettingsStore
     /// False for previews and tests: preferences stay untouched, and neither the keychain nor the network is used.
@@ -34,8 +34,8 @@ import Foundation
     private let discovery: any AgentDiscovery
     private var modelsTask: Task<Void, Never>?
 
-    public init(store: SettingsStore, usesSystem: Bool, discovery: any AgentDiscovery = FixedAgentDiscovery()) {
-        self.store = store; self.usesSystem = usesSystem; self.discovery = discovery
+    public init(store: SettingsStore, usesSystem: Bool, notifier: any UserNotifier, discovery: any AgentDiscovery = FixedAgentDiscovery()) {
+        self.store = store; self.usesSystem = usesSystem; self.notifier = notifier; self.discovery = discovery
         enabled = store.value(.summaryEnabled)
         endpoint = store.value(.summaryEndpoint)
         localModel = store.value(.summaryLocalModel)
@@ -96,16 +96,16 @@ import Foundation
             var models: [String] = []
             do { models = try await SummaryModelCatalog.models(service: service, apiKey: key) }
             catch SummaryFailure.remoteRejected(let name, let status, let detail) where status == 401 || status == 403 {
-                report(SummaryFailure.remoteRejected(service: name, status: status, detail: detail).localizedDescription + " "
-                       + String(localized: "La clé n’a pas été enregistrée.", bundle: .hwyd), true)
+                notifier.notify(.error(SummaryFailure.remoteRejected(service: name, status: status, detail: detail).localizedDescription + " "
+                                       + String(localized: "La clé n’a pas été enregistrée.", bundle: .hwyd)))
                 return
             } catch {
                 if Task.isCancelled { return }
-                report(String(localized: "Liste des modèles indisponible : \(error.localizedDescription)", bundle: .hwyd), false)
+                notifier.notify(.info(String(localized: "Liste des modèles indisponible : \(error.localizedDescription)", bundle: .hwyd)))
             }
             guard !Task.isCancelled else { return }
             do { try SummaryKeychain.setKey(key, for: service) }
-            catch { report(String(localized: "Clé API : \(error.localizedDescription)", bundle: .hwyd), true); return }
+            catch { notifier.notify(.error(String(localized: "Clé API : \(error.localizedDescription)", bundle: .hwyd))); return }
             guard self.service == service else { return }
             keyStored = true
             applyAvailableModels(models)
@@ -125,7 +125,7 @@ import Foundation
                 if !Task.isCancelled, self.service == service { applyAvailableModels(models) }
             } catch {
                 if !Task.isCancelled, self.service == service {
-                    report(String(localized: "Modèles \(service.displayName) : \(error.localizedDescription)", bundle: .hwyd), true)
+                    notifier.notify(.error(String(localized: "Modèles \(service.displayName) : \(error.localizedDescription)", bundle: .hwyd)))
                 }
             }
         }
@@ -146,8 +146,8 @@ import Foundation
         modelsTask?.cancel(); availableModels = []; modelsLoading = false
         do {
             try SummaryKeychain.removeKey(for: service); keyStored = false
-            report(String(localized: "Clé \(service.displayName) supprimée.", bundle: .hwyd), false)
-        } catch { report(String(localized: "Clé API : \(error.localizedDescription)", bundle: .hwyd), true) }
+            notifier.notify(.info(String(localized: "Clé \(service.displayName) supprimée.", bundle: .hwyd)))
+        } catch { notifier.notify(.error(String(localized: "Clé API : \(error.localizedDescription)", bundle: .hwyd))) }
     }
 
     /// Looks for the known ACP agents, once. Previews and tests inject a discovery that starts no process.

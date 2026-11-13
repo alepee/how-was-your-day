@@ -65,14 +65,14 @@ import HWYDCore
             }
             try? SummaryExport.markdown(item)?.write(to: directory.appendingPathComponent("summary-export.md"), atomically: true, encoding: .utf8)
         }
-        model.report(String(localized: "Synthèse : \(SummaryFailure.outputTruncated.localizedDescription)"), style: .error,
-                     actions: [ToastAction(title: String(localized: "Réessayer")) {}, ToastAction(title: String(localized: "Réglages")) {}])
+        model.notifier.notify(.error(String(localized: "Synthèse : \(SummaryFailure.outputTruncated.localizedDescription)"),
+                                     actions: [.perform(String(localized: "Réessayer")) {}, .navigate(String(localized: "Réglages"), to: .summarySettings)]))
         let sampleTitle = "Point produit" // l10n:ignore
-        model.report(String(localized: "Synthèse prête : \(sampleTitle)"), style: .success, actions: [ToastAction(title: String(localized: "Afficher")) {}])
+        model.notifier.notify(.success(String(localized: "Synthèse prête : \(sampleTitle)"), actions: [.perform(String(localized: "Afficher")) {}]))
         let sampleName = "Camille"
-        model.notice = String(localized: "Voix nommée \(sampleName) dans toute cette session.") + " " + String(localized: "Nommer une voix ne crée pas d’empreinte vocale.")
+        model.notifier.notify(.info(String(localized: "Voix nommée \(sampleName) dans toute cette session.") + " " + String(localized: "Nommer une voix ne crée pas d’empreinte vocale.")))
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-toasts.png"))
-        for toast in model.toasts { model.dismissToast(toast.id) }
+        model.toastCenter.dismissAll()
         let previousSelection = model.selectedID
         model.requestNewSession(); model.newSessionKind = .meeting
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-new-session.png"))

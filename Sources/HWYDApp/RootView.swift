@@ -16,7 +16,7 @@ struct RootView: View {
                     else { DetailView(recording: item) }
                 } else { LibraryView() }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay(alignment: .bottomTrailing) { ToastStack() }
+            .overlay(alignment: .bottomTrailing) { ToastStack(center: model.toastCenter) }
         }
         .foregroundStyle(Studio.text).background(Studio.background).preferredColorScheme(model.appearancePreference.colorScheme)
         .frame(minWidth: 860, minHeight: 660)

@@ -13,12 +13,10 @@ final class AppModel: ObservableObject {
     @Published var activeTab: DetailTab = .transcript
     @Published var showSettings = false { didSet { if showSettings { showNewSession = false } } }
     @Published var settingsCategory: SettingsCategory = .general
-    /// The latest error and notice. Each new value is also shown as a toast.
-    @Published var errorMessage: String? { didSet { if bridgesToasts, let errorMessage { postToast(Toast(style: .error, message: errorMessage)) } } }
-    @Published var notice: String? { didSet { if bridgesToasts, let notice { postToast(Toast(style: .info, message: notice)) } } }
-    @Published private(set) var toasts: [Toast] = []
-    private var toastTimers: [UUID: Task<Void, Never>] = [:]
-    private var bridgesToasts = true
+    /// Shows what the notifier reports as toasts. Observed by the toast stack, not through this model.
+    let toastCenter: ToastCenter
+    /// Where flows report errors and notices; the toast center in the app.
+    let notifier: any UserNotifier
     /// The setup screen shown before a capture starts: kind and optional name.
     @Published var showNewSession = false
     @Published var newSessionKind: SessionKind = .adHoc {
@@ -138,12 +136,12 @@ final class AppModel: ObservableObject {
         if let suggestion = detections.first(where: { $0.suggestedLocale != nil }), let locale = suggestion.suggestedLocale {
             let other = SpeechLanguage.confusable[SpeechLanguage.languageCode(of: locale)]
             let name = SpeechLanguage.displayName(locale) + (other.map { String(localized: " (ou \(SpeechLanguage.displayName($0)))") } ?? "")
-            report(String(localized: "La langue de \(label(suggestion.source)) semble être : \(name). Ce modèle n’est pas installé."), actions: [
-                ToastAction(title: String(localized: "Installer et retranscrire")) { [weak self] in self?.installSpeechModel(locale) { self?.transcribe(id, language: SpeechLanguage.automatic) } },
-                ToastAction(title: String(localized: "Choisir la langue")) { [weak self] in self?.chooseLanguage(for: id) }], sticky: true)
+            notifier.notify(.info(String(localized: "La langue de \(label(suggestion.source)) semble être : \(name). Ce modèle n’est pas installé."), actions: [
+                .perform(String(localized: "Installer et retranscrire")) { [weak self] in self?.installSpeechModel(locale) { self?.transcribe(id, language: SpeechLanguage.automatic) } },
+                .navigate(String(localized: "Choisir la langue"), to: .languageChoice(id))], sticky: true))
         } else if let unknown = detections.first(where: { $0.unrecognized == true }) {
-            report(String(localized: "La langue de \(label(unknown.source)) n’a pas été reconnue parmi les langues installées."), actions: [
-                ToastAction(title: String(localized: "Choisir la langue")) { [weak self] in self?.chooseLanguage(for: id) }], sticky: true)
+            notifier.notify(.info(String(localized: "La langue de \(label(unknown.source)) n’a pas été reconnue parmi les langues installées."), actions: [
+                .navigate(String(localized: "Choisir la langue"), to: .languageChoice(id))], sticky: true))
         }
     }
     var diarizerReady: Bool {
@@ -183,6 +181,8 @@ final class AppModel: ObservableObject {
     init(directory: URL? = nil, preview: Bool = false, settings: SettingsStore? = nil, helpers: HelperLocator = .app,
          appliesAppearance: Bool = true, persistPreferences: Bool? = nil) {
         let installed = directory == nil && !preview
+        let toastCenter = ToastCenter()
+        self.toastCenter = toastCenter; notifier = toastCenter
         let settings = settings ?? (installed ? UserDefaultsSettings() : InMemorySettings())
         calendar = CalendarIntegration(settings: settings, allowed: installed)
         self.settings = settings
@@ -191,7 +191,7 @@ final class AppModel: ObservableObject {
         self.appliesAppearance = appliesAppearance
         self.persistPreferences = persistPreferences ?? installed
         // Previews, demos and tests never touch the keychain nor start a process to find agents.
-        summarySettings = SummarySettings(store: settings, usesSystem: self.persistPreferences,
+        summarySettings = SummarySettings(store: settings, usesSystem: self.persistPreferences, notifier: toastCenter,
                                           discovery: self.persistPreferences ? LoginShellAgentDiscovery() : FixedAgentDiscovery())
         newSessionKind = settings.value(.newSessionKind)
         diarizationEnabled = settings.value(.diarizationEnabled)
@@ -206,12 +206,10 @@ final class AppModel: ObservableObject {
             installedSpeechLocales = ["fr-FR", "en-US"]; supportedSpeechLocales = ["de-DE", "en-US", "es-ES", "fr-FR"]
         } else {
             do { store = try SessionStore(directory: dataDirectory) }
-            catch { errorMessage = String(localized: "Impossible d’ouvrir les données locales : \(error.localizedDescription)"); isLoading = false }
+            catch { notifier.notify(.error(String(localized: "Impossible d’ouvrir les données locales : \(error.localizedDescription)"))); isLoading = false }
         }
         summarySettings.isDemo = isDemoMode
-        summarySettings.report = { [weak self] message, isError in
-            if isError { self?.errorMessage = message } else { self?.notice = message }
-        }
+        toastCenter.navigate = { [weak self] intent in self?.navigate(to: intent) }
         summarySettingsChanges = summarySettings.objectWillChange.sink { [weak self] _ in
             MainActor.assumeIsolated { self?.objectWillChange.send() }
         }
@@ -229,14 +227,14 @@ final class AppModel: ObservableObject {
             for item in recordings where item.transcriptState == .pending {
                 update(item.id) { $0.transcriptState = .failed }
             }
-            if count > 0 { notice = String(localized: "\(count) session(s) interrompue(s) retrouvée(s). Vos notes sont conservées.") }
-        } catch { errorMessage = error.localizedDescription }
+            if count > 0 { notifier.notify(.info(String(localized: "\(count) session(s) interrompue(s) retrouvée(s). Vos notes sont conservées."))) }
+        } catch { notifier.notify(.error(error.localizedDescription)) }
         isLoading = false
         startTicker()
         // After the library shows: the sweep never holds the capture lock, so a capture may start meanwhile.
         Task {
             do { if let files = try await store.removeOrphanFiles(), !files.isComplete { reportLeftoverFiles(files) } }
-            catch { errorMessage = error.localizedDescription }
+            catch { notifier.notify(.error(error.localizedDescription)) }
         }
     }
     var selected: Recording? { recordings.first { $0.id == selectedID } }
@@ -291,15 +289,15 @@ final class AppModel: ObservableObject {
                 savedAt = Date()
             } catch {
                 dirtyIDs.insert(id)
-                report(String(localized: "Les dernières modifications ne sont pas enregistrées : \(error.localizedDescription)"), style: .error,
-                       actions: [ToastAction(title: String(localized: "Réessayer")) { [weak self] in self?.retrySave() }])
+                notifier.notify(.error(String(localized: "Les dernières modifications ne sont pas enregistrées : \(error.localizedDescription)"),
+                                       actions: [.perform(String(localized: "Réessayer")) { [weak self] in self?.retrySave() }]))
                 hasUnsavedChanges = true; return
             }
         }
         hasUnsavedChanges = false
-        do { try await store.publishPending() } catch { notice = String(localized: "Export différé : \(error.localizedDescription)") }
+        do { try await store.publishPending() } catch { notifier.notify(.info(String(localized: "Export différé : \(error.localizedDescription)"))) }
     }
-    func retrySave() { errorMessage = nil; scheduleSave() }
+    func retrySave() { scheduleSave() }
     func addTimestamp() {
         guard let id = activeCaptureID else { return }
         update(id) { $0.noteEntries.append(.init(offset: elapsed)) }
@@ -311,13 +309,13 @@ final class AppModel: ObservableObject {
         guard let id = selectedID, !voiceEditingLocked, !pipelineBusy, var item = selected,
               let speaker = item.speakers.first(where: { $0.id == speakerID }) else { return }
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty, name.count <= 120 else { errorMessage = String(localized: "Le nom doit contenir entre 1 et 120 caractères."); return }
+        guard !name.isEmpty, name.count <= 120 else { notifier.notify(.error(String(localized: "Le nom doit contenir entre 1 et 120 caractères."))); return }
         var person = people.first { $0.id == speaker.personID && $0.name == name }
             ?? people.first { $0.name.compare(name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame } ?? VoicePerson(name: name)
-        guard !person.opposed else { errorMessage = String(localized: "\(person.name) est exclue de la reconnaissance. Levez l’exclusion dans Réglages › Audio et voix."); return }
+        guard !person.opposed else { notifier.notify(.error(String(localized: "\(person.name) est exclue de la reconnaissance. Levez l’exclusion dans Réglages › Audio et voix."))); return }
         person.enrollmentRequestedAt = Date()
         if !(speaker.confirmed && speaker.label == name) {
-            do { try item.renameSpeaker(speakerID, to: name); update(id) { $0 = item } } catch { errorMessage = error.localizedDescription; return }
+            do { try item.renameSpeaker(speakerID, to: name); update(id) { $0 = item } } catch { notifier.notify(.error(error.localizedDescription)); return }
         }
         editingSpeakerID = nil
         runVoice(command: "enroll-voice", speakerID: speakerID, person: person)
@@ -348,8 +346,8 @@ final class AppModel: ObservableObject {
             try item.assignSpeaker(speakerID, to: segmentID)
             guard item.transcriptVersion != previousVersion else { return }
             update(recordingID) { $0 = item }
-            notice = String(localized: "Attribution corrigée pour ce passage uniquement.")
-        } catch { errorMessage = error.localizedDescription }
+            notifier.notify(.info(String(localized: "Attribution corrigée pour ce passage uniquement.")))
+        } catch { notifier.notify(.error(error.localizedDescription)) }
     }
     @discardableResult
     func splitSegment(_ segment: TranscriptSegment, beforeWord index: Int, recordingID: UUID) -> Bool {
@@ -359,18 +357,18 @@ final class AppModel: ObservableObject {
             guard item.segments.first(where: { $0.id == segment.id }) == segment else { throw StoreError.conflict }
             try item.splitSegment(segment.id, beforeWord: index)
             update(recordingID) { $0 = item }
-            notice = String(localized: "Passage découpé. Vous pouvez corriger la voix de chaque partie.")
+            notifier.notify(.info(String(localized: "Passage découpé. Vous pouvez corriger la voix de chaque partie.")))
             return true
-        } catch { errorMessage = error.localizedDescription; return false }
+        } catch { notifier.notify(.error(error.localizedDescription)); return false }
     }
     /// Records the event; `openLink` also opens its video link first.
     func joinMeeting(_ event: CalendarContext, openLink: Bool = true) {
         showWindow?()
         guard !isDemoMode, activeCaptureID == nil, !isStarting else {
-            notice = String(localized: "Une capture est déjà en cours."); return
+            notifier.notify(.info(String(localized: "Une capture est déjà en cours."))); return
         }
         if let existing = recordings.first(where: { $0.calendarContext?.id == event.id }) {
-            select(existing); notice = String(localized: "Cette réunion possède déjà une session."); return
+            select(existing); notifier.notify(.info(String(localized: "Cette réunion possède déjà une session."))); return
         }
         if openLink, let url = event.meetingURL { NSWorkspace.shared.open(url) }
         startCapture(meeting: event)
@@ -381,11 +379,10 @@ final class AppModel: ObservableObject {
         guard activeCaptureID != nil else { return }
         if isCapturePaused {
             if let capture {
-                do { try capture.resume() } catch { errorMessage = error.localizedDescription; return }
+                do { try capture.resume() } catch { notifier.notify(.error(error.localizedDescription)); return }
             }
             captureStart = ContinuousClock.now.advanced(by: .milliseconds(-Int64((elapsed * 1000).rounded())))
             isCapturePaused = false
-            notice = nil
         } else {
             tick()
             capture?.pause()
@@ -393,46 +390,22 @@ final class AppModel: ObservableObject {
             isCapturePaused = true
         }
     }
-    // MARK: Toasts
+    // MARK: Navigation
 
-    func postToast(_ toast: Toast) {
-        // The same message twice replaces the first one instead of stacking.
-        toasts.removeAll { $0.message == toast.message && $0.style == toast.style }
-        toasts.append(toast)
-        while toasts.count > 4, let oldest = toasts.firstIndex(where: { !$0.staysOnScreen }) ?? toasts.indices.first {
-            dismissToast(toasts[oldest].id)
-        }
-        scheduleDismissal(toast)
-        AccessibilityNotification.Announcement(toast.message).post()
-    }
-    /// Sets the matching message property without a second, plain toast.
-    func report(_ message: String, style: Toast.Style = .info, actions: [ToastAction] = [], sticky: Bool = false, optional: Bool = false) {
-        bridgesToasts = false
-        if style == .error { errorMessage = message } else { notice = message }
-        bridgesToasts = true
-        postToast(Toast(style: style, message: message, actions: actions, sticky: sticky, optional: optional))
-    }
-    func dismissToast(_ id: UUID) {
-        toastTimers.removeValue(forKey: id)?.cancel()
-        toasts.removeAll { $0.id == id }
-    }
-    func runToastAction(_ action: ToastAction, of toast: Toast) {
-        dismissToast(toast.id)
-        action.run()
-    }
-    /// Hovering keeps a toast on screen; leaving it gives a short delay before it goes.
-    func holdToast(_ id: UUID, _ held: Bool) {
-        guard let toast = toasts.first(where: { $0.id == id }), !toast.staysOnScreen else { return }
-        toastTimers.removeValue(forKey: id)?.cancel()
-        if !held { scheduleDismissal(toast, after: .seconds(2)) }
-    }
-    private func scheduleDismissal(_ toast: Toast, after delay: Duration? = nil) {
-        guard !toast.staysOnScreen else { return }
-        toastTimers[toast.id] = Task { [weak self] in
-            try? await Task.sleep(for: delay ?? toast.lifetime)
-            guard !Task.isCancelled else { return }
-            self?.toasts.removeAll { $0.id == toast.id }
-            self?.toastTimers[toast.id] = nil
+    /// Takes the user where a notice's action points. A session deleted since is ignored.
+    func navigate(to intent: NavigationIntent) {
+        switch intent {
+        case .session(let id, let artifact):
+            guard let item = recordings.first(where: { $0.id == id }) else { return }
+            select(item)
+            switch artifact {
+            case .notes: activeTab = .notes
+            case .summary: activeTab = .summary
+            case .transcript: activeTab = .transcript
+            case nil: break
+            }
+        case .languageChoice(let id): chooseLanguage(for: id)
+        case .summarySettings: settingsCategory = .summary; showSettings = true
         }
     }
 
@@ -465,7 +438,7 @@ final class AppModel: ObservableObject {
                 recordings.insert(item, at: 0); activeCaptureID = id; selectedID = id
                 elapsed = 0; captureStart = .now; if reveal { showWindow?() }; return
             }
-            guard store != nil else { errorMessage = String(localized: "Le store local n’est pas disponible."); return }
+            guard store != nil else { notifier.notify(.error(String(localized: "Le store local n’est pas disponible."))); return }
             do {
                 let controller = CaptureController()
                 try await controller.start(id: id, directory: dataDirectory)
@@ -475,7 +448,7 @@ final class AppModel: ObservableObject {
                 recordings.insert(item, at: 0); activeCaptureID = id; selectedID = id
                 elapsed = 0; captureStart = .now; dirtyIDs.insert(id)
                 await flush(); if reveal { showWindow?() }
-            } catch { errorMessage = error.localizedDescription; if !reveal { showWindow?() } }
+            } catch { notifier.notify(.error(error.localizedDescription)); if !reveal { showWindow?() } }
         }
     }
     func stopCapture(reveal: Bool = true) {
@@ -485,12 +458,12 @@ final class AppModel: ObservableObject {
         let finalizationError = capture?.finalizationError
         capture = nil; captureStart = nil; activeCaptureID = nil; micLevel = 0; systemLevel = 0; isCapturePaused = false
         update(id) { $0.duration = duration; $0.state = finalizationError == nil ? .sealed : .interrupted; $0.audioChunks = chunks }
-        if let finalizationError { errorMessage = finalizationError }
+        if let finalizationError { notifier.notify(.error(finalizationError)) }
         selectedID = id; activeTab = .notes
-        notice = isDemoMode ? String(localized: "Simulation terminée. Les notes restent disponibles.") : (chunks.isEmpty ? String(localized: "Aucun audio reçu. Vos notes sont conservées.") : String(localized: "Audio et notes conservés. La transcription locale va démarrer."))
+        notifier.notify(.info(isDemoMode ? String(localized: "Simulation terminée. Les notes restent disponibles.") : (chunks.isEmpty ? String(localized: "Aucun audio reçu. Vos notes sont conservées.") : String(localized: "Audio et notes conservés. La transcription locale va démarrer."))))
         if reveal || finalizationError != nil { showWindow?() }
         if !isDemoMode, !chunks.isEmpty {
-            if modelWorkBusy { notice = String(localized: "Audio conservé. Un traitement est déjà en cours ; lancez la transcription depuis cette session ensuite.") }
+            if modelWorkBusy { notifier.notify(.info(String(localized: "Audio conservé. Un traitement est déjà en cours ; lancez la transcription depuis cette session ensuite."))) }
             else { transcribe(id) }
         }
     }
@@ -505,9 +478,9 @@ final class AppModel: ObservableObject {
                 let directory = dataDirectory.appendingPathComponent("jobs")
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
                 try await pipelineRunner.run(arguments: ["install-model", locale], log: directory.appendingPathComponent("install-model.log"))
-                notice = String(localized: "Langue installée : \(SpeechLanguage.displayName(locale)). La transcription reste locale.")
+                notifier.notify(.info(String(localized: "Langue installée : \(SpeechLanguage.displayName(locale)). La transcription reste locale.")))
                 if let completion { isInstallingModel = false; installingSpeechLocale = nil; completion() }
-            } catch { errorMessage = error.localizedDescription }
+            } catch { notifier.notify(.error(error.localizedDescription)) }
         }
     }
     func installDiarizer() {
@@ -521,8 +494,8 @@ final class AppModel: ObservableObject {
                 try await pipelineRunner.run(arguments: ["install-diarizer", dataDirectory.path], log: directory.appendingPathComponent("install-diarizer.log"))
                 if persistPreferences { settings.set(true, for: .diarizerInstalled) }
                 diarizationEnabled = true
-                notice = String(localized: "Séparation des voix activée pour les prochains traitements.")
-            } catch { errorMessage = String(localized: "Installation des voix : \(error.localizedDescription)") }
+                notifier.notify(.info(String(localized: "Séparation des voix activée pour les prochains traitements.")))
+            } catch { notifier.notify(.error(String(localized: "Installation des voix : \(error.localizedDescription)"))) }
         }
     }
     /// `language` replaces the session's language for this run and becomes its new choice.
@@ -557,13 +530,13 @@ final class AppModel: ObservableObject {
                 update(id) { $0 = latest }
                 await flush()
                 if !hasUnsavedChanges { try? FileManager.default.removeItem(at: job) }
-                notice = result.segments.isEmpty ? String(localized: "Traitement terminé : aucune parole reconnue.") : (result.diarizationEngine == nil ? String(localized: "Transcript disponible. Les voix ne sont pas séparées.") : String(localized: "Transcript disponible. Les voix détectées peuvent être nommées dans cette session."))
-                if let warning = result.identityWarning { notice = String(localized: "Transcript disponible.") + " " + warning }
+                notifier.notify(.info(result.segments.isEmpty ? String(localized: "Traitement terminé : aucune parole reconnue.") : (result.diarizationEngine == nil ? String(localized: "Transcript disponible. Les voix ne sont pas séparées.") : String(localized: "Transcript disponible. Les voix détectées peuvent être nommées dans cette session."))))
+                if let warning = result.identityWarning { notifier.notify(.info(String(localized: "Transcript disponible.") + " " + warning)) }
                 if let detections = result.languageDetection { reportLanguageFindings(detections, id: id) }
             } catch {
                 update(id) { $0.transcriptState = .failed }
-                report(String(localized: "Transcription : \(error.localizedDescription)"), style: .error,
-                       actions: [ToastAction(title: String(localized: "Réessayer")) { [weak self] in self?.transcribe(id, language: language) }])
+                notifier.notify(.error(String(localized: "Transcription : \(error.localizedDescription)"),
+                                       actions: [.perform(String(localized: "Réessayer")) { [weak self] in self?.transcribe(id, language: language) }]))
                 await flush()
             }
         }
@@ -595,13 +568,13 @@ final class AppModel: ObservableObject {
                 systemLevel = Float((sin(elapsed * 1.6) + 1) * 0.16)
             } else if let capture {
                 micLevel = capture.micLevel; systemLevel = capture.systemLevel
-                if let failure = capture.failure { let id = activeCaptureID; stopCapture(); if let id { update(id) { $0.state = .interrupted } }; errorMessage = failure }
+                if let failure = capture.failure { let id = activeCaptureID; stopCapture(); if let id { update(id) { $0.state = .interrupted } }; notifier.notify(.error(failure)) }
                 else {
                     let before = elapsed
                     do {
                         // Restarting a tap aggregate can block for about a second: the session clock skips it like a pause.
                         if try capture.restartIfMicrophoneClaimed() { self.captureStart = ContinuousClock.now.advanced(by: .milliseconds(-Int64((before * 1000).rounded()))) }
-                    } catch { let id = activeCaptureID; stopCapture(); if let id { update(id) { $0.state = .interrupted } }; errorMessage = error.localizedDescription }
+                    } catch { let id = activeCaptureID; stopCapture(); if let id { update(id) { $0.state = .interrupted } }; notifier.notify(.error(error.localizedDescription)) }
                 }
             }
         }
@@ -636,14 +609,14 @@ final class AppModel: ObservableObject {
     }
     func play(at time: Double) {
         guard let item = selected, let store, !item.audioChunks.isEmpty else {
-            notice = String(localized: "Aucun fichier audio disponible pour cette session."); return
+            notifier.notify(.info(String(localized: "Aucun fichier audio disponible pour cette session."))); return
         }
         stopPlayback()
         do {
             playbackTime = min(max(0, time), item.duration)
             try player.start(chunks: item.audioChunks, store: store, at: playbackTime, duration: item.duration)
             applyTrackMix(); isPlaying = true; playback.generation += 1; updatePlaybackFocus()
-        } catch { errorMessage = String(localized: "Lecture impossible : \(error.localizedDescription)") }
+        } catch { notifier.notify(.error(String(localized: "Lecture impossible : \(error.localizedDescription)"))) }
     }
     func stopPlayback() { player.stop(); isPlaying = false; playback.voiceID = nil }
     func loadWaveforms(for item: Recording) async {
@@ -684,16 +657,16 @@ final class AppModel: ObservableObject {
                     if let personID { voiceContributions[personID] = try JSONDecoder().decode([VoiceContribution].self, from: output) }
                 case "forget-voice":
                     if let personID { voiceContributions[personID] = nil }
-                    notice = person?.opposed == true ? String(localized: "Empreintes de \(name) supprimées. Opposition enregistrée.")
-                        : String(localized: "Empreinte de \(name) effacée. Sa voix ne sera plus reconnue avant une nouvelle mémorisation.")
+                    notifier.notify(.info(person?.opposed == true ? String(localized: "Empreintes de \(name) supprimées. Opposition enregistrée.")
+                        : String(localized: "Empreinte de \(name) effacée. Sa voix ne sera plus reconnue avant une nouvelle mémorisation.")))
                 case "forget-voice-source":
                     if let personID { voiceContributions[personID]?.removeAll { $0.recordingID == sourceRecordingID } }
-                    notice = String(localized: "Apport retiré de l’empreinte de \(name).")
+                    notifier.notify(.info(String(localized: "Apport retiré de l’empreinte de \(name).")))
                 default:
                     let matches = try JSONDecoder().decode([String: VoiceMatch].self, from: output)
                     // A transcript edited meanwhile keeps the user's version.
                     guard recordings.first(where: { $0.id == item.id })?.transcriptVersion == item.transcriptVersion else {
-                        notice = command == "enroll-voice" ? String(localized: "Voix de \(name) mémorisée.") : String(localized: "La session a changé pendant la reconnaissance. Aucune proposition appliquée.")
+                        notifier.notify(.info(command == "enroll-voice" ? String(localized: "Voix de \(name) mémorisée.") : String(localized: "La session a changé pendant la reconnaissance. Aucune proposition appliquée.")))
                         return
                     }
                     var proposed = 0
@@ -716,11 +689,11 @@ final class AppModel: ObservableObject {
                     await flush()
                     let found = proposed == 0 ? nil : proposed == 1 ? String(localized: "Une autre voix ressemble à une personne connue, à confirmer.")
                         : String(localized: "\(proposed) autres voix ressemblent à des personnes connues, à confirmer.")
-                    notice = command == "enroll-voice" ? [String(localized: "Voix de \(name) mémorisée."), found].compactMap { $0 }.joined(separator: " ")
-                        : String(localized: "\(proposed) correspondance(s) proposée(s), à confirmer.")
+                    notifier.notify(.info(command == "enroll-voice" ? [String(localized: "Voix de \(name) mémorisée."), found].compactMap { $0 }.joined(separator: " ")
+                        : String(localized: "\(proposed) correspondance(s) proposée(s), à confirmer.")))
                 }
                 try await then?()
-            } catch { errorMessage = String(localized: "Identité vocale : \(error.localizedDescription)") }
+            } catch { notifier.notify(.error(String(localized: "Identité vocale : \(error.localizedDescription)"))) }
         }
     }
     /// Ends an opposition. Any sample left by an interrupted erasure goes first, so recognition
@@ -730,7 +703,7 @@ final class AppModel: ObservableObject {
         runVoice(command: "forget-voice", personID: person.id) { [weak self] in
             try await store.liftOpposition(person.id)
             self?.people = try await store.people()
-            self?.notice = String(localized: "\(person.name) n’est plus exclue. Mémorisez sa voix depuis une session pour la reconnaître à nouveau.")
+            self?.notifier.notify(.info(String(localized: "\(person.name) n’est plus exclue. Mémorisez sa voix depuis une session pour la reconnaître à nouveau.")))
         }
     }
     func chooseSummaryAgentDirectory() {
@@ -756,13 +729,17 @@ final class AppModel: ObservableObject {
     var summaryAvailability: SummaryAvailability { summarizer.availability }
     /// Where the configured summarizer writes its draft and what leaves the Mac, as the summary tab shows it.
     var summaryDisclosure: SummaryDisclosure { summarizer.disclosure }
-    private func openSummarySettings() { settingsCategory = .summary; showSettings = true }
+    /// Opens the session's summary and runs it again.
+    func retrySummary(_ id: UUID) {
+        guard recordings.contains(where: { $0.id == id }) else { return }
+        navigate(to: .session(id, .summary)); generateSummary()
+    }
     func generateSummary() {
         guard !modelWorkBusy, !isDemoMode, let recordingID = selected?.id, let store else { return }
         let summarizer = summarizer
         if case .unavailable(let reason) = summarizer.availability {
-            report(String(localized: "Synthèse : \(reason.localizedDescription)"), style: .error, actions: [
-                ToastAction(title: String(localized: "Réglages")) { [weak self] in self?.openSummarySettings() }])
+            notifier.notify(.error(String(localized: "Synthèse : \(reason.localizedDescription)"), actions: [
+                .navigate(String(localized: "Réglages"), to: .summarySettings)]))
             return
         }
         summaryID = recordingID
@@ -787,21 +764,15 @@ final class AppModel: ObservableObject {
                 await flush()
                 // A long run (agents take minutes) may finish while another screen is open.
                 let showsSummary = selectedID == item.id && activeTab == .summary && !showSettings
-                report(String(localized: "Synthèse prête : \(item.title)"), style: .success,
-                       actions: showsSummary ? [] : [ToastAction(title: String(localized: "Afficher")) { [weak self] in
-                           guard let self, let latest = self.recordings.first(where: { $0.id == item.id }) else { return }
-                           self.select(latest); self.activeTab = .summary
-                       }])
+                notifier.notify(.success(String(localized: "Synthèse prête : \(item.title)"),
+                                         actions: showsSummary ? [] : [.navigate(String(localized: "Afficher"), to: .session(item.id, .summary))]))
             } catch {
                 if error is CancellationError || Task.isCancelled || (error as? URLError)?.code == .cancelled {
-                    notice = String(localized: "Synthèse annulée.")
+                    notifier.notify(.info(String(localized: "Synthèse annulée.")))
                 } else {
-                    report(String(localized: "Synthèse : \(error.localizedDescription)"), style: .error, actions: [
-                        ToastAction(title: String(localized: "Réessayer")) { [weak self] in
-                            guard let self, let item = self.recordings.first(where: { $0.id == recordingID }) else { return }
-                            self.select(item); self.activeTab = .summary; self.generateSummary()
-                        },
-                        ToastAction(title: String(localized: "Réglages")) { [weak self] in self?.openSummarySettings() }])
+                    notifier.notify(.error(String(localized: "Synthèse : \(error.localizedDescription)"), actions: [
+                        .perform(String(localized: "Réessayer")) { [weak self] in self?.retrySummary(recordingID) },
+                        .navigate(String(localized: "Réglages"), to: .summarySettings)]))
                 }
             }
         }
@@ -810,7 +781,7 @@ final class AppModel: ObservableObject {
         guard !isDemoMode, let store else { return }
         Task {
             do { try await store.setMCPWritesEnabled(enabled); mcpWritesEnabled = enabled }
-            catch { errorMessage = error.localizedDescription }
+            catch { notifier.notify(.error(error.localizedDescription)) }
         }
     }
     func chooseExportDirectory() {
@@ -823,8 +794,8 @@ final class AppModel: ObservableObject {
                     try await store.setExportDirectory(url); exportDirectory = url.path
                     await flush()
                     try await store.publishPending()
-                    notice = String(localized: "Dossier de publication configuré.")
-                } catch { errorMessage = String(localized: "Export différé : \(error.localizedDescription)") }
+                    notifier.notify(.info(String(localized: "Dossier de publication configuré.")))
+                } catch { notifier.notify(.error(String(localized: "Export différé : \(error.localizedDescription)"))) }
             }
         }
     }
@@ -838,8 +809,8 @@ final class AppModel: ObservableObject {
                 guard !hasUnsavedChanges else { return }
                 do {
                     let current = recordings.first { $0.id == item.id } ?? item
-                    try SessionExporter.export(current, to: url); notice = String(localized: "Session exportée en Markdown et JSON."); NSWorkspace.shared.open(url)
-                } catch { errorMessage = String(localized: "Export impossible : \(error.localizedDescription)") }
+                    try SessionExporter.export(current, to: url); notifier.notify(.info(String(localized: "Session exportée en Markdown et JSON."))); NSWorkspace.shared.open(url)
+                } catch { notifier.notify(.error(String(localized: "Export impossible : \(error.localizedDescription)"))) }
             }
         }
     }
@@ -854,13 +825,13 @@ final class AppModel: ObservableObject {
                 if selectedID == item.id { selectedID = nil }
                 if let files, !files.isComplete { reportLeftoverFiles(files) }
                 if !isDemoMode { try await store?.publishPending() }
-            } catch { errorMessage = error.localizedDescription }
+            } catch { notifier.notify(.error(error.localizedDescription)) }
         }
     }
     /// The session is gone; its remaining files are retried on next launch.
     private func reportLeftoverFiles(_ report: SessionFiles.Report) {
-        errorMessage = String(localized: "\(report.failures.count) fichier(s) de la session n’ont pas pu être effacés. Nouvel essai au prochain lancement.")
-            + " " + (report.failures.first.map { "\($0.path) : \($0.reason)" } ?? "")
+        notifier.notify(.error(String(localized: "\(report.failures.count) fichier(s) de la session n’ont pas pu être effacés. Nouvel essai au prochain lancement.")
+            + " " + (report.failures.first.map { "\($0.path) : \($0.reason)" } ?? "")))
     }
 }
 enum DetailTab: String, CaseIterable {
