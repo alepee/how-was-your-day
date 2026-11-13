@@ -54,6 +54,10 @@ The opt-in test accepts `HWYD_SUMMARY_RECORDING`, `HWYD_SUMMARY_OUTPUT`, `HWYD_S
 
 A Claude reference obtained through read-only MCP is a comparison artifact, not ground truth. Score coverage, factual fidelity, attribution, useful detail, structure, runtime and measured peak memory separately.
 
+## Entry point
+
+The app reaches every provider through the `Summarizer` contract described in [architecture §12](architecture.md#12-traitements-llm-synthèse-action-items). Each implementation reports whether it can run and why not; the summary tab shows that reason under the Generate button.
+
 ## Hosted providers
 
 Mistral, OpenAI and Google Gemini are called through their OpenAI-compatible chat completions endpoints; Anthropic through the Messages API with `output_config.format`. Every stage keeps the same prompts, output contract and schema. Array size limits (`minItems`, `maxItems`) are removed from the wire schema, because hosted engines do not all accept them, and upper bounds are applied to the response before validation, as constrained decoding would. Segment references stay enumerated in the schema up to 200 references; above that, the enumeration is dropped and unknown references are still rejected at decoding. Each request allows 16,000 output tokens, including provider-side reasoning. OpenAI and Gemini requests ask for low reasoning effort; Anthropic uses the model's default effort.

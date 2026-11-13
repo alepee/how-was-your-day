@@ -217,6 +217,19 @@ Opt-in dans les réglages. Un protocole unique `LLMProvider` (`generate(prompt, 
 
 Règles : sortie structurée (JSON schema) pour summary et action items ; découpage par fenêtres avec réduction finale pour les longs transcripts ; prompts versionnés dans le dépôt ; aucun appel sans fournisseur configuré ; la provenance est stockée avec le summary. **[spike]** : banc des petits modèles sur des transcripts réels (fidélité des action items, attribution des décisions, respect du schéma JSON, temps pour une heure d'audio sur M-series). LFM2.5-1.2B-Thinking en défaut provisoire ; son contexte de 32k couvre une heure de transcript.
 
+### Summarizer contract
+
+The app asks for a summary through one interface, `Summarizer` (`Packages/HWYDCore/Sources/HWYDCore/Summarizer.swift`): `availability` (`.ready` or `.unavailable(reason)`, with a localized reason) and `summarize(recording, progress:)`. Each implementation owns its own conditions and refuses to run, with `SummaryUnavailability`, when they are not met:
+
+| Implementation | Ready when | Runs |
+|---|---|---|
+| `LocalSummarizer` | loopback HTTP address and a model | `LocalLLMProvider` through `SummaryPipeline`, input limit from the loaded context |
+| `HostedSummarizer` | a key is stored, then a model is chosen | `RemoteLLMProvider` through `SummaryPipeline`; the key is read only when it runs, through the injected environment |
+| `AgentSummarizer` | an agent command | `ACPSummaryAgent` with the bundled `hwyd-mcp` |
+| `UnavailableSummarizer` | never (null object, summary turned off) | nothing |
+
+Resumable checkpoints (`cache/summaries/<id>`) and cache reuse stay inside the pipeline implementations. `SummarizerFactory.make(configuration, environment:)` is the only place that maps the settings (`SummaryConfiguration`, one `Equatable` value) to an implementation; `SummarizerEnvironment` carries the data directory, the `hwyd-mcp` path and key access. Callers (the Generate button today) keep only app policy: one model job at a time, demo mode, flush before the run, stale check, persistence and toasts. They read `availability` to disable the button and explain why, and never check the summarizer's conditions themselves.
+
 ## 13. Serveur MCP
 
 Exécutable `hwyd-mcp` en transport **stdio**, déclaré dans Claude Code ou Codex comme n'importe quel serveur local. Il lit le store SQLite et les fichiers en lecture seule ; l'app n'a pas besoin de tourner. Transport HTTP streamable en option plus tard (le support serveur dans le SDK Swift officiel est à vérifier).

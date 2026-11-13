@@ -9,6 +9,9 @@ Entries describe what a user observes. The detailed release notes published on G
 
 ## [Unreleased]
 
+### Changed
+- When a summary cannot be generated (no API key, no model, no local server address, no agent command), a line under the Generate button says why.
+
 ### Security
 - **Deleting a session now deletes its audio.** Its audio files (both tracks), summary checkpoints, waveform cache and leftover job files are removed from the data folder, not only its notes and transcript. A file that cannot be removed is reported and retried on next launch. The first launch also removes the files left by sessions deleted with an earlier version. A session that is recording, transcribing or summarizing cannot be deleted. Voice fingerprints are unchanged: they belong to a person and are forgotten from the voice settings.
 
