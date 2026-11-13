@@ -21,6 +21,9 @@ import HWYDCore
             case "install-model":
                 try await AppleSpeechRecognizer().install(locale: args.count > 1 ? args[1] : "fr-FR")
                 print("Modèle installé.") // l10n:ignore (log line)
+            case "diarizer-status" where args.count == 2:
+                FileHandle.standardOutput.write(try JSONEncoder().encode(DiarizerStatus(installed: DiarizationStage.isInstalled(
+                    directory: URL(fileURLWithPath: args[1]).appendingPathComponent("models/diarization")))))
             case "install-diarizer" where args.count == 2:
                 try await DiarizationStage.install(directory: URL(fileURLWithPath: args[1]).appendingPathComponent("models/diarization"))
                 print("Modèles de séparation des voix installés.") // l10n:ignore (log line)
@@ -74,7 +77,7 @@ import HWYDCore
                 let recordings = try await SessionStore(directory: URL(fileURLWithPath: args[1])).all()
                 for item in recordings { print("\(item.id)  \(item.state.rawValue)  v\(item.revision)  \(item.title)") }
             default:
-                FileHandle.standardError.write(Data("Usage: hwyd-pipeline echo-diagnostic <store> <request.json> <report.json> | diagnose | languages | install-model [locale] | install-diarizer <store> | inspect <store> | transcribe[-calibration] <store> <request.json> <result.json>\n".utf8)); exit(2)
+                FileHandle.standardError.write(Data("Usage: hwyd-pipeline echo-diagnostic <store> <request.json> <report.json> | diagnose | languages | install-model [locale] | install-diarizer <store> | diarizer-status <store> | inspect <store> | transcribe[-calibration] <store> <request.json> <result.json>\n".utf8)); exit(2)
             }
         } catch { FileHandle.standardError.write(Data("\(error.localizedDescription)\n".utf8)); exit(1) }
     }

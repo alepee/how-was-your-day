@@ -16,6 +16,11 @@ actor FluidDiarizer: OfflineDiarizing {
 }
 
 enum DiarizationStage {
+    /// Whether every model the offline diarizer loads is on disk, as `install` leaves them.
+    static func isInstalled(directory: URL) -> Bool {
+        let folder = directory.appendingPathComponent(Repo.diarizer.folderName, isDirectory: true)
+        return ModelNames.OfflineDiarizer.requiredModels.allSatisfy { FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path) }
+    }
     static func install(directory: URL) async throws {
         ModelHub.offlineMode = false
         let manager = OfflineDiarizerManager(config: OfflineDiarizerConfig())
