@@ -44,7 +44,7 @@ Resources/Models/manifest.json      # références, licences, hashes ; pas les p
 | [FluidAudio](https://github.com/FluidInference/FluidAudio/releases/tag/v0.17.7) | `0.17.7`, Swift tools 6.0 | `HWYDFluidAudio` |
 | [MCP Swift](https://github.com/modelcontextprotocol/swift-sdk/releases/tag/0.12.1) | `0.12.1`, Swift tools 6.1 | `HWYDMCP` seulement |
 | [mlx-swift-lm](https://github.com/ml-explore/mlx-swift-lm/releases/tag/3.32.3) | `3.32.3`, Swift tools 6.2 | `HWYDProviders`, hors chemin critique J4 |
-| [Sparkle](https://github.com/sparkle-project/Sparkle/releases/tag/2.10.0) | `2.10.0` | App, packaging ultérieur |
+| [Sparkle](https://github.com/sparkle-project/Sparkle/releases/tag/2.10.1) | `2.10.1` | App, mises à jour (`AppUpdater`) |
 | Frameworks système | CoreAudio, AudioToolbox, AVFAudio, Speech, EventKit, Security, CryptoKit, CoreML, UserNotifications, ServiceManagement | Adaptateurs dédiés |
 
 Ces tags existent et leurs manifests ont été consultés. Leur compatibilité combinée n'a pas été compilée ici. Utiliser des versions exactes et committer `Package.resolved`, y compris les dépendances transitives. Ne pas dépendre de `main`. Le SDK local inspecté est **27.0**, donc il ne suffit pas à prouver une compilation avec SDK 26. Les APIs ajoutées après 26 restent interdites au chemin de base.

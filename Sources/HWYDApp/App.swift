@@ -1,13 +1,16 @@
 import AppKit
+import Combine
 import SwiftUI
 import HWYDCore
 
 @MainActor enum AppEnvironment {
     static let model = AppModel(preview: CommandLine.arguments.contains("--asr-test") || CommandLine.arguments.contains("--snapshot") || CommandLine.arguments.contains("--self-test") || CommandLine.arguments.contains("--ui-test"))
+    static let updater = AppUpdater()
 }
 @main struct HWYDApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var model = AppEnvironment.model
+    @ObservedObject private var updater = AppEnvironment.updater
     var body: some Scene {
         MenuBarExtra {
             MenuContentView().environmentObject(model)
@@ -16,6 +19,11 @@ import HWYDCore
             else { Image(systemName: "waveform") }
         }.menuBarExtraStyle(.window)
         .commands {
+            CommandGroup(after: .appInfo) {
+                if updater.isAvailable {
+                    Button("Rechercher les mises à jour…") { updater.checkForUpdates() }.disabled(!updater.canCheckForUpdates)
+                }
+            }
             CommandGroup(replacing: .appSettings) {
                 Button("Réglages…") { model.showSettings = true; model.showWindow?() }.keyboardShortcut(",")
             }
@@ -77,6 +85,11 @@ import HWYDCore
             }
         }
         if !model.isDemoMode { model.calendar.start() }
+        // Synthetic modes returned above; a `--demo` instance makes no network request either.
+        if !args.contains("--demo") {
+            AppEnvironment.updater.start(isBusy: { [weak model] in model.map { $0.activeCaptureID != nil || $0.modelWorkBusy } ?? false },
+                                         busyChanges: model.objectWillChange.map { _ in () }.eraseToAnyPublisher())
+        }
         openWindow()
         Task { if !model.isDemoMode { await model.load() } }
     }

@@ -18,8 +18,17 @@ fi
 swift build -c "$configuration"
 bin_path="$(swift build -c "$configuration" --show-bin-path)"
 app="${HWYD_APP_OUTPUT:-build/How Was Your Day.app}"
-mkdir -p "$app/Contents/MacOS" "$app/Contents/Helpers" "$app/Contents/Resources"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Helpers" "$app/Contents/Resources" "$app/Contents/Frameworks"
 cp "$bin_path/HWYD" "$app/Contents/MacOS/HWYD"
+# Sparkle is a dynamic framework: embed it and load it from the bundle, never from the build tree.
+rm -rf "$app/Contents/Frameworks/Sparkle.framework"
+ditto "$bin_path/Sparkle.framework" "$app/Contents/Frameworks/Sparkle.framework"
+# The app is not sandboxed: Sparkle's XPC services are not needed (Sparkle documentation).
+rm -rf "$app/Contents/Frameworks/Sparkle.framework/XPCServices" "$app/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices"
+while read -r rpath; do
+    install_name_tool -delete_rpath "$rpath" "$app/Contents/MacOS/HWYD"
+done < <(otool -l "$app/Contents/MacOS/HWYD" | awk '/LC_RPATH/ { getline; getline; print $2 }' | grep '^/' || true)
+otool -l "$app/Contents/MacOS/HWYD" | grep -q '@executable_path/../Frameworks' || install_name_tool -add_rpath @executable_path/../Frameworks "$app/Contents/MacOS/HWYD"
 cp "$bin_path/hwyd-pipeline" "$app/Contents/Helpers/hwyd-pipeline"
 cp "$bin_path/hwyd-mcp" "$app/Contents/Helpers/hwyd-mcp"
 cp Resources/Info.plist "$app/Contents/Info.plist"
@@ -31,6 +40,16 @@ fi
 if [[ -n "${BUILD_NUMBER:-}" ]]; then
     [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || { echo "BUILD_NUMBER must be numeric" >&2; exit 1; }
     /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$app/Contents/Info.plist"
+fi
+# Only release builds (VERSION set) check for updates, so a development build is never replaced by
+# the public release. HWYD_UPDATE_FEED and HWYD_UPDATE_PUBLIC_KEY point a build at a test appcast.
+if [[ -n "${VERSION:-}" || -n "${HWYD_UPDATE_FEED:-}" ]]; then
+    public_key="${HWYD_UPDATE_PUBLIC_KEY:-$(tr -d '[:space:]' < Resources/SparklePublicKey.txt 2>/dev/null || true)}"
+    [[ -n "$public_key" ]] || { echo "Resources/SparklePublicKey.txt is missing. See docs/distribution.md." >&2; exit 1; }
+    feed="${HWYD_UPDATE_FEED:-https://github.com/alepee/how-was-your-day/releases/latest/download/appcast.xml}"
+    [[ "$feed" == https://* || "$feed" == http://127.0.0.1:* || "$feed" == http://localhost:* ]] || { echo "HWYD_UPDATE_FEED must be https (or a local test server)." >&2; exit 1; }
+    plist="$app/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Add :SUFeedURL string $feed" -c "Add :SUPublicEDKey string $public_key" "$plist"
 fi
 cp Resources/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
 cp -Rf Resources/Licenses "$app/Contents/Resources/"
@@ -47,5 +66,9 @@ timestamp_flag="--timestamp=none"
 [[ "${SIGN_TIMESTAMP:-0}" != "1" ]] || timestamp_flag="--timestamp"
 codesign --force "${timestamp_flag}" --identifier dev.lepee.hwyd.pipeline --options runtime --sign "$sign_identity" "$app/Contents/Helpers/hwyd-pipeline"
 codesign --force "${timestamp_flag}" --identifier dev.lepee.hwyd.mcp --options runtime --sign "$sign_identity" "$app/Contents/Helpers/hwyd-mcp"
+sparkle="$app/Contents/Frameworks/Sparkle.framework"
+codesign --force "${timestamp_flag}" --options runtime --sign "$sign_identity" "$sparkle/Versions/B/Autoupdate"
+codesign --force "${timestamp_flag}" --options runtime --sign "$sign_identity" "$sparkle/Versions/B/Updater.app"
+codesign --force "${timestamp_flag}" --options runtime --sign "$sign_identity" "$sparkle"
 codesign --force "${timestamp_flag}" --identifier dev.lepee.hwyd --options runtime --entitlements Resources/HWYD.entitlements --sign "$sign_identity" "$app"
 printf 'App: %s/%s\n' "$PWD" "$app"
