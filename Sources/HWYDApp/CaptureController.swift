@@ -167,8 +167,10 @@ struct CaptureFailure: LocalizedError {
         guard micChannels + 2 <= 16 else {
             throw CaptureFailure(message: String(localized: "\(micName) expose \(micChannels) canaux, au-delà des 16 canaux pris en charge. Aucun enregistrement n’a démarré."))
         }
-        guard starts == [1, micChannels + 1] else {
-            throw CaptureFailure(message: String(localized: "Ordre des pistes inattendu : canaux de départ \(starts.map(String.init).joined(separator: ", ")), attendus 1, \(micChannels + 1). Aucun enregistrement n’a démarré."))
+        // The IOProc concatenates buffers in stream order, so only the order matters. Channel numbers may leave a gap:
+        // a subdevice with outputs (Komplete Audio 6: 6 in, 6 out) puts the tap at 13 instead of 7.
+        guard starts.count == 2, starts[0] == 1, starts[1] > micChannels else {
+            throw CaptureFailure(message: String(localized: "Ordre des pistes inattendu : canaux de départ \(starts.map(String.init).joined(separator: ", ")), le micro (1) doit précéder l’audio système (\(micChannels + 1) ou plus). Aucun enregistrement n’a démarré."))
         }
         guard formats[0].mChannelsPerFrame == micChannels else {
             throw CaptureFailure(message: String(localized: "\(micName) expose \(formats[0].mChannelsPerFrame) canaux dans le graphe audio, \(micChannels) attendus. Aucun enregistrement n’a démarré."))

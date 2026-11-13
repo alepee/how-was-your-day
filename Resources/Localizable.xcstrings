@@ -6049,18 +6049,18 @@
         }
       }
     },
-    "Ordre des pistes inattendu : canaux de départ %@, attendus 1, %u. Aucun enregistrement n’a démarré.": {
+    "Ordre des pistes inattendu : canaux de départ %@, le micro (1) doit précéder l’audio système (%u ou plus). Aucun enregistrement n’a démarré.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Unexpected track order: starting channels %1$@, expected 1, %2$u. No recording started."
+            "value": "Unexpected track order: starting channels %1$@, the microphone (1) must precede system audio (%2$u or higher). No recording started."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ordre des pistes inattendu : canaux de départ %@, attendus 1, %u. Aucun enregistrement n’a démarré."
+            "value": "Ordre des pistes inattendu : canaux de départ %@, le micro (1) doit précéder l’audio système (%u ou plus). Aucun enregistrement n’a démarré."
           }
         }
       }
