@@ -45,7 +45,7 @@ Summaries require a separately running local server, a hosted provider API key, 
 
 Structured output and source references do not guarantee accuracy. Models can omit decisions or distort details, and summaries still need review. French, English and mixed transcripts have a synthetic [benchmark suite](docs/summary-benchmark.md); summaries are currently written in French. Input budgets limit each request, not the external server's memory allocation or model cache. With a local server, verify the context it actually reports. The optional reasoning toggle helps models that otherwise return no final JSON. See [summary workflow](docs/summary-workflow.md).
 
-There is no automatic audio purge, app-level encryption or login item yet. Retention settings are not enforced. Deleting a session does not erase manual exports, copies made by agents, backups, or the freed pages of the SQLite file. Uninstalling does not delete recordings or keychain entries. Voice matching thresholds are not calibrated on a representative corpus.
+There is no automatic audio purge, app-level encryption or login item yet. Deleting a session does not erase manual exports, copies made by agents, backups, or the freed pages of the SQLite file. Uninstalling does not delete recordings or keychain entries. Voice matching thresholds are not calibrated on a representative corpus.
 
 ## Data and consent
 
