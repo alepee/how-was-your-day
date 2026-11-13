@@ -53,6 +53,36 @@ With several valid Developer ID certificates (after a renewal), set `SIGN_IDENTI
 
 `SIGN_IDENTITY` and `NOTARY_PROFILE` override the defaults (`Developer ID Application`, `apple-notary`).
 
+## In-app updates
+
+The app embeds Sparkle (`Contents/Frameworks/Sparkle.framework`, without its XPC services: the app is not sandboxed). `scripts/build-app.sh` signs `Autoupdate`, `Updater.app` and the framework with the hardened runtime before the app.
+
+Only builds made with `VERSION` (that is, releases) get `SUFeedURL` and `SUPublicEDKey`: development and CI builds never check for updates, so a local build is never replaced by the public release. `HWYD_UPDATE_FEED` and `HWYD_UPDATE_PUBLIC_KEY` point a build at another appcast and key for testing.
+
+The feed is `https://github.com/alepee/how-was-your-day/releases/latest/download/appcast.xml`. `scripts/publish-release.sh` signs the notarized ZIP with Sparkle's `sign_update`, writes `appcast.xml` with `scripts/make-appcast.py` (one item: the release itself, with a link to its GitHub release notes) and uploads it with the other assets. Since the URL follows the latest published release, publishing is the only step; a draft or a failed upload leaves installed copies on the previous release.
+
+If the release succeeded without `appcast.xml`, regenerate it from the published ZIP and add it: `gh release upload v<version> build/release/appcast.xml`.
+
+The cask declares `auto_updates true`, so `brew upgrade` leaves updates to the app.
+
+### Update signing key
+
+Updates are signed with an EdDSA key, distinct from the Developer ID certificate. It is created once:
+
+```sh
+swift package resolve
+.build/artifacts/sparkle/Sparkle/bin/generate_keys      # stores the private key in the login keychain
+.build/artifacts/sparkle/Sparkle/bin/generate_keys -p > Resources/SparklePublicKey.txt
+```
+
+Commit `Resources/SparklePublicKey.txt`. The private key stays in the maintainer's keychain; back it up with `generate_keys -x <file>` to a safe place. Losing it means installed copies can no longer be updated in-app: their users would have to reinstall manually. `publish-release.sh` refuses to publish when the keychain key does not match the committed public key.
+
+### Test an update end to end
+
+1. Build version N with a local feed: `VERSION=<N> HWYD_UPDATE_FEED=http://127.0.0.1:8000/appcast.xml HWYD_APP_OUTPUT=build/update-test/old.app scripts/build-app.sh release`.
+2. Build N+1 the same way, ZIP it with `ditto -c -k --keepParent`, sign it with `sign_update`, and write the appcast with `scripts/make-appcast.py ... --url http://127.0.0.1:8000/<zip>`.
+3. Serve the directory (`python3 -m http.server 8000 --bind 127.0.0.1`), launch N and choose "Rechercher les mises à jour…".
+
 ## CI and public files
 
 GitHub Actions runs on `xcode-27` (Apple Silicon), runs core/pipeline tests and synthetic app checks, and publishes a short-lived CI ZIP. These artifacts are not user releases and must not be used to update the cask.

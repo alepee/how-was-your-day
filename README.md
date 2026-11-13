@@ -45,13 +45,15 @@ Summaries require a separately running local server, a hosted provider API key, 
 
 Structured output and source references do not guarantee accuracy. Models can omit decisions or distort details, and summaries still need review. French, English and mixed transcripts have a synthetic [benchmark suite](docs/summary-benchmark.md); summaries are currently written in French. Input budgets limit each request, not the external server's memory allocation or model cache. With a local server, verify the context it actually reports. The optional reasoning toggle helps models that otherwise return no final JSON. See [summary workflow](docs/summary-workflow.md).
 
-There is no automatic audio purge, app-level encryption, Sparkle updater or login item yet. Retention settings are not enforced. Uninstalling does not delete recordings or keychain entries. Voice matching thresholds are not calibrated on a representative corpus.
+There is no automatic audio purge, app-level encryption or login item yet. Retention settings are not enforced. Uninstalling does not delete recordings or keychain entries. Voice matching thresholds are not calibrated on a representative corpus.
 
 ## Data and consent
 
 Data lives in `~/Library/Application Support/HWYD`. Recording starts only on an explicit action. Inform participants and obtain the consent required for your use case. “Name only” and every other voice correction change the transcript; “Name and remember” and “Remember this voice” also add a local voice fingerprint, after an explicit action. Suggested names require confirmation. Agents consuming your exports or MCP data may send that data elsewhere according to their own configuration. A hosted summary provider receives the transcript only after you enable it.
 
-First-run model downloads are explicit. Audio is processed locally. No real recordings or transcripts are included in this repository.
+First-run model downloads are explicit. Audio is processed locally.
+
+Release builds include a Sparkle updater. On the second launch, Sparkle asks whether to check for updates automatically; until you accept, HWYD makes no update request. A check downloads the release list from GitHub and sends no system profile. Scheduled checks are skipped during a recording or a transcription, and a downloaded update never relaunches the app before they end. "Check for Updates…" is in the app menu, the menu bar and Settings › General. The first version with the updater must be installed manually or through Homebrew; development and CI builds never check. No real recordings or transcripts are included in this repository.
 
 ## Build
 

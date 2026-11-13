@@ -24,6 +24,8 @@ jobs:
         run: scripts/test-realtime.sh
       - name: Summary HTTP contract
         run: python3 scripts/test-summary.py
+      - name: Sparkle appcast
+        run: python3 scripts/test-appcast.py
       - name: Localization catalog
         run: python3 scripts/l10n.py check
       - name: Build isolated app
@@ -37,6 +39,8 @@ jobs:
           'build/How Was Your Day.app/Contents/MacOS/HWYD' --ui-test build/ci-ui-test
           'build/How Was Your Day.app/Contents/MacOS/HWYD' --ui-test build/ci-ui-test-en -AppleLanguages '(en)'
           python3 scripts/test-mcp.py 'build/How Was Your Day.app/Contents/Helpers/hwyd-mcp' build/ci-ui-test
+          codesign --verify --deep --strict 'build/How Was Your Day.app'
+          ! /usr/libexec/PlistBuddy -c 'Print :SUFeedURL' 'build/How Was Your Day.app/Contents/Info.plist' 2>/dev/null
       - name: Package CI artifact (not a release)
         run: ditto -c -k --keepParent 'build/How Was Your Day.app' build/HowWasYourDay-ci.zip
       - uses: actions/upload-artifact@v7

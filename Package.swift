@@ -7,13 +7,13 @@ let package = Package(
     products: [.executable(name: "HWYD", targets: ["HWYDApp"]),
                .executable(name: "hwyd-pipeline", targets: ["HWYDPipeline"]),
                .executable(name: "hwyd-mcp", targets: ["HWYDMCP"])],
-    dependencies: [.package(path: "Packages/HWYDCore"), .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.17.7"), .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", exact: "0.12.1")],
+    dependencies: [.package(path: "Packages/HWYDCore"), .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.17.7"), .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", exact: "0.12.1"), .package(url: "https://github.com/sparkle-project/Sparkle.git", exact: "2.10.1")],
     targets: [
         .target(name: "HWYDEcho", publicHeadersPath: "include", cSettings: [
             .headerSearchPath("vendor"), .define("FLOATING_POINT"), .define("USE_KISS_FFT"), .define("EXPORT", to: "")
         ]),
         .target(name: "HWYDRealtime", publicHeadersPath: "include"),
-        .executableTarget(name: "HWYDApp", dependencies: ["HWYDCore", "HWYDRealtime"]),
+        .executableTarget(name: "HWYDApp", dependencies: ["HWYDCore", "HWYDRealtime", .product(name: "Sparkle", package: "Sparkle")]),
         .executableTarget(name: "HWYDPipeline", dependencies: ["HWYDCore", "HWYDEcho", .product(name: "FluidAudio", package: "FluidAudio")]),
         .executableTarget(name: "HWYDMCP", dependencies: ["HWYDCore", .product(name: "MCP", package: "swift-sdk")], resources: [.copy("tools.json")]),
         .testTarget(name: "HWYDPipelineTests", dependencies: ["HWYDPipeline", "HWYDCore"])

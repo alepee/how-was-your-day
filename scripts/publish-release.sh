@@ -34,8 +34,16 @@ if [[ "$matches" == *'"Developer ID Application'* ]]; then
 elif [[ "${HWYD_ALLOW_UNNOTARIZED:-0}" != "1" ]]; then
     echo "Releases require Developer ID and notarization. Set HWYD_ALLOW_UNNOTARIZED=1 to publish without." >&2; exit 1
 fi
+# Updates are signed with the EdDSA key that `generate_keys` stored in the login keychain. Its
+# public half must match the one built into the app, or installed copies reject the update.
+DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}" swift package resolve >/dev/null
+sparkle_bin=.build/artifacts/sparkle/Sparkle/bin
+keychain_key="$("$sparkle_bin/generate_keys" -p 2>/dev/null || true)"
+[[ -n "$keychain_key" && "$keychain_key" == "$(tr -d '[:space:]' < Resources/SparklePublicKey.txt)" ]] || {
+    echo "Sparkle signing key missing from the keychain or different from Resources/SparklePublicKey.txt. See docs/distribution.md." >&2; exit 1; }
 app='build/release/How Was Your Day.app'
-SIGN_IDENTITY="$identity" SIGN_TIMESTAMP=1 VERSION="$version" BUILD_NUMBER="$(git rev-list --count HEAD)" HWYD_APP_OUTPUT="$app" scripts/build-app.sh release
+build_number="$(git rev-list --count HEAD)"
+SIGN_IDENTITY="$identity" SIGN_TIMESTAMP=1 VERSION="$version" BUILD_NUMBER="$build_number" HWYD_APP_OUTPUT="$app" scripts/build-app.sh release
 if [[ "$notarize" == 1 ]]; then
     scratch="$(mktemp -d)"; trap 'rm -rf "$scratch"' EXIT
     submission="$scratch/HowWasYourDay.zip"
@@ -53,8 +61,11 @@ if [[ "$notarize" == 1 ]]; then
     spctl --assess --type execute -v "$app"
     (cd build/release && shasum -a 256 HowWasYourDay.dmg HowWasYourDay.zip > SHA256SUMS)
 fi
+# The ZIP holds the stapled app: it is the archive Sparkle downloads.
+python3 scripts/make-appcast.py "$version" "$build_number" build/release/HowWasYourDay.zip \
+    "$("$sparkle_bin/sign_update" build/release/HowWasYourDay.zip)" build/release/appcast.xml
 git tag "$tag"
 git push origin HEAD "$tag"
 gh release create "$tag" --repo "$repo" --verify-tag --title "$tag" --notes-file "$notes" \
-    build/release/HowWasYourDay.dmg build/release/HowWasYourDay.zip build/release/SHA256SUMS
+    build/release/HowWasYourDay.dmg build/release/HowWasYourDay.zip build/release/SHA256SUMS build/release/appcast.xml
 python3 scripts/update-homebrew.py "$version" build/release/HowWasYourDay.dmg

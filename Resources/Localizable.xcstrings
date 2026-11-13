@@ -2561,6 +2561,22 @@
         }
       }
     },
+    "Dernière recherche : %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last checked: %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dernière recherche : %@"
+          }
+        }
+      }
+    },
     "Diarisation et rejet d’écho non appliqués à ce transcript.": {
       "localizations": {
         "en": {
@@ -3809,6 +3825,22 @@
         }
       }
     },
+    "HWYD consulte la liste des versions publiées sur GitHub, une fois par jour au plus. Aucune information sur ce Mac ni sur vos sessions n’est envoyée. Pas de recherche pendant un enregistrement.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HWYD reads the list of published versions on GitHub, at most once a day. No information about this Mac or your sessions is sent. No check runs during a recording."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HWYD consulte la liste des versions publiées sur GitHub, une fois par jour au plus. Aucune information sur ce Mac ni sur vos sessions n’est envoyée. Pas de recherche pendant un enregistrement."
+          }
+        }
+      }
+    },
     "HWYD détecte la langue de chaque piste parmi ces langues, d’après le début de l’enregistrement. Si une autre langue est reconnue, il propose de l’installer. Modèles Apple Speech, environ 350 Mo par langue, téléchargés une fois. Aucun audio n’est envoyé pour la transcription.": {
       "localizations": {
         "en": {
@@ -4285,6 +4317,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "La mémorisation de cette personne n’est pas activée ou une opposition est active."
+          }
+        }
+      }
+    },
+    "La nouvelle version s’installe quand vous quittez HWYD, jamais pendant un enregistrement ou une transcription.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The new version installs when you quit HWYD, never during a recording or a transcription."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La nouvelle version s’installe quand vous quittez HWYD, jamais pendant un enregistrement ou une transcription."
           }
         }
       }
@@ -5521,6 +5569,54 @@
         }
       }
     },
+    "Mise à jour prête, installée après la session": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update ready, installs after the session"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mise à jour prête, installée après la session"
+          }
+        }
+      }
+    },
+    "Mises à jour": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mises à jour"
+          }
+        }
+      }
+    },
+    "Mises à jour désactivées dans cette version de développement": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates are off in this development build"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mises à jour désactivées dans cette version de développement"
+          }
+        }
+      }
+    },
     "Mode découverte · exemples fictifs": {
       "localizations": {
         "en": {
@@ -6685,6 +6781,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Rappeler avant les réunions"
+          }
+        }
+      }
+    },
+    "Rechercher automatiquement": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check automatically"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rechercher automatiquement"
+          }
+        }
+      }
+    },
+    "Rechercher les mises à jour…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check for Updates…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rechercher les mises à jour…"
+          }
+        }
+      }
+    },
+    "Rechercher maintenant": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check Now"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rechercher maintenant"
           }
         }
       }
@@ -8369,6 +8513,22 @@
         }
       }
     },
+    "Télécharger et installer automatiquement": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download and install automatically"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Télécharger et installer automatiquement"
+          }
+        }
+      }
+    },
     "Un autre pipeline traite déjà ce store.": {
       "localizations": {
         "en": {
@@ -8557,6 +8717,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Verrou indisponible."
+          }
+        }
+      }
+    },
+    "Version %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version %@"
           }
         }
       }

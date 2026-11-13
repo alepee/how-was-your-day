@@ -39,6 +39,8 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
 struct SettingsView: View {
     @EnvironmentObject var model: AppModel
     @State private var apiKeyDraft = ""
+    @ObservedObject private var updater = AppEnvironment.updater
+    private static let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?" // l10n:ignore
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top) {
@@ -89,6 +91,24 @@ struct SettingsView: View {
                         Label("Déjà utilisé ailleurs", systemImage: "exclamationmark.triangle.fill").font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.copper)
                     }
                     ShortcutRecorder(shortcut: $model.recordingShortcut)
+                }
+            }
+            section(String(localized: "Mises à jour"), symbol: "arrow.down.circle") {
+                if updater.isAvailable {
+                    toggleRow(String(localized: "Rechercher automatiquement"), help: String(localized: "HWYD consulte la liste des versions publiées sur GitHub, une fois par jour au plus. Aucune information sur ce Mac ni sur vos sessions n’est envoyée. Pas de recherche pendant un enregistrement."), isOn: $updater.automaticallyChecks)
+                    toggleRow(String(localized: "Télécharger et installer automatiquement"), help: String(localized: "La nouvelle version s’installe quand vous quittez HWYD, jamais pendant un enregistrement ou une transcription."), isOn: $updater.automaticallyDownloads)
+                        .disabled(!updater.automaticallyChecks)
+                    row(updater.isWaitingForIdle ? String(localized: "Mise à jour prête, installée après la session") : String(localized: "Version \(Self.appVersion)")) {
+                        if let date = updater.lastCheck {
+                            Text("Dernière recherche : \(date.formatted(date: .abbreviated, time: .shortened))").font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted)
+                        }
+                        Button("Rechercher maintenant") { updater.checkForUpdates() }
+                            .buttonStyle(StudioButtonStyle(compact: true)).disabled(!updater.canCheckForUpdates)
+                    }
+                } else {
+                    row(String(localized: "Version \(Self.appVersion)")) {
+                        Text("Mises à jour désactivées dans cette version de développement").font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted)
+                    }
                 }
             }
             section(String(localized: "Découvrir HWYD"), symbol: "rectangle.stack") {

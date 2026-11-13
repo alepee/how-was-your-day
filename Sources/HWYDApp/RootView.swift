@@ -73,6 +73,7 @@ struct RootView: View {
 }
 struct MenuContentView: View {
     @EnvironmentObject var model: AppModel
+    @ObservedObject private var updater = AppEnvironment.updater
     var body: some View {
         VStack(alignment: .leading, spacing: 19) {
             HStack { Image(systemName: "waveform").foregroundStyle(Studio.mint); Text("How Was Your Day").font(.system(size: Studio.Size.body, weight: .semibold)); Spacer() }
@@ -94,6 +95,9 @@ struct MenuContentView: View {
             Divider().overlay(Studio.line)
             Button { model.library(); model.showWindow?() } label: { Label("Ouvrir les sessions", systemImage: "rectangle.on.rectangle").frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 4).contentShape(Rectangle()) }.buttonStyle(.plain).font(.system(size: Studio.Size.body))
             Button { model.showWindow?(); model.showSettings = true } label: { Label("Réglages", systemImage: "slider.horizontal.3").frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 4).contentShape(Rectangle()) }.buttonStyle(.plain).font(.system(size: Studio.Size.body))
+            if updater.isAvailable {
+                Button { updater.checkForUpdates() } label: { Label(updater.isWaitingForIdle ? "Mise à jour prête, installée après la session" : "Rechercher les mises à jour…", systemImage: "arrow.down.circle").frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 4).contentShape(Rectangle()) }.buttonStyle(.plain).font(.system(size: Studio.Size.body)).disabled(!updater.canCheckForUpdates)
+            }
             HStack { Spacer(); Button("Quitter") { NSApp.terminate(nil) }.buttonStyle(.plain).font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted) }
         }.padding(23).frame(width: 340).foregroundStyle(Studio.text).background(Studio.background).preferredColorScheme(model.appearancePreference.colorScheme)
     }
