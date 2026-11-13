@@ -68,7 +68,7 @@ Deux process seulement : l'app (UI + capture) et le CLI de pipeline. Un crash ou
 | Synchronisation | Tap et micro dans **un seul aggregate device** avec compensation de dérive, un seul IOProc. Exception (0.10.0) : si le micro et le tap n'ont pas la même fréquence, typiquement un casque Bluetooth en mode appel (HFP, 16 kHz), deux horloges séparées, alignées par le writer sur l'horloge hôte | Deux horloges séparées dérivent d'environ 450 ms sur 2h30. Un aggregate n'offre que les fréquences de son sous-device et ne rééchantillonne pas (spike du 2026-11-10, MOMENTUM 3), d'où la compensation logicielle dans ce cas. |
 | Écho des distants sur le micro | Traité **après coup** : fenêtres où la piste système est active et le micro corrélé = écho, rejetées ; un cluster micro qui suit l'activité système est écarté | Remplace l'AEC. **[spike]** : qualité de ce rejet en hybride avec haut-parleurs du Mac. |
 | Stockage | Fichiers CAF par tranches de 5 min, 16 kHz mono par piste | Un WAV unique laisse un en-tête invalide en cas de crash. |
-| Changement de device | Recréer le graphe, garder une horloge hôte commune | AirPods connectés en cours de réunion. |
+| Changement de device | Cible : recréer le graphe, garder une horloge hôte commune. Aujourd'hui : la session s'arrête (interrompue, audio conservé) | AirPods connectés en cours de réunion. Voir « Audio capture » (§ 11). |
 | Permissions | Micro, audio système, calendrier (accès complet), notifications, Automation (navigateur) | Pas d'enregistrement d'écran. |
 
 ## 4. Pipeline
@@ -272,6 +272,23 @@ Sessions go through one port and one application service, both in HWYDCore.
 - **Launch sweep.** After a successful load of a non-empty library, `fileSweep` runs `removeOrphanFiles` in the background: it holds no library operation and does not delay `ready`. It reports only what it could not remove (`filesLeft`, `fileSweepFailed`).
 
 `AppModel` keeps the projection only: `recordings` and `hasUnsavedChanges` read the active library (the stored one, or a volatile one in demo mode and previews). Known gap, for later steps: snapshots replace a volatile library's sessions through `show(_:)`, a test seam the composition root (step 7) can remove.
+
+### Audio capture
+
+Capture goes through one port and one application service, both in HWYDCore.
+
+| Part | Role | Adapters / doubles |
+|---|---|---|
+| `AudioCapture` (`AudioCapture.swift`) | `start(session:)` (returns once audio flows), `pause`, `resume`, `stop -> CapturedAudio` (chunks, finalization error), `events`: `levels`, `restarting`, `restarted(gap:)`, `failed(CaptureFault)` | `CoreAudioCapture` (app), `SimulatedCapture` |
+| `CaptureSession` (`CaptureSession.swift`, `@MainActor`) | One capture at a time and its rules | |
+
+- **Off the main thread.** `CoreAudioCapture` is an actor running on its own serial queue (custom executor). HAL calls, the 5 Hz check of levels and health, the microphone-claim poll and the stream restart (which can block for about a second) run there; the main thread only receives events. The realtime IOProc (`HWYDRealtime`) is unchanged: it copies into a ring, without allocation, disk write or blocking lock; `AudioWriter` drains the ring on its own queue.
+- **Faults.** The adapter reports `CaptureFault` (`stalled`, `routeChanged`, `writer`, `restart`) once, then stops checking. A change of the default input or output device is a fault: the graph is not rebuilt, the session stops.
+- **Microphone claim.** When another app starts reading audio input after the capture started (`MicrophoneClaimWatch`), the adapter restarts the microphone stream, framed by `restarting` and `restarted(gap:)`.
+- **Session rules.** `CaptureSession` owns the default title (`CaptureRequest.sessionTitle`), the session clock (recorded time: it stops while paused and skips stream restarts, like the audio timeline, so notes stay aligned), stop on fault (session interrupted, audio kept), stop on sleep (`systemWillSleep()`), and the end of capture: the session is sealed (interrupted after a fault or a finalization error), then, if it holds audio and is not a simulation, its transcription is requested through the `WorkCoordinator` and waits its turn; the notice says whether it starts or waits. `onEnd` reports every ending to the app, which shows the session's notes.
+- **No microphone in synthetic modes.** `AppModel` picks the adapter at each start: `SimulatedCapture` in demo mode (previews, snapshots, `--demo`, the UI checks), `CoreAudioCapture` only for the installed app's model. A model opened on another directory (tests, synthetic checks) refuses a real capture even outside demo mode; `--ui-test` checks it. `--self-test` drives `AudioWriter` with synthetic buffers and opens no device.
+
+Known gaps, for later steps: the mode choice of the adapter lives in `AppModel.makeCapture()` (composition root, step 7); snapshots set the published capture state (`activeCaptureID`, `elapsed`, levels) directly, a test seam.
 
 ### User notices
 

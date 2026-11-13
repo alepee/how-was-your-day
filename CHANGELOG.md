@@ -10,6 +10,7 @@ Entries describe what a user observes. The detailed release notes published on G
 ## [Unreleased]
 
 ### Changed
+- The window no longer freezes for about a second when a meeting app takes the microphone during a capture: the capture now runs off the interface.
 - When a capture ends while other processing runs (a summary, a voice job, a model install), its transcription now waits its turn and starts on its own, instead of having to be started by hand. The transcript says it is waiting and can be cancelled.
 - A processing request that cannot start now (another one runs, the session has no audio, the examples are open) says why in a message instead of doing nothing.
 - A session being processed, voice recognition included, cannot be deleted until the processing ends or is cancelled; a message says so.
