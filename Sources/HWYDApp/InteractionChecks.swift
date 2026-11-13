@@ -35,9 +35,26 @@ import HWYDCore
         }
     }
     private actor Probe { var given: String?; var stored: String?; func record(_ given: String, _ stored: String?) { self.given = given; self.stored = stored } }
+    /// Waits until the model's requests are decided and its work is done, at most `seconds`.
+    private static func waitIdle(_ model: AppModel, seconds: Double, _ failure: String) async throws {
+        let finished = await withTaskGroup(of: Bool.self) { group in
+            group.addTask { await model.idle(); return !Task.isCancelled }
+            group.addTask { try? await Task.sleep(for: .seconds(seconds)); return false }
+            let first = await group.next() ?? false
+            group.cancelAll()
+            return first
+        }
+        guard finished else { throw CaptureFailure(message: failure) }
+    }
     private static func waitForSummary(_ model: AppModel) async throws {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
-        while model.summaryID != nil, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        try await waitIdle(model, seconds: 3, "Summary did not finish")
+    }
+    /// Holds a job until the check releases it.
+    private actor Gate {
+        private var open = false
+        private var waiters: [CheckedContinuation<Void, Never>] = []
+        func wait() async { if !open { await withCheckedContinuation { waiters.append($0) } } }
+        func release() { open = true; waiters.forEach { $0.resume() }; waiters = [] }
     }
     private static func checkSummaryLifecycle(directory: URL) async throws {
         let model = AppModel(directory: directory, appliesAppearance: false)
@@ -52,8 +69,8 @@ import HWYDCore
         guard model.summaryAvailability == .unavailable(.localServerNotConfigured) else {
             throw CaptureFailure(message: "A non-loopback summary server must be unavailable")
         }
-        model.generateSummary()
-        guard model.summaryID == nil, model.toastCenter.toasts.contains(where: { $0.style == .error && $0.actions.first?.title == String(localized: "Réglages") }) else {
+        guard case .refused(.unavailable) = await model.requestSummary(recording.id), model.summaryID == nil,
+              model.toastCenter.toasts.contains(where: { $0.style == .error && $0.actions.first?.title == String(localized: "Réglages") }) else {
             throw CaptureFailure(message: "Unavailable summary did not explain why")
         }
         model.toastCenter.dismissAll()
@@ -151,9 +168,7 @@ import HWYDCore
         await model.flush()
         model.transcribe(recording.id)
         model.update(recording.id) { $0.notes = "Note écrite pendant la transcription" } // l10n:ignore
-        let deadline = ContinuousClock.now.advanced(by: .seconds(90))
-        while model.pipelineBusy, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(100)) }
-        guard !model.pipelineBusy else { model.cancelProcessing(); throw CaptureFailure(message: "ASR timeout") }
+        do { try await waitIdle(model, seconds: 90, "ASR timeout") } catch { model.cancelProcessing(); throw error }
         if let error = model.toastCenter.toasts.last(where: { $0.style == .error }) { throw CaptureFailure(message: error.message) }
         let saved = try await SessionStore(directory: directory).all()
         guard let item = saved.first(where: { $0.id == recording.id }),
@@ -166,13 +181,13 @@ import HWYDCore
         else { throw CaptureFailure(message: "ASR output or notes preservation failed") }
         model.transcribe(recording.id)
         model.cancelProcessing()
-        while model.pipelineBusy { try await Task.sleep(for: .milliseconds(100)) }
+        await model.idle()
         guard let cancelled = model.recordings.first(where: { $0.id == recording.id }),
               cancelled.transcriptState == .failed, cancelled.segments == item.segments,
               cancelled.notes == item.notes else { throw CaptureFailure(message: "Cancellation lost previous transcript") }
         model.toastCenter.dismissAll()
         model.transcribe(recording.id)
-        while model.pipelineBusy, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(100)) }
+        try await waitIdle(model, seconds: 90, "ASR retry timeout")
         guard model.recordings.first(where: { $0.id == recording.id })?.transcriptVersion == 2,
               !model.toastCenter.toasts.contains(where: { $0.style == .error }) else { throw CaptureFailure(message: "Retry after cancellation failed") }
         print("Real Apple ASR through bundled helper: tracks, timestamps, persistence, concurrent notes, cancellation and retry: PASS")
@@ -289,11 +304,7 @@ import HWYDCore
         }
         let model = AppModel(directory: directory, transcription: service, voiceMemory: memory, speechModels: catalog, appliesAppearance: false)
         await model.load()
-        func idle() async throws {
-            let deadline = ContinuousClock.now.advanced(by: .seconds(5))
-            while model.pipelineBusy, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
-            guard !model.pipelineBusy else { throw CaptureFailure(message: "Pipeline port did not finish") }
-        }
+        func idle() async throws { try await waitIdle(model, seconds: 5, "Pipeline port did not finish") }
         guard !model.diarizerReady else { throw CaptureFailure(message: "Diarizer must start missing") }
         model.installDiarizer(); try await idle()
         guard model.diarizerReady, model.diarizationEnabled else { throw CaptureFailure(message: "Diarizer readiness must come from the catalog") }
@@ -319,6 +330,38 @@ import HWYDCore
         model.forgetVoice(of: lea); try await idle()
         guard await memory.samples.isEmpty else { throw CaptureFailure(message: "Forget did not reach voice memory") }
         print("Pipeline ports: diarizer readiness, transcription request, correction without enrollment, enrollment and erasure: PASS")
+
+        // One job at a time: a voice job on a session blocks its deletion, a transcription waits
+        // its turn and says so, other work is refused with the running job as the reason.
+        model.toastCenter.dismissAll()
+        var queued = Recording(title: "File d’attente") // l10n:ignore
+        queued.audioChunks = recording.audioChunks
+        model.recordings.append(queued)
+        let gate = Gate()
+        guard await model.requestVoiceJob(session: recording.id, { _ in await gate.wait() }) == .accepted, model.voiceBusy, !model.workAvailability.isReady else {
+            throw CaptureFailure(message: "Voice job did not start")
+        }
+        model.deleteCandidate = model.selected; model.deleteConfirmed()
+        let busy = WorkBusy(job: .voice(session: recording.id))
+        guard await model.requestTranscription(queued.id, afterCapture: true) == .queued(behind: busy),
+              model.work.isQueued(.transcription(session: queued.id)),
+              model.toastCenter.toasts.contains(where: { $0.message == String(localized: "Audio et notes conservés. La transcription démarrera après le traitement en cours.") }) else {
+            throw CaptureFailure(message: "Transcription after capture was not queued")
+        }
+        guard await model.requestDiarizer() == .refused(.busy(busy)),
+              model.toastCenter.toasts.contains(where: { $0.message == WorkRefusal.busy(busy).localizedDescription }) else {
+            throw CaptureFailure(message: "Busy refusal was silent")
+        }
+        await gate.release()
+        try await idle()
+        guard model.recordings.contains(where: { $0.id == recording.id }),
+              model.toastCenter.toasts.contains(where: { $0.message == String(localized: "Cette session est en cours de traitement. Annulez le traitement ou attendez sa fin pour la supprimer.") }) else {
+            throw CaptureFailure(message: "A session was deleted while a voice job ran on it")
+        }
+        guard await service.requests.count == 2, model.recordings.first(where: { $0.id == queued.id })?.segments.isEmpty == false, !model.work.isBusy, !model.isBusy else {
+            throw CaptureFailure(message: "Queued transcription did not run after the voice job")
+        }
+        print("Work coordinator: deletion blocked by a voice job, transcription queued after capture, busy refusal with reason, idle: PASS")
     }
     static func run(directory: URL) async throws {
         try await checkPipelinePorts(directory: directory.appendingPathComponent("pipeline-ports-test"))
@@ -355,10 +398,10 @@ import HWYDCore
               corrected.speakers == beforeCorrection.speakers else {
             throw CaptureFailure(message: "Segment correction changed cluster profiles")
         }
-        model.processingID = beforeCorrection.id
+        model.work = WorkSnapshot(running: .transcription(session: beforeCorrection.id))
         model.assignSpeaker(passage.speakerID, to: passage.id, recordingID: beforeCorrection.id)
         guard model.selected == corrected else { throw CaptureFailure(message: "Correction allowed during processing") }
-        model.processingID = nil
+        model.work = WorkSnapshot()
         model.assignSpeaker(passage.speakerID, to: passage.id, recordingID: beforeCorrection.id)
         guard model.selected?.segments == beforeCorrection.segments else { throw CaptureFailure(message: "Segment restoration failed") }
         // Regrouping two voices from the tiles is a transcript correction, never an enrollment.

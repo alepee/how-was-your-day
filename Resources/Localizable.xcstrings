@@ -1693,18 +1693,18 @@
         }
       }
     },
-    "Audio conservé. Un traitement est déjà en cours ; lancez la transcription depuis cette session ensuite.": {
+    "Audio et notes conservés. La transcription démarrera après le traitement en cours.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Audio kept. Processing is already running; start the transcription from this session afterwards."
+            "value": "Audio and notes kept. Transcription will start once the current processing ends."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Audio conservé. Un traitement est déjà en cours ; lancez la transcription depuis cette session ensuite."
+            "value": "Audio et notes conservés. La transcription démarrera après le traitement en cours."
           }
         }
       }
@@ -1997,6 +1997,22 @@
         }
       }
     },
+    "Ce traitement est déjà en cours ou en attente.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This processing is already running or waiting."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce traitement est déjà en cours ou en attente."
+          }
+        }
+      }
+    },
     "Ces voix sont sur deux pistes différentes. Nommez d’abord l’une des deux.": {
       "localizations": {
         "en": {
@@ -2089,6 +2105,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cette session a été modifiée ailleurs. Rechargez-la avant de réessayer."
+          }
+        }
+      }
+    },
+    "Cette session est en cours de traitement. Annulez le traitement ou attendez sa fin pour la supprimer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This session is being processed. Cancel the processing or wait for it to end before deleting it."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette session est en cours de traitement. Annulez le traitement ou attendez sa fin pour la supprimer."
           }
         }
       }
@@ -5181,6 +5213,22 @@
         }
       }
     },
+    "Les exemples ne lancent aucun traitement.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Examples run no processing."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les exemples ne lancent aucun traitement."
+          }
+        }
+      }
+    },
     "Les horodatages ne permettent pas de découper ce passage à cet endroit.": {
       "localizations": {
         "en": {
@@ -7325,6 +7373,22 @@
         }
       }
     },
+    "Réessayez une fois ce traitement terminé.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again once it ends."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réessayez une fois ce traitement terminé."
+          }
+        }
+      }
+    },
     "Réglages": {
       "localizations": {
         "en": {
@@ -8525,6 +8589,22 @@
         }
       }
     },
+    "Transcription en attente : elle démarrera après le traitement en cours.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcription waiting: it will start once the current processing ends."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcription en attente : elle démarrera après le traitement en cours."
+          }
+        }
+      }
+    },
     "Transcription, séparation des voix et personnes mémorisées sur ce Mac.": {
       "localizations": {
         "en": {
@@ -8653,6 +8733,22 @@
         }
       }
     },
+    "Un traitement des voix est en cours.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice processing is in progress."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un traitement des voix est en cours."
+          }
+        }
+      }
+    },
     "Un traitement est déjà en cours.": {
       "localizations": {
         "en": {
@@ -8765,6 +8861,22 @@
         }
       }
     },
+    "Une installation de modèle est en cours.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A model is being installed."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une installation de modèle est en cours."
+          }
+        }
+      }
+    },
     "Une réunion va commencer": {
       "localizations": {
         "en": {
@@ -8777,6 +8889,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Une réunion va commencer"
+          }
+        }
+      }
+    },
+    "Une synthèse est en cours.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A summary is being generated."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une synthèse est en cours."
+          }
+        }
+      }
+    },
+    "Une transcription est en cours.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A transcription is in progress."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une transcription est en cours."
           }
         }
       }

@@ -118,7 +118,7 @@ struct SettingsView: View {
                     Button(model.isDemoMode ? "Quitter les exemples" : "Explorer des exemples") {
                         model.showSettings = false
                         if model.isDemoMode { model.leaveDemo() } else { model.enterDemo() }
-                    }.buttonStyle(StudioButtonStyle(compact: true)).disabled(model.modelWorkBusy || model.activeCaptureID != nil || model.hasUnsavedChanges)
+                    }.buttonStyle(StudioButtonStyle(compact: true)).disabled(!model.workAvailability.isReady || model.activeCaptureID != nil || model.hasUnsavedChanges)
                 }
             }
         case .calendar:
@@ -136,12 +136,12 @@ struct SettingsView: View {
                             ForEach(model.supportedSpeechLocales.filter { locale in !model.installedSpeechLocales.contains { SpeechLanguage.languageCode(of: $0) == SpeechLanguage.languageCode(of: locale) } }, id: \.self) { locale in
                                 Button(SpeechLanguage.displayName(locale)) { model.installSpeechModel(locale) }
                             }
-                        }.menuStyle(.button).fixedSize().disabled(model.modelWorkBusy || model.isDemoMode)
+                        }.menuStyle(.button).fixedSize().disabled(!model.workAvailability.isReady || model.isDemoMode)
                     }
                 }
             }.task { model.refreshSpeechLanguages() }
             section(String(localized: "Séparation des voix"), symbol: "person.2.wave.2") {
-                toggleRow(String(localized: "Séparer les voix après transcription"), isOn: $model.diarizationEnabled).disabled(model.modelWorkBusy || model.isDemoMode)
+                toggleRow(String(localized: "Séparer les voix après transcription"), isOn: $model.diarizationEnabled).disabled(!model.workAvailability.isReady || model.isDemoMode)
                 row(String(localized: "Modèles de voix · Community-1"), help: String(localized: "Traitement local par piste. Les modèles se téléchargent une fois ; aucune empreinte personnelle n’est créée sans enrôlement explicite.")) {
                     installControl(ready: model.diarizerReady, busy: model.isInstallingDiarizer) { model.installDiarizer() }
                 }
@@ -278,7 +278,7 @@ struct SettingsView: View {
         } else {
             if ready { Label("Installé", systemImage: "checkmark.circle.fill").font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.mint) }
             Button(ready ? "Réinstaller" : "Installer", action: action)
-                .buttonStyle(StudioButtonStyle(compact: true)).disabled(model.modelWorkBusy || model.isDemoMode)
+                .buttonStyle(StudioButtonStyle(compact: true)).disabled(!model.workAvailability.isReady || model.isDemoMode)
         }
     }
     private func section<Content: View>(_ title: String, symbol: String, help: String? = nil, @ViewBuilder content: () -> Content) -> some View {
@@ -332,21 +332,21 @@ struct VoicePersonRow: View {
                             .rotationEffect(.degrees(expanded ? 90 : 0))
                         Text(person.name).font(.system(size: Studio.Size.body))
                     }.contentShape(Rectangle())
-                }.buttonStyle(.plain).disabled(person.opposed || person.channels.isEmpty || model.modelWorkBusy)
+                }.buttonStyle(.plain).disabled(person.opposed || person.channels.isEmpty || !model.workAvailability.isReady)
                     .accessibilityLabel(expanded ? "Masquer le détail de \(person.name)" : "Afficher le détail de \(person.name)")
                 Spacer(minLength: 12)
                 Text(status).font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted)
                 if person.opposed {
                     Button("Réessayer l’effacement") { model.opposeVoice(of: person) }
-                        .buttonStyle(StudioButtonStyle(compact: true)).disabled(model.modelWorkBusy)
+                        .buttonStyle(StudioButtonStyle(compact: true)).disabled(!model.workAvailability.isReady)
                         .help("Supprime de nouveau toutes ses empreintes, si un effacement précédent a échoué.")
-                    Button("Lever l’exclusion") { model.liftOpposition(person) }.buttonStyle(StudioButtonStyle(compact: true)).disabled(model.modelWorkBusy)
+                    Button("Lever l’exclusion") { model.liftOpposition(person) }.buttonStyle(StudioButtonStyle(compact: true)).disabled(!model.workAvailability.isReady)
                         .help("\(person.name) pourra de nouveau être reconnue après une nouvelle mémorisation.")
                 } else {
                     Menu("Effacer") {
                         Button("Effacer l’empreinte…") { confirmation = .erase }.disabled(person.channels.isEmpty)
                         Button("Effacer et opposer…") { confirmation = .oppose }
-                    }.menuStyle(.borderlessButton).fixedSize().disabled(model.modelWorkBusy)
+                    }.menuStyle(.borderlessButton).fixedSize().disabled(!model.workAvailability.isReady)
                 }
             }.frame(minHeight: 26).padding(.vertical, 8)
             if expanded { contributions.padding(.leading, 16).padding(.bottom, 8) }
@@ -380,7 +380,7 @@ struct VoicePersonRow: View {
                         }
                         Spacer(minLength: 12)
                         Button("Retirer") { model.withdrawVoiceSource(recordingID, of: person) }
-                            .buttonStyle(StudioButtonStyle(compact: true)).disabled(model.modelWorkBusy)
+                            .buttonStyle(StudioButtonStyle(compact: true)).disabled(!model.workAvailability.isReady)
                             .help("Retire de l’empreinte ce que cette session y a ajouté.")
                     }
                 }

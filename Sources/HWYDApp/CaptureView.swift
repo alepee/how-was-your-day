@@ -87,7 +87,7 @@ struct SpeakerEditor: View {
                 Button("Nommer seulement") { confirm() }.buttonStyle(StudioButtonStyle()).disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 Button("Nommer et mémoriser") {
                     if let speaker { model.rememberSpeaker(name: name, speakerID: speaker.id) }
-                }.buttonStyle(StudioButtonStyle(primary: true)).disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.pipelineBusy || model.isDemoMode || model.voiceEditingLocked)
+                }.buttonStyle(StudioButtonStyle(primary: true)).disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !model.workAvailability.isReady || model.isDemoMode || model.voiceEditingLocked)
             }
         }.padding(28).frame(width: 540).background(Studio.background).foregroundStyle(Studio.text).preferredColorScheme(model.appearancePreference.colorScheme)
             .onAppear { name = model.speakerName }

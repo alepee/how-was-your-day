@@ -25,7 +25,7 @@ struct VoiceTilesView: View {
                 Spacer(minLength: 8)
                 if !voices.isEmpty, model.people.contains(where: { $0.recognitionEnabled && !$0.channels.isEmpty }) {
                     Button("Reconnaître les voix") { model.identifyVoices() }.buttonStyle(StudioButtonStyle(compact: true))
-                        .disabled(recording.isDemo || model.modelWorkBusy || locked)
+                        .disabled(recording.isDemo || !model.workAvailability.isReady || locked)
                         .help("Compare les voix non confirmées de cette session aux personnes mémorisées. Chaque proposition reste à confirmer.")
                 }
             }
@@ -37,7 +37,7 @@ struct VoiceTilesView: View {
                                       locked: locked, others: recording.speakers.filter { $0.id != voice.id && !$0.ignored }, people: known,
                                       proposed: voice.speaker.proposedIdentity.flatMap { match in known.first { $0.id == match.personID } },
                                       separable: recording.separableVoices(of: voice.id),
-                                      canRemember: !recording.isDemo && !model.modelWorkBusy,
+                                      canRemember: !recording.isDemo && model.workAvailability.isReady,
                                       opposed: model.people.contains { $0.opposed && ($0.id == voice.speaker.personID || $0.name == voice.speaker.label) })
                         }
                     }.padding(.vertical, 1)

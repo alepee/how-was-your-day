@@ -87,8 +87,8 @@ import HWYDCore
         if !model.isDemoMode { model.calendar.start() }
         // Synthetic modes returned above; a `--demo` instance makes no network request either.
         if !args.contains("--demo") {
-            AppEnvironment.updater.start(isBusy: { [weak model] in model.map { $0.activeCaptureID != nil || $0.modelWorkBusy } ?? false },
-                                         busyChanges: model.objectWillChange.map { _ in () }.eraseToAnyPublisher())
+            AppEnvironment.updater.start(isBusy: { [weak model] in model?.isBusy ?? false },
+                                         busyChanges: model.$isBusy.removeDuplicates().map { _ in () }.eraseToAnyPublisher())
         }
         openWindow()
         Task { if !model.isDemoMode { await model.load() } }
@@ -132,7 +132,7 @@ import HWYDCore
         if model.activeCaptureID != nil { model.stopCapture() }
         model.cancelProcessing(); model.cancelSummary()
         Task {
-            while model.pipelineBusy { try? await Task.sleep(for: .milliseconds(100)) }
+            await model.idle()
             await model.flush()
             if model.hasUnsavedChanges { openWindow(); NSApp.reply(toApplicationShouldTerminate: false) }
             else { NSApp.reply(toApplicationShouldTerminate: true) }
