@@ -56,6 +56,40 @@ import HWYDCore
         }
         print("Summary pending-edit flush, demo exclusion and cancellation: PASS")
     }
+    /// Synthetic placeholder files stand in for audio and derived files; no microphone.
+    private static func checkSessionDeletion(directory: URL) async throws {
+        let model = AppModel(directory: directory, appliesAppearance: false)
+        await model.load()
+        guard let store = model.store else { throw CaptureFailure(message: "Deletion check needs a store") }
+        func write(_ relative: String) throws {
+            let url = directory.appendingPathComponent(relative)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("synthetic".utf8).write(to: url)
+        }
+        func exists(_ relative: String) -> Bool { FileManager.default.fileExists(atPath: directory.appendingPathComponent(relative).path) }
+        var deleted = Recording(title: "Deletion fixture", state: .sealed)
+        let audio = "audio/" + deleted.id.uuidString.lowercased()
+        deleted.audioChunks = [.init(source: .mic, relativePath: audio + "/mic-000000.caf", start: 0, duration: 1),
+                               .init(source: .system, relativePath: audio + "/system-000000.caf", start: 0, duration: 1)]
+        for chunk in deleted.audioChunks { try write(chunk.relativePath) }
+        try write("cache/summaries/\(deleted.id.uuidString)/evidence.json")
+        deleted = try await store.save(deleted)
+        let kept = try await store.save(Recording(title: "Kept fixture", state: .sealed))
+        let earlier = "audio/\(UUID().uuidString.lowercased())/mic-000000.caf"
+        try write(earlier)
+        await model.load()
+        guard !exists(earlier) else { throw CaptureFailure(message: "Launch kept the audio of a session deleted earlier") }
+        model.deleteCandidate = model.recordings.first { $0.id == deleted.id }
+        model.deleteConfirmed()
+        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+        while model.recordings.contains(where: { $0.id == deleted.id }), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        let remaining = try await store.all()
+        guard !exists(audio), !exists("cache/summaries/" + deleted.id.uuidString), model.errorMessage == nil,
+              remaining.map(\.id) == [kept.id], model.recordings.map(\.id) == [kept.id] else {
+            throw CaptureFailure(message: "Deleting a session left its files or rows behind")
+        }
+        print("Session deletion removes audio and derived files, launch sweep of earlier deletions: PASS")
+    }
     static func runTranscription(directory: URL) async throws {
         let model = AppModel(directory: directory)
         let previousDiarization = model.diarizationEnabled
@@ -188,6 +222,7 @@ import HWYDCore
         try checkAppearancePreferences(directory: directory.appendingPathComponent("appearance-test"))
         try await checkSummaryLifecycle(directory: directory.appendingPathComponent("summary-lifecycle-test"))
         try await checkAgentSummary(directory: directory.appendingPathComponent("agent-summary-test"))
+        try await checkSessionDeletion(directory: directory.appendingPathComponent("deletion-test"))
         try await checkNewSessionAndToasts()
         let model = AppModel(directory: directory)
         let previousDiarization = model.diarizationEnabled
