@@ -754,6 +754,8 @@ final class AppModel: ObservableObject {
     /// The summarizer for the current settings. It owns whether a summary can run and why not.
     var summarizer: any Summarizer { summarizerOverride ?? SummarizerFactory.make(summarySettings.configuration, environment: summarizerEnvironment) }
     var summaryAvailability: SummaryAvailability { summarizer.availability }
+    /// Where the configured summarizer writes its draft and what leaves the Mac, as the summary tab shows it.
+    var summaryDisclosure: SummaryDisclosure { summarizer.disclosure }
     private func openSummarySettings() { settingsCategory = .summary; showSettings = true }
     func generateSummary() {
         guard !modelWorkBusy, !isDemoMode, let recordingID = selected?.id, let store else { return }

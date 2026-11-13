@@ -123,11 +123,11 @@ struct DetailView: View {
             if case .unavailable(let reason) = model.summaryAvailability, reason != .disabled {
                 Label(reason.localizedDescription, systemImage: "exclamationmark.circle").font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted)
             }
-            Label("Brouillon local, à relire", systemImage: "info.circle").font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted)
+            Label(model.summaryDisclosure.label, systemImage: "info.circle").font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted)
                 .help(summaryHint)
         }
         if recording.summary == nil {
-            EmptyPanel(symbol: "sparkles", title: model.summaryAvailability != .unavailable(.disabled) ? String(localized: "Pas encore de synthèse") : String(localized: "La synthèse est facultative"), detail: model.summaryAvailability != .unavailable(.disabled) ? model.summarySettings.service == .agent ? String(localized: "Votre agent ACP rédigera la synthèse à partir du transcript et de son propre contexte. Vos notes restent sur ce Mac.") : model.summarySettings.service.isRemote ? String(localized: "Le transcript sera envoyé à \(model.summarySettings.service.displayName). Vos notes restent sur ce Mac.") : String(localized: "Lancez la génération avec votre modèle local. Vos notes et votre transcript restent indépendants.") : String(localized: "Activez un modèle dans les réglages pour générer une synthèse."))
+            EmptyPanel(symbol: "sparkles", title: model.summaryAvailability != .unavailable(.disabled) ? String(localized: "Pas encore de synthèse") : String(localized: "La synthèse est facultative"), detail: model.summaryDisclosure.detail)
             Button("Voir les réglages") { model.settingsCategory = .summary; model.showSettings = true }.buttonStyle(StudioButtonStyle())
         }
     }

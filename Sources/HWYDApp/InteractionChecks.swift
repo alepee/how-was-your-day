@@ -29,6 +29,7 @@ import HWYDCore
         struct Failure: LocalizedError { var errorDescription: String? { "fixture provider" } } // l10n:ignore
         let run: @Sendable (Recording) async throws -> Void
         var availability: SummaryAvailability { .ready }
+        var disclosure: SummaryDisclosure { SummaryDisclosure(label: "fixture", detail: "fixture") } // l10n:ignore
         func summarize(_ recording: Recording, progress: @escaping @Sendable (SummaryProgress) async -> Void) async throws -> SummaryProvenance {
             try await run(recording); throw Failure()
         }
