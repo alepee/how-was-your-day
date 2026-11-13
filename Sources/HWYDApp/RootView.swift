@@ -47,13 +47,17 @@ struct RootView: View {
             } else {
             Eyebrow(text: String(localized: "Récentes")).padding(.top, 26).padding(.horizontal, 12).padding(.bottom, 8)
             ForEach(Array(model.recordings.filter { $0.id != model.activeCaptureID }.prefix(5))) { item in
-                Button { model.select(item) } label: {
-                    HStack(spacing: 9) { Image(systemName: item.kind.symbol).frame(width: 14); Text(item.title).lineLimit(1).truncationMode(.tail); Spacer(minLength: 0) }
-                        .font(.system(size: Studio.Size.caption)).foregroundStyle(model.selectedID == item.id ? Studio.mint : Studio.muted)
-                        .padding(.horizontal, 12).padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(model.selectedID == item.id ? Studio.mint.opacity(0.08) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
-                        .contentShape(RoundedRectangle(cornerRadius: 6))
-                }.buttonStyle(.plain)
+                // A tap gesture rather than a Button: on macOS a plain Button swallows the right click,
+                // so its context menu never opens. Same pattern as the library rows.
+                HStack(spacing: 9) { Image(systemName: item.kind.symbol).frame(width: 14); Text(item.title).lineLimit(1).truncationMode(.tail); Spacer(minLength: 0) }
+                    .font(.system(size: Studio.Size.caption)).foregroundStyle(model.selectedID == item.id ? Studio.mint : Studio.muted)
+                    .padding(.horizontal, 12).padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(model.selectedID == item.id ? Studio.mint.opacity(0.08) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+                    .contentShape(RoundedRectangle(cornerRadius: 6))
+                    .onTapGesture { model.select(item) }
+                    .contextMenu { SessionContextMenu(item: item) }
+                    .accessibilityElement(children: .combine).accessibilityAddTraits(.isButton)
+                    .accessibilityAction { model.select(item) }
             }
             }
             Spacer()

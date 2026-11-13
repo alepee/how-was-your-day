@@ -1249,6 +1249,22 @@
         }
       }
     },
+    "Annuler la synthèse": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel Summary"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annuler la synthèse"
+          }
+        }
+      }
+    },
     "Apparence": {
       "localizations": {
         "en": {
@@ -7069,6 +7085,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Régénérer"
+          }
+        }
+      }
+    },
+    "Régénérer la synthèse": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regenerate Summary"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Régénérer la synthèse"
           }
         }
       }

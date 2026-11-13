@@ -100,8 +100,8 @@ struct DetailView: View {
     @ViewBuilder private var summaryControls: some View {
         if !recording.isDemo {
             HStack {
-                Button(model.summaryID == recording.id ? "Génération…" : recording.summary == nil ? "Générer une synthèse" : "Régénérer") { model.generateSummary() }
-                    .buttonStyle(StudioButtonStyle(primary: true)).disabled(!model.summaryEnabled || model.modelWorkBusy || recording.segments.isEmpty)
+                Button(model.summaryID == recording.id ? "Génération…" : recording.summary == nil ? "Générer une synthèse" : "Régénérer") { model.generateSummary(recording.id) }
+                    .buttonStyle(StudioButtonStyle(primary: true)).disabled(!model.canGenerateSummary(recording))
                 if model.summaryID == recording.id { Button("Annuler") { model.cancelSummary() }.buttonStyle(StudioButtonStyle()) }
                 Spacer()
                 Button("Réglages du modèle") { model.settingsCategory = .summary; model.showSettings = true }.buttonStyle(StudioButtonStyle())

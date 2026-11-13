@@ -840,8 +840,15 @@ final class AppModel: ObservableObject {
         catch { errorMessage = String(localized: "Clé API : \(error.localizedDescription)") }
     }
     func cancelSummary() { summaryTask?.cancel() }
-    func generateSummary() {
-        guard summaryEnabled, !modelWorkBusy, !isDemoMode, let recordingID = selected?.id, let store else { return }
+    /// Whether the summary action is available for `item`, from the detail view or a session context menu.
+    func canGenerateSummary(_ item: Recording) -> Bool {
+        summaryEnabled && !modelWorkBusy && !isDemoMode && !item.isDemo && !item.segments.isEmpty && item.id != activeCaptureID
+    }
+    /// Generates the summary of `recordingID`, or of the selected session when nil.
+    /// The session does not need to be open: the toast offers to show the result.
+    func generateSummary(_ recordingID: UUID? = nil) {
+        guard summaryEnabled, !modelWorkBusy, !isDemoMode, let recordingID = recordingID ?? selectedID,
+              recordingID != activeCaptureID, recordings.contains(where: { $0.id == recordingID }), let store else { return }
         summaryID = recordingID
         summaryTask = Task {
             defer { summaryID = nil; summaryTask = nil; summaryProgress = nil }
@@ -902,7 +909,7 @@ final class AppModel: ObservableObject {
                     report(String(localized: "Synthèse : \(error.localizedDescription)"), style: .error, actions: [
                         ToastAction(title: String(localized: "Réessayer")) { [weak self] in
                             guard let self, let item = self.recordings.first(where: { $0.id == recordingID }) else { return }
-                            self.select(item); self.activeTab = .summary; self.generateSummary()
+                            self.select(item); self.activeTab = .summary; self.generateSummary(item.id)
                         },
                         ToastAction(title: String(localized: "Réglages")) { [weak self] in self?.settingsCategory = .summary; self?.showSettings = true }])
                 }
@@ -947,7 +954,7 @@ final class AppModel: ObservableObject {
         }
     }
     func deleteConfirmed() {
-        guard let item = deleteCandidate, item.id != activeCaptureID, item.id != processingID else { return }
+        guard let item = deleteCandidate, item.id != activeCaptureID, item.id != processingID, item.id != summaryID else { return }
         deleteCandidate = nil
         Task {
             do {

@@ -42,7 +42,10 @@ import HWYDCore
             throw CaptureFailure(message: "Summary did not flush pending edits before provider setup")
         }
         model.errorMessage = nil; model.notice = nil
-        model.generateSummary()
+        // The sidebar and library context menus summarize a session that is not open.
+        model.selectedID = nil
+        model.generateSummary(recording.id)
+        guard model.summaryID == recording.id else { throw CaptureFailure(message: "Summary did not start for an unselected session") }
         model.enterDemo()
         guard !model.isDemoMode, model.recordings.first?.id == recording.id else {
             model.cancelSummary()
@@ -54,7 +57,7 @@ import HWYDCore
         guard model.summaryID == nil, model.errorMessage == nil, model.notice == String(localized: "Synthèse annulée.") else {
             throw CaptureFailure(message: "Cancelled summary surfaced as a provider error")
         }
-        print("Summary pending-edit flush, demo exclusion and cancellation: PASS")
+        print("Summary pending-edit flush, unselected target, demo exclusion and cancellation: PASS")
     }
     static func runTranscription(directory: URL) async throws {
         let model = AppModel(directory: directory)
