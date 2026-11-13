@@ -18,7 +18,7 @@ import HWYDCore
     @Published var busy = false
     /// Called with the event and whether to open its video link, or nil to only show the app.
     var onAction: ((CalendarContext?, Bool) -> Void)?
-    private let preferences: UserDefaults
+    private let settings: SettingsStore
     private let allowed: Bool
     private var active = false
     private var eventStore: EKEventStore?
@@ -30,13 +30,14 @@ import HWYDCore
     static let prefix = "hwyd.meeting."
     struct CalendarChoice: Identifiable { var id: String; var title: String; var account: String }
 
-    init(preferences: UserDefaults = .standard, allowed: Bool = false) {
-        self.preferences = preferences; self.allowed = allowed
-        enabled = allowed && preferences.bool(forKey: "calendar.enabled")
-        reminders = allowed && preferences.bool(forKey: "calendar.reminders")
-        leadMinutes = [0, 1, 5, 10, 15].contains(preferences.integer(forKey: "calendar.lead")) && preferences.object(forKey: "calendar.lead") != nil ? preferences.integer(forKey: "calendar.lead") : 5
-        excludedKeywords = preferences.string(forKey: "calendar.exclusions") ?? String(localized: "RH, entretien, médical")
-        selectedCalendars = Set(preferences.stringArray(forKey: "calendar.selected") ?? [])
+    init(settings: SettingsStore, allowed: Bool = false) {
+        self.settings = settings; self.allowed = allowed
+        enabled = allowed && settings.value(.calendarEnabled)
+        reminders = allowed && settings.value(.calendarReminders)
+        let lead = settings.value(.calendarLeadMinutes)
+        leadMinutes = [0, 1, 5, 10, 15].contains(lead) ? lead : SettingKey<Int>.calendarLeadMinutes.defaultValue
+        excludedKeywords = settings.value(.calendarExclusions) ?? String(localized: "RH, entretien, médical")
+        selectedCalendars = Set(settings.value(.calendarSelection))
         super.init()
     }
     func start() {
@@ -44,7 +45,7 @@ import HWYDCore
         active = true
         // Legacy clicks suppressed an occurrence even after its recording was deleted.
         // Calendar reminders are independent of capture history.
-        preferences.removeObject(forKey: "calendar.handled")
+        settings.remove(.calendarHandled)
         center.delegate = self
         let join = UNNotificationAction(identifier: "join-record", title: String(localized: "Rejoindre et enregistrer"), options: [.foreground])
         let record = UNNotificationAction(identifier: "record", title: String(localized: "Enregistrer la réunion"), options: [.foreground])
@@ -75,18 +76,18 @@ import HWYDCore
             let store = eventStore ?? EKEventStore(); eventStore = store
             guard try await store.requestFullAccessToEvents() else { status = String(localized: "Accès refusé. Autorisez HWYD dans Confidentialité et sécurité → Calendriers."); return }
             guard active else { return }
-            enabled = true; preferences.set(true, forKey: "calendar.enabled")
+            enabled = true; settings.set(true, for: .calendarEnabled)
             await refresh()
         } catch { status = String(localized: "Calendrier : \(error.localizedDescription)") }
     }
     func saveSettings() {
         guard allowed, active else { return }
         revision += 1
-        preferences.set(enabled, forKey: "calendar.enabled")
-        preferences.set(reminders, forKey: "calendar.reminders")
-        preferences.set(leadMinutes, forKey: "calendar.lead")
-        preferences.set(excludedKeywords, forKey: "calendar.exclusions")
-        preferences.set(Array(selectedCalendars), forKey: "calendar.selected")
+        settings.set(enabled, for: .calendarEnabled)
+        settings.set(reminders, for: .calendarReminders)
+        settings.set(leadMinutes, for: .calendarLeadMinutes)
+        settings.set(excludedKeywords, for: .calendarExclusions)
+        settings.set(Array(selectedCalendars), for: .calendarSelection)
         clearReminders()
         Task { await refresh() }
     }

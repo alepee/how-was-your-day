@@ -7,20 +7,20 @@ import HWYDCore
         let suite = "HWYDAppearanceTests.\(UUID().uuidString)"
         guard let preferences = UserDefaults(suiteName: suite) else { throw CaptureFailure(message: "Missing isolated preferences") }
         defer { preferences.removePersistentDomain(forName: suite) }
-        let model = AppModel(directory: directory, preferences: preferences, appliesAppearance: false, persistPreferences: true)
+        let model = AppModel(directory: directory, settings: UserDefaultsSettings(preferences), appliesAppearance: false, persistPreferences: true)
         guard model.appearancePreference == .system else { throw CaptureFailure(message: "Appearance must default to system") }
         model.appearancePreference = .dark
-        let reopened = AppModel(directory: directory, preferences: preferences, appliesAppearance: false)
+        let reopened = AppModel(directory: directory, settings: UserDefaultsSettings(preferences), appliesAppearance: false)
         guard reopened.appearancePreference == .dark else { throw CaptureFailure(message: "Appearance did not survive reopening") }
         model.enterDemo(); model.appearancePreference = .light
-        let preview = AppModel(preview: true, preferences: preferences, appliesAppearance: false)
+        let preview = AppModel(preview: true, settings: UserDefaultsSettings(preferences), appliesAppearance: false)
         preview.appearancePreference = .system
         reopened.appearancePreference = .light
         guard preferences.string(forKey: "appearancePreference") == "dark" else { throw CaptureFailure(message: "Demo, preview or isolated test changed preferences") }
         model.isDemoMode = false; model.appearancePreference = .system
         guard preferences.string(forKey: "appearancePreference") == "system", model.appearancePreference.appearance == nil, model.appearancePreference.colorScheme == nil else { throw CaptureFailure(message: "System appearance must clear overrides") }
         preferences.set("unknown-future-value", forKey: "appearancePreference")
-        let fallback = AppModel(preview: true, preferences: preferences, appliesAppearance: false)
+        let fallback = AppModel(preview: true, settings: UserDefaultsSettings(preferences), appliesAppearance: false)
         guard fallback.appearancePreference == .system else { throw CaptureFailure(message: "Invalid preference must follow system") }
         print("Appearance persistence, system fallback and demo/test isolation: PASS")
     }
@@ -131,9 +131,8 @@ import HWYDCore
     }
     static func runTranscription(directory: URL) async throws {
         let model = AppModel(directory: directory)
-        let previousDiarization = model.diarizationEnabled
-        model.diarizationEnabled = false
-        defer { model.diarizationEnabled = previousDiarization }
+        // Synthetic checks read no user preference: voice separation starts off.
+        guard !model.diarizationEnabled else { throw CaptureFailure(message: "A test model read the user's preferences") }
         await model.load()
         var recording = Recording(title: "ASR synthétique", notes: "Avant traitement") // l10n:ignore
         recording.audioChunks = [
@@ -264,9 +263,8 @@ import HWYDCore
         try await checkSessionDeletion(directory: directory.appendingPathComponent("deletion-test"))
         try await checkNewSessionAndToasts()
         let model = AppModel(directory: directory)
-        let previousDiarization = model.diarizationEnabled
-        model.diarizationEnabled = false
-        defer { model.diarizationEnabled = previousDiarization }
+        // Synthetic checks read no user preference: voice separation starts off.
+        guard !model.diarizationEnabled else { throw CaptureFailure(message: "A test model read the user's preferences") }
         await model.load()
         let session = Recording(title: "Test UI persistant", notes: "Avant édition") // l10n:ignore
         model.recordings.insert(session, at: 0)

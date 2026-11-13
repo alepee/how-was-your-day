@@ -22,7 +22,7 @@ final class AppModel: ObservableObject {
     /// The setup screen shown before a capture starts: kind and optional name.
     @Published var showNewSession = false
     @Published var newSessionKind: SessionKind = .adHoc {
-        didSet { if persistPreferences && !isDemoMode { preferences.set(newSessionKind.rawValue, forKey: "newSession.kind") } }
+        didSet { if persistPreferences && !isDemoMode { settings.set(newSessionKind, for: .newSessionKind) } }
     }
     @Published var newSessionTitle = ""
     @Published var isDemoMode = false
@@ -47,9 +47,6 @@ final class AppModel: ObservableObject {
     @Published var editingSpeakerID: UUID?
     @Published var speakerName = ""
     @Published var deleteCandidate: Recording?
-    @Published var retentionHours: Int = UserDefaults.standard.object(forKey: "retentionHours") as? Int ?? 72 {
-        didSet { if persistPreferences && !isDemoMode { preferences.set(retentionHours, forKey: "retentionHours") } }
-    }
     @Published var mcpWritesEnabled = false
     @Published var exportDirectory = ""
     private var refreshTask: Task<Void, Never>?
@@ -62,9 +59,9 @@ final class AppModel: ObservableObject {
     @Published var voiceContributions: [UUID: [VoiceContribution]] = [:]
     private let voiceRunner = PipelineRunner()
     @Published var summaryID: UUID?
-    @Published var summaryEnabled = UserDefaults.standard.bool(forKey: "summary.enabled")
-    @Published var summaryEndpoint = UserDefaults.standard.string(forKey: "summary.endpoint") ?? "http://127.0.0.1:1234/v1"
-    @Published var summaryModel = UserDefaults.standard.string(forKey: "summary.model") ?? ""
+    @Published var summaryEnabled = false
+    @Published var summaryEndpoint = ""
+    @Published var summaryModel = ""
     @Published var summaryContextTokens = 32768
     @Published var summaryReasoningDisabled = false
     /// Choosing a hosted provider and storing its key is the opt-in: nothing is sent before both.
@@ -84,8 +81,8 @@ final class AppModel: ObservableObject {
     private var summaryTask: Task<Void, Never>?
     @Published var processingID: UUID?
     @Published var isInstallingDiarizer = false
-    @Published var diarizationEnabled = UserDefaults.standard.bool(forKey: "diarizationEnabled") {
-        didSet { if persistPreferences && !isDemoMode { preferences.set(diarizationEnabled, forKey: "diarizationEnabled") } }
+    @Published var diarizationEnabled = false {
+        didSet { if persistPreferences && !isDemoMode { settings.set(diarizationEnabled, for: .diarizationEnabled) } }
     }
     @Published var isInstallingModel = false
     /// Language installing right now, shown next to its row.
@@ -97,7 +94,8 @@ final class AppModel: ObservableObject {
     @Published var recordingShortcut: RecordingShortcut? = .standard {
         didSet {
             guard oldValue != recordingShortcut else { return }
-            if persistPreferences { preferences.set(recordingShortcut.flatMap { try? JSONEncoder().encode($0) } ?? Data(), forKey: RecordingShortcut.preferenceKey) }
+            // Empty data records that the user cleared the shortcut.
+            if persistPreferences { settings.set(recordingShortcut.flatMap { try? JSONEncoder().encode($0) } ?? Data(), for: .recordingShortcut) }
             registerRecordingShortcut()
         }
     }
@@ -122,10 +120,6 @@ final class AppModel: ObservableObject {
     /// One locale per language, as reported by Apple Speech on this Mac.
     @Published var installedSpeechLocales: [String] = []
     @Published var supportedSpeechLocales: [String] = []
-    /// Known from Apple Speech, from an install done here, or from a transcript the model already produced.
-    var speechModelReady: Bool {
-        !installedSpeechLocales.isEmpty || preferences.bool(forKey: "models.speechInstalled") || recordings.contains { !$0.isDemo && $0.transcriptVersion > 0 && $0.transcription != nil }
-    }
     /// Languages offered for a session: automatic detection, then the installed languages.
     var sessionLanguageChoices: [String] { [SpeechLanguage.automatic] + installedSpeechLocales }
     func refreshSpeechLanguages() {
@@ -168,7 +162,7 @@ final class AppModel: ObservableObject {
         }
     }
     var diarizerReady: Bool {
-        preferences.bool(forKey: "models.diarizerInstalled") || recordings.contains { !$0.isDemo && $0.transcription?.diarizationEngine != nil }
+        settings.value(.diarizerInstalled) || recordings.contains { !$0.isDemo && $0.transcription?.diarizationEngine != nil }
     }
     var pipelineBusy: Bool { processingID != nil || isInstallingModel || isInstallingDiarizer || voiceBusy }
     var modelWorkBusy: Bool { pipelineBusy || summaryID != nil }
@@ -176,11 +170,12 @@ final class AppModel: ObservableObject {
     @Published var hasUnsavedChanges = false
     @Published var appearancePreference: AppearancePreference = .system {
         didSet {
-            if persistPreferences && !isDemoMode { preferences.set(appearancePreference.rawValue, forKey: "appearancePreference") }
+            if persistPreferences && !isDemoMode { settings.set(appearancePreference.rawValue, for: .appearance) }
             if appliesAppearance { NSApp.appearance = appearancePreference.appearance }
         }
     }
-    private let preferences: UserDefaults
+    /// Preferences: the user's for the installed app, in memory for previews, tests and synthetic checks.
+    private let settings: SettingsStore
     private let appliesAppearance: Bool
     private let persistPreferences: Bool
     let calendar: CalendarIntegration
@@ -196,24 +191,30 @@ final class AppModel: ObservableObject {
     let player = SessionPlayback()
     private var capture: CaptureController?
 
-    init(directory: URL? = nil, preview: Bool = false, preferences: UserDefaults = .standard, appliesAppearance: Bool = true, persistPreferences: Bool? = nil) {
-        calendar = CalendarIntegration(preferences: preferences, allowed: directory == nil && !preview)
-        self.preferences = preferences
+    /// `settings` defaults to the user's preferences for the installed app only; previews and
+    /// models opened on another directory get an empty in-memory store and never read them.
+    init(directory: URL? = nil, preview: Bool = false, settings: SettingsStore? = nil, appliesAppearance: Bool = true, persistPreferences: Bool? = nil) {
+        let installed = directory == nil && !preview
+        let settings = settings ?? (installed ? UserDefaultsSettings() : InMemorySettings())
+        calendar = CalendarIntegration(settings: settings, allowed: installed)
+        self.settings = settings
         self.appliesAppearance = appliesAppearance
-        self.persistPreferences = persistPreferences ?? (directory == nil && !preview)
-        summaryEnabled = preferences.bool(forKey: "summary.enabled")
-        summaryEndpoint = preferences.string(forKey: "summary.endpoint") ?? "http://127.0.0.1:1234/v1"
-        summaryModel = preferences.string(forKey: "summary.model") ?? ""
-        summaryContextTokens = preferences.integer(forKey: "summary.contextTokens") == 0 ? 32768 : preferences.integer(forKey: "summary.contextTokens")
-        summaryReasoningDisabled = preferences.bool(forKey: "summary.reasoningDisabled")
-        summaryService = SummaryService(rawValue: preferences.string(forKey: "summary.service") ?? "") ?? .local
-        newSessionKind = SessionKind(rawValue: preferences.string(forKey: "newSession.kind") ?? "") ?? .adHoc
-        if let data = preferences.data(forKey: RecordingShortcut.preferenceKey) {
+        self.persistPreferences = persistPreferences ?? installed
+        summaryEnabled = settings.value(.summaryEnabled)
+        summaryEndpoint = settings.value(.summaryEndpoint)
+        summaryModel = settings.value(.summaryLocalModel)
+        let contextTokens = settings.value(.summaryContextTokens)
+        summaryContextTokens = contextTokens == 0 ? SettingKey<Int>.summaryContextTokens.defaultValue : contextTokens
+        summaryReasoningDisabled = settings.value(.summaryReasoningDisabled)
+        summaryService = settings.value(.summaryService)
+        newSessionKind = settings.value(.newSessionKind)
+        diarizationEnabled = settings.value(.diarizationEnabled)
+        if let data = settings.value(.recordingShortcut) {
             recordingShortcut = data.isEmpty ? nil : (try? JSONDecoder().decode(RecordingShortcut.self, from: data)) ?? .standard
         }
-        summaryAgentCommand = preferences.string(forKey: "summary.agent.command") ?? "claude-agent-acp"
-        summaryAgentDirectory = preferences.string(forKey: "summary.agent.directory") ?? "~"
-        appearancePreference = AppearancePreference(rawValue: preferences.string(forKey: "appearancePreference") ?? "") ?? .system
+        summaryAgentCommand = settings.value(.summaryAgentCommand)
+        summaryAgentDirectory = settings.value(.summaryAgentDirectory)
+        appearancePreference = AppearancePreference(rawValue: settings.value(.appearance) ?? "") ?? .system
         dataDirectory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("HWYD")
         if appliesAppearance { NSApp.appearance = appearancePreference.appearance }
         if preview {
@@ -514,7 +515,6 @@ final class AppModel: ObservableObject {
                 let directory = dataDirectory.appendingPathComponent("jobs")
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
                 try await pipelineRunner.run(arguments: ["install-model", locale], log: directory.appendingPathComponent("install-model.log"))
-                if persistPreferences { preferences.set(true, forKey: "models.speechInstalled") }
                 notice = String(localized: "Langue installée : \(SpeechLanguage.displayName(locale)). La transcription reste locale.")
                 if let completion { isInstallingModel = false; installingSpeechLocale = nil; completion() }
             } catch { errorMessage = error.localizedDescription }
@@ -529,7 +529,7 @@ final class AppModel: ObservableObject {
                 let directory = dataDirectory.appendingPathComponent("jobs")
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
                 try await pipelineRunner.run(arguments: ["install-diarizer", dataDirectory.path], log: directory.appendingPathComponent("install-diarizer.log"))
-                if persistPreferences { preferences.set(true, forKey: "models.diarizerInstalled") }
+                if persistPreferences { settings.set(true, for: .diarizerInstalled) }
                 diarizationEnabled = true
                 notice = String(localized: "Séparation des voix activée pour les prochains traitements.")
             } catch { errorMessage = String(localized: "Installation des voix : \(error.localizedDescription)") }
@@ -745,21 +745,19 @@ final class AppModel: ObservableObject {
     }
     func saveSummarySettings() {
         guard !isDemoMode, persistPreferences else { return }
-        preferences.set(summaryEnabled, forKey: "summary.enabled")
-        preferences.set(summaryEndpoint, forKey: "summary.endpoint")
-        preferences.set(summaryModel, forKey: "summary.model")
-        preferences.set(summaryContextTokens, forKey: "summary.contextTokens")
-        preferences.set(summaryReasoningDisabled, forKey: "summary.reasoningDisabled")
-        preferences.set(summaryService.rawValue, forKey: "summary.service")
-        preferences.set(summaryAgentCommand, forKey: "summary.agent.command")
-        preferences.set(summaryAgentDirectory, forKey: "summary.agent.directory")
-        if summaryService.isRemote {
-            preferences.set(summaryRemoteModel, forKey: "summary.model." + summaryService.rawValue)
-        }
+        settings.set(summaryEnabled, for: .summaryEnabled)
+        settings.set(summaryEndpoint, for: .summaryEndpoint)
+        settings.set(summaryModel, for: .summaryLocalModel)
+        settings.set(summaryContextTokens, for: .summaryContextTokens)
+        settings.set(summaryReasoningDisabled, for: .summaryReasoningDisabled)
+        settings.set(summaryService, for: .summaryService)
+        settings.set(summaryAgentCommand, for: .summaryAgentCommand)
+        settings.set(summaryAgentDirectory, for: .summaryAgentDirectory)
+        if summaryService.isRemote { settings.set(summaryRemoteModel, for: .summaryHostedModel(summaryService)) }
     }
     private func loadRemoteSummarySettings() {
         let service = summaryService
-        summaryRemoteModel = service.isRemote ? preferences.string(forKey: "summary.model." + service.rawValue) ?? service.defaultModel : ""
+        summaryRemoteModel = service.isRemote ? settings.value(.summaryHostedModel(service)) ?? service.defaultModel : ""
         summaryModelsTask?.cancel(); summaryModelsTask = nil
         summaryAvailableModels = []; summaryModelsLoading = false
         // Previews, demos and tests never touch the keychain.
