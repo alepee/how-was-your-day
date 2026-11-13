@@ -44,10 +44,10 @@ import HWYDCore
         let recording = Recording(title: "Summary lifecycle fixture", notes: "Before")
         model.recordings = [recording]; model.selectedID = recording.id
         // The summarizer owns its conditions: off, then a non-loopback server, are refused before any run.
-        model.summaryEnabled = false
+        model.summarySettings.enabled = false
         guard model.summaryAvailability == .unavailable(.disabled) else { throw CaptureFailure(message: "Disabled summary must be unavailable") }
-        model.summaryEnabled = true
-        model.selectSummaryService(.local); model.summaryEndpoint = "https://example.com/v1"; model.summaryModel = "fixture"
+        model.summarySettings.enabled = true
+        model.summarySettings.select(.local); model.summarySettings.endpoint = "https://example.com/v1"; model.summarySettings.localModel = "fixture"
         guard model.summaryAvailability == .unavailable(.localServerNotConfigured) else {
             throw CaptureFailure(message: "A non-loopback summary server must be unavailable")
         }

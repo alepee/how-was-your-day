@@ -25,7 +25,7 @@ final class AppModel: ObservableObject {
         didSet { if persistPreferences && !isDemoMode { settings.set(newSessionKind, for: .newSessionKind) } }
     }
     @Published var newSessionTitle = ""
-    @Published var isDemoMode = false
+    @Published var isDemoMode = false { didSet { summarySettings.isDemo = isDemoMode } }
     @Published var isLoading = true
     @Published var activeCaptureID: UUID?
     @Published var elapsed: Double = 0
@@ -59,24 +59,9 @@ final class AppModel: ObservableObject {
     @Published var voiceContributions: [UUID: [VoiceContribution]] = [:]
     private let voiceRunner: PipelineRunner
     @Published var summaryID: UUID?
-    @Published var summaryEnabled = false
-    @Published var summaryEndpoint = ""
-    @Published var summaryModel = ""
-    @Published var summaryContextTokens = 32768
-    @Published var summaryReasoningDisabled = false
-    /// Choosing a hosted provider and storing its key is the opt-in: nothing is sent before both.
-    @Published private(set) var summaryService: SummaryService = .local
-    @Published var summaryRemoteModel = ""
-    @Published private(set) var summaryKeyStored = false
-    /// Models offered by the provider for the stored key; empty until fetched.
-    @Published private(set) var summaryAvailableModels: [String] = []
-    @Published private(set) var summaryModelsLoading = false
-    private var summaryModelsTask: Task<Void, Never>?
-    /// Agent mode: the command that starts an ACP agent, run through a login shell, and its working directory.
-    @Published var summaryAgentCommand = ""
-    @Published var summaryAgentDirectory = ""
-    /// Commands of the known ACP agents installed on this Mac.
-    @Published private(set) var summaryDetectedAgents: [String] = []
+    /// Provider, model, key and agent settings of the summary. Its changes are republished by this model.
+    let summarySettings: SummarySettings
+    private var summarySettingsChanges: AnyCancellable?
     @Published var summaryProgress: SummaryProgress?
     private var summaryTask: Task<Void, Never>?
     @Published var processingID: UUID?
@@ -205,20 +190,14 @@ final class AppModel: ObservableObject {
         pipelineRunner = PipelineRunner(helpers: helpers); voiceRunner = PipelineRunner(helpers: helpers)
         self.appliesAppearance = appliesAppearance
         self.persistPreferences = persistPreferences ?? installed
-        summaryEnabled = settings.value(.summaryEnabled)
-        summaryEndpoint = settings.value(.summaryEndpoint)
-        summaryModel = settings.value(.summaryLocalModel)
-        let contextTokens = settings.value(.summaryContextTokens)
-        summaryContextTokens = contextTokens == 0 ? SettingKey<Int>.summaryContextTokens.defaultValue : contextTokens
-        summaryReasoningDisabled = settings.value(.summaryReasoningDisabled)
-        summaryService = settings.value(.summaryService)
+        // Previews, demos and tests never touch the keychain nor start a process to find agents.
+        summarySettings = SummarySettings(store: settings, usesSystem: self.persistPreferences,
+                                          discovery: self.persistPreferences ? LoginShellAgentDiscovery() : FixedAgentDiscovery())
         newSessionKind = settings.value(.newSessionKind)
         diarizationEnabled = settings.value(.diarizationEnabled)
         if let data = settings.value(.recordingShortcut) {
             recordingShortcut = data.isEmpty ? nil : (try? JSONDecoder().decode(RecordingShortcut.self, from: data)) ?? .standard
         }
-        summaryAgentCommand = settings.value(.summaryAgentCommand)
-        summaryAgentDirectory = settings.value(.summaryAgentDirectory)
         appearancePreference = AppearancePreference(rawValue: settings.value(.appearance) ?? "") ?? .system
         dataDirectory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("HWYD")
         if appliesAppearance { NSApp.appearance = appearancePreference.appearance }
@@ -229,7 +208,13 @@ final class AppModel: ObservableObject {
             do { store = try SessionStore(directory: dataDirectory) }
             catch { errorMessage = String(localized: "Impossible d’ouvrir les données locales : \(error.localizedDescription)"); isLoading = false }
         }
-        loadRemoteSummarySettings()
+        summarySettings.isDemo = isDemoMode
+        summarySettings.report = { [weak self] message, isError in
+            if isError { self?.errorMessage = message } else { self?.notice = message }
+        }
+        summarySettingsChanges = summarySettings.objectWillChange.sink { [weak self] _ in
+            MainActor.assumeIsolated { self?.objectWillChange.send() }
+        }
     }
     func load() async {
         guard let store else { return }
@@ -748,119 +733,14 @@ final class AppModel: ObservableObject {
             self?.notice = String(localized: "\(person.name) n’est plus exclue. Mémorisez sa voix depuis une session pour la reconnaître à nouveau.")
         }
     }
-    func saveSummarySettings() {
-        guard !isDemoMode, persistPreferences else { return }
-        settings.set(summaryEnabled, for: .summaryEnabled)
-        settings.set(summaryEndpoint, for: .summaryEndpoint)
-        settings.set(summaryModel, for: .summaryLocalModel)
-        settings.set(summaryContextTokens, for: .summaryContextTokens)
-        settings.set(summaryReasoningDisabled, for: .summaryReasoningDisabled)
-        settings.set(summaryService, for: .summaryService)
-        settings.set(summaryAgentCommand, for: .summaryAgentCommand)
-        settings.set(summaryAgentDirectory, for: .summaryAgentDirectory)
-        if summaryService.isRemote { settings.set(summaryRemoteModel, for: .summaryHostedModel(summaryService)) }
-    }
-    private func loadRemoteSummarySettings() {
-        let service = summaryService
-        summaryRemoteModel = service.isRemote ? settings.value(.summaryHostedModel(service)) ?? service.defaultModel : ""
-        summaryModelsTask?.cancel(); summaryModelsTask = nil
-        summaryAvailableModels = []; summaryModelsLoading = false
-        // Previews, demos and tests never touch the keychain.
-        summaryKeyStored = service.isRemote && persistPreferences && SummaryKeychain.hasKey(for: service)
-    }
-    func selectSummaryService(_ service: SummaryService) {
-        guard service != summaryService else { return }
-        saveSummarySettings()
-        summaryService = service
-        loadRemoteSummarySettings()
-        saveSummarySettings()
-    }
-    /// Checks the key by listing the provider's models, then stores it. A rejected key is not stored;
-    /// a network failure still stores it, since the check can be repeated later.
-    func saveSummaryKey(_ key: String) {
-        let service = summaryService
-        let key = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard service.isRemote, !isDemoMode, persistPreferences, !key.isEmpty else { return }
-        summaryModelsTask?.cancel()
-        summaryModelsLoading = true
-        summaryModelsTask = Task {
-            defer { if summaryService == service { summaryModelsLoading = false } }
-            var models: [String] = []
-            do { models = try await SummaryModelCatalog.models(service: service, apiKey: key) }
-            catch SummaryFailure.remoteRejected(let name, let status, let detail) where status == 401 || status == 403 {
-                errorMessage = SummaryFailure.remoteRejected(service: name, status: status, detail: detail).localizedDescription + " " + String(localized: "La clé n’a pas été enregistrée.")
-                return
-            } catch {
-                if Task.isCancelled { return }
-                notice = String(localized: "Liste des modèles indisponible : \(error.localizedDescription)")
-            }
-            guard !Task.isCancelled else { return }
-            do { try SummaryKeychain.setKey(key, for: service) }
-            catch { errorMessage = String(localized: "Clé API : \(error.localizedDescription)"); return }
-            guard summaryService == service else { return }
-            summaryKeyStored = true
-            applyAvailableModels(models)
-        }
-    }
-    /// Fetches the provider's models for the stored key. Called when the settings show a hosted provider.
-    func refreshSummaryModels() {
-        let service = summaryService
-        guard service.isRemote, summaryKeyStored, !isDemoMode, persistPreferences, !summaryModelsLoading else { return }
-        summaryModelsLoading = true
-        summaryModelsTask = Task {
-            defer { if summaryService == service { summaryModelsLoading = false } }
-            do {
-                guard let key = try SummaryKeychain.key(for: service) else { return }
-                let models = try await SummaryModelCatalog.models(service: service, apiKey: key)
-                if !Task.isCancelled, summaryService == service { applyAvailableModels(models) }
-            } catch {
-                if !Task.isCancelled, summaryService == service { errorMessage = String(localized: "Modèles \(service.displayName) : \(error.localizedDescription)") }
-            }
-        }
-    }
-    private func applyAvailableModels(_ models: [String]) {
-        summaryAvailableModels = models
-        // A suggested default this account does not offer is cleared so the user picks from the list.
-        // A model the user typed or chose is never replaced.
-        if !models.isEmpty, summaryRemoteModel == summaryService.defaultModel, !models.contains(summaryRemoteModel) {
-            summaryRemoteModel = ""
-            saveSummarySettings()
-        }
-    }
-    /// Looks for the known ACP agents through a login shell, as the agent itself will be launched.
-    func detectSummaryAgents() {
-        guard !isDemoMode, persistPreferences, summaryDetectedAgents.isEmpty else { return }
-        Task.detached(priority: .utility) {
-            let process = Process(), pipe = Pipe()
-            process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-            process.arguments = ["-lc", ACPAgentPreset.all.map { "command -v \($0.executable) >/dev/null 2>&1 && echo \($0.executable)" }.joined(separator: "; ")]
-            process.standardOutput = pipe; process.standardError = FileHandle.nullDevice
-            guard (try? process.run()) != nil else { return }
-            process.waitUntilExit()
-            let found = Set(String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self).split(separator: "\n").map(String.init))
-            await MainActor.run { self.summaryDetectedAgents = ACPAgentPreset.all.filter { found.contains($0.executable) }.map(\.command) }
-        }
-    }
     func chooseSummaryAgentDirectory() {
         let panel = NSOpenPanel(); panel.canChooseFiles = false; panel.canChooseDirectories = true
         panel.prompt = String(localized: "Utiliser ce dossier"); panel.message = String(localized: "L’agent démarre dans ce dossier et y trouve son contexte (instructions, mémoire, notes).")
         if panel.runModal() == .OK, let url = panel.url {
-            summaryAgentDirectory = (url.path as NSString).abbreviatingWithTildeInPath; saveSummarySettings()
+            summarySettings.agentDirectory = (url.path as NSString).abbreviatingWithTildeInPath; summarySettings.save()
         }
     }
-    func removeSummaryKey() {
-        guard summaryService.isRemote, !isDemoMode, persistPreferences else { return }
-        summaryModelsTask?.cancel(); summaryAvailableModels = []; summaryModelsLoading = false
-        do { try SummaryKeychain.removeKey(for: summaryService); summaryKeyStored = false; notice = String(localized: "Clé \(summaryService.displayName) supprimée.") }
-        catch { errorMessage = String(localized: "Clé API : \(error.localizedDescription)") }
-    }
     func cancelSummary() { summaryTask?.cancel() }
-    /// Every summary setting as one value, read by the summarizer.
-    var summaryConfiguration: SummaryConfiguration {
-        SummaryConfiguration(enabled: summaryEnabled, service: summaryService, localEndpoint: summaryEndpoint, localModel: summaryModel,
-                             contextTokens: summaryContextTokens, reasoningDisabled: summaryReasoningDisabled, hostedModel: summaryRemoteModel,
-                             keyStored: summaryKeyStored, agentCommand: summaryAgentCommand, agentDirectory: summaryAgentDirectory)
-    }
     private var summarizerEnvironment: SummarizerEnvironment {
         // Previews, demos and tests never touch the keychain.
         let readsKeychain = persistPreferences
@@ -872,7 +752,7 @@ final class AppModel: ObservableObject {
     /// Replaces the configured summarizer in synthetic checks, so they run no model and no network call.
     var summarizerOverride: (any Summarizer)?
     /// The summarizer for the current settings. It owns whether a summary can run and why not.
-    var summarizer: any Summarizer { summarizerOverride ?? SummarizerFactory.make(summaryConfiguration, environment: summarizerEnvironment) }
+    var summarizer: any Summarizer { summarizerOverride ?? SummarizerFactory.make(summarySettings.configuration, environment: summarizerEnvironment) }
     var summaryAvailability: SummaryAvailability { summarizer.availability }
     private func openSummarySettings() { settingsCategory = .summary; showSettings = true }
     func generateSummary() {
