@@ -140,9 +140,12 @@ import HWYDCore
         guard !model.diarizationEnabled else { throw CaptureFailure(message: "A test model read the user's preferences") }
         await model.load()
         var recording = Recording(title: "ASR synthétique", notes: "Avant traitement") // l10n:ignore
+        // A capture records each chunk's exact length; the synthetic voice's length varies with the system voice.
+        let sample = try AVAudioFile(forReading: directory.appendingPathComponent("sample.caf"))
+        let duration = Double(sample.length) / sample.processingFormat.sampleRate
         recording.audioChunks = [
-            .init(source: .mic, relativePath: "sample.caf", start: 0, duration: 6.2),
-            .init(source: .system, relativePath: "sample.caf", start: 300, duration: 6.2)]
+            .init(source: .mic, relativePath: "sample.caf", start: 0, duration: duration),
+            .init(source: .system, relativePath: "sample.caf", start: 300, duration: duration)]
         model.recordings.insert(recording, at: 0)
         model.update(recording.id) { $0.notes = "Avant traitement" } // l10n:ignore
         await model.flush()
