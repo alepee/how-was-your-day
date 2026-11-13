@@ -135,7 +135,23 @@ extension Recording {
         summary = nil
     }
 
-    /// Names a voice after a known person. Linking is not enrollment: no vector is read or written.
+    /// Shows the person voice memory proposes for each voice nobody confirmed or ignored. The
+    /// proposal stays to be confirmed; the transcript version does not change. Returns how many
+    /// voices received one. Matches naming an unknown person are dropped.
+    @discardableResult
+    public mutating func proposeIdentities(_ matches: VoiceMatches, people: [VoicePerson]) -> Int {
+        var proposed = 0
+        for index in speakers.indices where !speakers[index].confirmed && !speakers[index].ignored {
+            guard let match = matches[speakers[index].id], let person = people.first(where: { $0.id == match.personID }) else { continue }
+            speakers[index].proposedIdentity = match; speakers[index].label = person.name
+            proposed += 1
+        }
+        return proposed
+    }
+
+    /// Confirms a voice as a known person: the one mutation behind the voice tiles, an enrollment
+    /// and an MCP rename. The name is validated and an opposed person refused. Linking is not
+    /// enrollment: no vector is read or written.
     public mutating func linkSpeaker(_ id: UUID, to person: VoicePerson) throws {
         guard !person.opposed else { throw VoiceReviewError.opposedPerson }
         guard let index = speakers.firstIndex(where: { $0.id == id }) else { throw StoreError.notFound }
