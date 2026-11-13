@@ -33,6 +33,11 @@ final class AppModel: ObservableObject {
     @Published var isDemoMode = false { didSet { summarySettings.isDemo = isDemoMode } }
     /// The library has not finished its first load.
     var isLoading: Bool { !sessionLibrary.isReady }
+    /// Runs the capture: its clock, pause, end and what follows it. The properties below show
+    /// its state; snapshots set them directly to render a capture.
+    private(set) lazy var captureSession = CaptureSession(notifier: notifier) { [weak self] id in
+        await self?.enqueued { [weak self] in await self?.requestTranscription(id) ?? .refused(.unavailable("")) } ?? .refused(.unavailable(""))
+    }
     @Published var activeCaptureID: UUID? { didSet { updateBusy() } }
     @Published var elapsed: Double = 0
     /// The active capture is paused: no audio is captured and the clock is frozen.
@@ -40,6 +45,13 @@ final class AppModel: ObservableObject {
     @Published var micLevel: Float = 0
     @Published var systemLevel: Float = 0
     @Published var isStarting = false
+    private var shownCapturePhase: CapturePhase = .idle
+    private var captureChanges: [AnyCancellable] = []
+    /// Whether the end of the capture being stopped brings the window forward.
+    private var revealsCaptureEnd = true
+    /// Only the installed app records for real. Previews and models opened on another directory
+    /// (tests, synthetic checks) never open the microphone, even outside demo mode.
+    private let microphoneAllowed: Bool
     /// Playback ticks live outside `objectWillChange`: only views reading them are invalidated.
     let playback = PlaybackState()
     var isPlaying: Bool { get { playback.isPlaying } set { playback.isPlaying = newValue } }
@@ -186,9 +198,7 @@ final class AppModel: ObservableObject {
     var showWindow: (() -> Void)?
     var openNotepad: (() -> Void)?
     private var timer: Timer?
-    private var captureStart: ContinuousClock.Instant?
     let player = SessionPlayback()
-    private var capture: CaptureController?
 
     /// `settings` defaults to the user's preferences for the installed app only; previews and
     /// models opened on another directory get an empty in-memory store and never read them.
@@ -205,6 +215,7 @@ final class AppModel: ObservableObject {
         self.helpers = helpers
         self.appliesAppearance = appliesAppearance
         self.persistPreferences = persistPreferences ?? installed
+        microphoneAllowed = installed
         // Previews, demos and tests never touch the keychain nor start a process to find agents.
         summarySettings = SummarySettings(store: settings, usesSystem: self.persistPreferences, notifier: toastCenter,
                                           discovery: self.persistPreferences ? LoginShellAgentDiscovery() : FixedAgentDiscovery())
@@ -247,6 +258,11 @@ final class AppModel: ObservableObject {
         Task { [weak self] in
             for await busy in await coordinator.busyChanges() { self?.workBusy = busy }
         }
+        captureChanges = [
+            captureSession.$phase.sink { [weak self] in self?.showCapture($0) },
+            captureSession.$levels.sink { [weak self] in self?.micLevel = $0.mic; self?.systemLevel = $0.system }
+        ]
+        captureSession.onEnd = { [weak self] in self?.showCaptureEnd($0) }
         if let changes = storedLibrary?.changes {
             Task { [weak self] in
                 for await change in changes { self?.report(change) }
@@ -304,8 +320,8 @@ final class AppModel: ObservableObject {
         stopPlayback(); isDemoMode = true; selectedID = nil; sessionLibrary = SessionLibrary(volatile: DemoContent.recordings()); startTicker()
     }
     func leaveDemo() {
-        stopPlayback(); activeCaptureID = nil; captureStart = nil; isDemoMode = false; selectedID = nil
-        Task { await load(); calendar.start() }
+        stopPlayback(); activeCaptureID = nil; isDemoMode = false; selectedID = nil
+        Task { await captureSession.discard(); await load(); calendar.start() }
     }
     /// Edits the session now; the library saves it shortly after.
     func update(_ id: UUID, _ edit: (inout Recording) -> Void) { sessionLibrary.edit(id, edit) }
@@ -314,7 +330,8 @@ final class AppModel: ObservableObject {
     func retrySave() { Task { await sessionLibrary.flush() } }
     func addTimestamp() {
         guard let id = activeCaptureID else { return }
-        update(id) { $0.noteEntries.append(.init(offset: elapsed)) }
+        let offset = captureSession.sessionID == id ? captureSession.elapsed : elapsed
+        update(id) { $0.noteEntries.append(.init(offset: offset)) }
     }
     func beginSpeakerEdit(_ speaker: Speaker) { editingSpeakerID = speaker.id; speakerName = speaker.confirmed || speaker.proposedIdentity != nil ? speaker.label : "" }
     /// Names the voice if needed, then adds a sample of it to the person's voice print. The
@@ -393,19 +410,11 @@ final class AppModel: ObservableObject {
     }
     /// Pauses or resumes the active capture without ending the session.
     /// Paused time is left out of the recording timeline, so notes stay aligned with the audio.
-    func toggleCapturePause() {
-        guard activeCaptureID != nil else { return }
-        if isCapturePaused {
-            if let capture {
-                do { try capture.resume() } catch { notifier.notify(.error(error.localizedDescription)); return }
-            }
-            captureStart = ContinuousClock.now.advanced(by: .milliseconds(-Int64((elapsed * 1000).rounded())))
-            isCapturePaused = false
-        } else {
-            tick()
-            capture?.pause()
-            captureStart = nil; micLevel = 0; systemLevel = 0
-            isCapturePaused = true
+    @discardableResult
+    func toggleCapturePause() -> Task<Void, Never> {
+        Task {
+            if captureSession.isPaused { await captureSession.resume() } else { await captureSession.pause() }
+            if captureSession.sessionID != nil { elapsed = captureSession.elapsed }
         }
     }
     // MARK: Navigation
@@ -439,50 +448,53 @@ final class AppModel: ObservableObject {
     }
     /// Starts recording. A calendar meeting provides its own kind and title; otherwise the
     /// setup screen does, and an empty name falls back to the kind and time.
-    func startCapture(meeting: CalendarContext? = nil, kind: SessionKind? = nil, title: String? = nil, language: String? = nil, reveal: Bool = true) {
-        guard activeCaptureID == nil, !isStarting else { if reveal { showWindow?() }; return }
-        let kind = meeting == nil ? (kind ?? .adHoc) : .meeting
-        let typed = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let time = Date().formatted(date: .omitted, time: .shortened)
-        let sessionTitle = !typed.isEmpty ? typed : meeting?.title ?? (kind == .adHoc ? String(localized: "Session du \(time)") : String(localized: "\(kind.label) du \(time)"))
-        let language = language ?? SpeechLanguage.automatic
+    @discardableResult
+    func startCapture(meeting: CalendarContext? = nil, kind: SessionKind? = nil, title: String? = nil, language: String? = nil, reveal: Bool = true) -> Task<Void, Never> {
+        guard activeCaptureID == nil, !isStarting else { if reveal { showWindow?() }; return Task {} }
+        let request = CaptureRequest(kind: kind ?? .adHoc, title: title, meeting: meeting, language: language)
         showSettings = false; showNewSession = false
         startTicker(); stopPlayback(); isStarting = true
-        Task {
-            defer { isStarting = false }
-            let id = UUID()
-            if isDemoMode {
-                let item = Recording(id: id, title: sessionTitle, kind: kind, state: .recording, isDemo: true)
-                sessionLibrary.insert(item); activeCaptureID = id; selectedID = id
-                elapsed = 0; captureStart = .now; if reveal { showWindow?() }; return
-            }
-            guard store != nil else { notifier.notify(.error(String(localized: "Le store local n’est pas disponible."))); return }
+        return Task {
+            defer { isStarting = captureSession.isStarting }
             do {
-                let controller = CaptureController()
-                try await controller.start(id: id, directory: dataDirectory)
-                capture = controller
-                var item = Recording(id: id, title: sessionTitle, kind: kind, state: .recording)
-                item.calendarContext = meeting; item.speechLanguage = language
-                sessionLibrary.insert(item); activeCaptureID = id; selectedID = id
-                elapsed = 0; captureStart = .now
-                await flush(); if reveal { showWindow?() }
+                let capture = try makeCapture()
+                guard try await captureSession.start(request, with: capture, in: sessionLibrary) != nil else { return }
+                if reveal { showWindow?() }
             } catch { notifier.notify(.error(error.localizedDescription)); if !reveal { showWindow?() } }
         }
     }
-    func stopCapture(reveal: Bool = true) {
-        guard let id = activeCaptureID else { return }
-        let duration = elapsed
-        let chunks = capture?.stop() ?? []
-        let finalizationError = capture?.finalizationError
-        capture = nil; captureStart = nil; activeCaptureID = nil; micLevel = 0; systemLevel = 0; isCapturePaused = false
-        update(id) { $0.duration = duration; $0.state = finalizationError == nil ? .sealed : .interrupted; $0.audioChunks = chunks }
-        if let finalizationError { notifier.notify(.error(finalizationError)) }
-        selectedID = id; activeTab = .notes
-        if isDemoMode { notifier.notify(.info(String(localized: "Simulation terminée. Les notes restent disponibles."))) }
-        else if chunks.isEmpty { notifier.notify(.info(String(localized: "Aucun audio reçu. Vos notes sont conservées."))) }
-        // Queued behind other work if needed; the request says which.
-        else { enqueue { [weak self] in await self?.requestTranscription(id, afterCapture: true) } }
-        if reveal || finalizationError != nil { showWindow?() }
+    /// The capture for the mode: simulated in demo mode, Core Audio for the installed app.
+    /// Composition-root seam (step 7): the mode should pick this once.
+    private func makeCapture() throws -> any AudioCapture {
+        if isDemoMode { return SimulatedCapture() }
+        guard microphoneAllowed else { throw CaptureFailure(message: "This model never opens the microphone.") } // l10n:ignore
+        guard store != nil else { throw CaptureFailure(message: String(localized: "Le store local n’est pas disponible.")) }
+        return CoreAudioCapture(directory: dataDirectory)
+    }
+    @discardableResult
+    func stopCapture(reveal: Bool = true) -> Task<Void, Never> {
+        Task {
+            revealsCaptureEnd = reveal
+            await captureSession.stop()
+            revealsCaptureEnd = true
+        }
+    }
+    /// The Mac is going to sleep: the session ends with what was recorded.
+    func systemWillSleep() { Task { await captureSession.systemWillSleep() } }
+    /// Mirrors the capture's phase in the published state the views read.
+    private func showCapture(_ phase: CapturePhase) {
+        if shownCapturePhase == .starting, case .recording(let id) = phase { selectedID = id; elapsed = 0 }
+        shownCapturePhase = phase
+        activeCaptureID = phase.sessionID
+        isCapturePaused = if case .paused = phase { true } else { false }
+        if phase == .starting { isStarting = true }
+    }
+    /// Shows the notes of the session that just ended. A capture stopped by the user from
+    /// elsewhere (the shortcut) leaves the window where it is, unless sealing failed.
+    private func showCaptureEnd(_ ending: CaptureEnding) {
+        selectedID = ending.sessionID; activeTab = .notes
+        let reveal = ending.cause == .requested ? revealsCaptureEnd : true
+        if reveal || ending.finalizationError != nil { showWindow?() }
     }
     // MARK: Heavy work
 
@@ -506,6 +518,12 @@ final class AppModel: ObservableObject {
     private func updateBusy() {
         let busy = activeCaptureID != nil || workBusy
         if busy != isBusy { isBusy = busy }
+    }
+    /// Runs a trigger's request after the ones made before it and returns its result.
+    private func enqueued<T: Sendable>(_ body: @escaping @MainActor () async -> T) async -> T {
+        await withCheckedContinuation { continuation in
+            enqueue { continuation.resume(returning: await body()) }
+        }
     }
     /// Runs a trigger's request after the ones made before it.
     private func enqueue(_ body: @escaping @MainActor () async -> Void) {
@@ -568,23 +586,14 @@ final class AppModel: ObservableObject {
     func transcribe(_ id: UUID, language: String? = nil) {
         enqueue { [weak self] in await self?.requestTranscription(id, language: language) }
     }
-    /// Starts the transcription, or queues it behind the work in progress. After a capture, says
-    /// which, since the window may be closed.
+    /// Starts the transcription, or queues it behind the work in progress.
     @discardableResult
-    func requestTranscription(_ id: UUID, language: String? = nil, afterCapture: Bool = false) async -> WorkDecision {
+    func requestTranscription(_ id: UUID, language: String? = nil) async -> WorkDecision {
         guard !isDemoMode else { return demoRefusal }
         guard let item = recordings.first(where: { $0.id == id }), item.state != .recording, !item.audioChunks.isEmpty else {
             return refuse(String(localized: "Aucun fichier audio disponible pour cette session."))
         }
-        let decision = await request(.transcription(session: id)) { [weak self] in await self?.runTranscription(id, language: language) }
-        if afterCapture {
-            switch decision {
-            case .accepted: notifier.notify(.info(String(localized: "Audio et notes conservés. La transcription locale va démarrer.")))
-            case .queued: notifier.notify(.info(String(localized: "Audio et notes conservés. La transcription démarrera après le traitement en cours.")))
-            case .refused: break
-            }
-        }
-        return decision
+        return await request(.transcription(session: id)) { [weak self] in await self?.runTranscription(id, language: language) }
     }
     /// The session is read when its turn comes: edits made while it waited are kept.
     private func runTranscription(_ id: UUID, language: String?) async {
@@ -626,24 +635,8 @@ final class AppModel: ObservableObject {
         self.timer = timer
     }
     private func tick() {
-        if let captureStart {
-            let parts = captureStart.duration(to: .now).components
-            elapsed = Double(parts.seconds) + Double(parts.attoseconds) / 1e18
-            if isDemoMode {
-                micLevel = Float((sin(elapsed * 2.2) + 1) * 0.3 + 0.05)
-                systemLevel = Float((sin(elapsed * 1.6) + 1) * 0.16)
-            } else if let capture {
-                micLevel = capture.micLevel; systemLevel = capture.systemLevel
-                if let failure = capture.failure { let id = activeCaptureID; stopCapture(); if let id { update(id) { $0.state = .interrupted } }; notifier.notify(.error(failure)) }
-                else {
-                    let before = elapsed
-                    do {
-                        // Restarting a tap aggregate can block for about a second: the session clock skips it like a pause.
-                        if try capture.restartIfMicrophoneClaimed() { self.captureStart = ContinuousClock.now.advanced(by: .milliseconds(-Int64((before * 1000).rounded()))) }
-                    } catch { let id = activeCaptureID; stopCapture(); if let id { update(id) { $0.state = .interrupted } }; notifier.notify(.error(error.localizedDescription)) }
-                }
-            }
-        }
+        // The session clock counts recorded time; the capture reports levels and faults itself.
+        if captureSession.sessionID != nil { elapsed = captureSession.elapsed }
         if isPlaying {
             playbackTime = player.position
             if player.playlistFinished || playbackTime >= (selected?.duration ?? 0) { stopPlayback() }

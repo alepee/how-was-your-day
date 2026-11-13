@@ -248,23 +248,31 @@ import HWYDCore
         }
         print("ACP agent summary through bundled hwyd-mcp: restricted tools, readable rejection, accepted handoff: PASS")
     }
+    /// A model opened on a test directory refuses a real capture, even outside demo mode: only the
+    /// installed app opens the microphone.
+    private static func checkNoMicrophone(directory: URL) async throws {
+        let model = AppModel(directory: directory, appliesAppearance: false)
+        await model.startCapture(reveal: false).value
+        guard !model.isDemoMode, model.activeCaptureID == nil, !model.isStarting, model.recordings.isEmpty,
+              model.toastCenter.toasts.last?.message == "This model never opens the microphone." else { // l10n:ignore
+            throw CaptureFailure(message: "A test model started a real capture")
+        }
+        print("No real capture outside the installed app: PASS")
+    }
     /// The setup screen never records by itself, and toasts stack, deduplicate and expire.
     private static func checkNewSessionAndToasts() async throws {
         let model = AppModel(preview: true, appliesAppearance: false)
         model.requestNewSession()
         guard model.showNewSession, model.activeCaptureID == nil else { throw CaptureFailure(message: "New session must open its setup screen without recording") }
         model.newSessionKind = .call
-        model.startCapture(kind: model.newSessionKind, title: "  ")
-        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
-        while model.activeCaptureID == nil, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        await model.startCapture(kind: model.newSessionKind, title: "  ").value
         guard let active = model.activeCapture, active.kind == .call, active.title.hasPrefix(SessionKind.call.label), active.title != SessionKind.call.label, !model.showNewSession else {
             throw CaptureFailure(message: "Kind and default name were not applied")
         }
-        model.stopCapture()
-        model.startCapture(kind: .voiceMemo, title: "Idée produit") // l10n:ignore
-        while model.activeCaptureID == nil, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        await model.stopCapture().value
+        await model.startCapture(kind: .voiceMemo, title: "Idée produit").value // l10n:ignore
         guard model.activeCapture?.title == "Idée produit", model.activeCapture?.kind == .voiceMemo else { throw CaptureFailure(message: "Typed name was not applied") } // l10n:ignore
-        model.stopCapture()
+        await model.stopCapture().value
 
         let toasts = model.toastCenter
         toasts.dismissAll()
@@ -340,10 +348,10 @@ import HWYDCore
         }
         model.deleteCandidate = model.selected; model.deleteConfirmed()
         let busy = WorkBusy(job: .voice(session: recording.id))
-        guard await model.requestTranscription(queued.id, afterCapture: true) == .queued(behind: busy),
-              model.work.isQueued(.transcription(session: queued.id)),
-              model.toastCenter.toasts.contains(where: { $0.message == String(localized: "Audio et notes conservés. La transcription démarrera après le traitement en cours.") }) else {
-            throw CaptureFailure(message: "Transcription after capture was not queued")
+        // What the end of a capture says about it is CaptureSession's, covered by its unit tests.
+        guard await model.requestTranscription(queued.id) == .queued(behind: busy),
+              model.work.isQueued(.transcription(session: queued.id)) else {
+            throw CaptureFailure(message: "Transcription was not queued")
         }
         guard await model.requestDiarizer() == .refused(.busy(busy)),
               model.toastCenter.toasts.contains(where: { $0.message == WorkRefusal.busy(busy).localizedDescription }) else {
@@ -368,6 +376,7 @@ import HWYDCore
         try await checkAgentSummary(directory: directory.appendingPathComponent("agent-summary-test"))
         try await checkSessionDeletion(directory: directory.appendingPathComponent("deletion-test"))
         try await checkNewSessionAndToasts()
+        try await checkNoMicrophone(directory: directory.appendingPathComponent("no-microphone-test"))
         let model = AppModel(directory: directory)
         // Synthetic checks read no user preference: voice separation starts off.
         guard !model.diarizationEnabled else { throw CaptureFailure(message: "A test model read the user's preferences") }
@@ -451,19 +460,19 @@ import HWYDCore
             throw CaptureFailure(message: "Stale split accepted")
         }
         model.toastCenter.dismissAll()
-        model.startCapture()
+        await model.startCapture().value
         try await Task.sleep(for: .milliseconds(650))
-        guard let active = model.activeCapture, model.elapsed > 0 else { throw CaptureFailure(message: "Demo capture timer failed") }
-        model.toggleCapturePause()
+        guard let active = model.activeCapture, model.elapsed > 0, model.micLevel > 0 else { throw CaptureFailure(message: "Demo capture timer or levels failed") }
+        await model.toggleCapturePause().value
         let frozen = model.elapsed
         try await Task.sleep(for: .milliseconds(450))
-        guard model.isCapturePaused, model.elapsed == frozen else { throw CaptureFailure(message: "Paused capture clock moved") }
-        model.toggleCapturePause()
+        guard model.isCapturePaused, model.elapsed == frozen, model.micLevel == 0 else { throw CaptureFailure(message: "Paused capture clock moved") }
+        await model.toggleCapturePause().value
         try await Task.sleep(for: .milliseconds(450))
         guard !model.isCapturePaused, model.elapsed > frozen, model.elapsed < frozen + 1 else { throw CaptureFailure(message: "Resumed capture clock wrong: \(model.elapsed) after \(frozen)") }
         model.update(active.id) { $0.notes = "Note pendant la session" } // l10n:ignore
         model.addTimestamp()
-        model.stopCapture()
+        await model.stopCapture().value
         guard model.selected?.notes == "Note pendant la session", model.selected?.noteEntries.count == 1, model.activeTab == .notes else { throw CaptureFailure(message: "Capture handoff failed") } // l10n:ignore
         let afterDemo = try await reopened.all()
         guard afterDemo.count == 1 else { throw CaptureFailure(message: "Demo leaked into store") }

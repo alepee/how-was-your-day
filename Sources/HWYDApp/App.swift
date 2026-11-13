@@ -57,9 +57,9 @@ import HWYDCore
             do {
                 let seconds = args.count > index + 2 ? Double(args[index + 2]) ?? 2 : 2
                 guard seconds >= 2, seconds <= 14400 else { throw CaptureFailure(message: "Test duration must be between 2 and 14400 seconds") }
-                try CaptureController.verifySyntheticCapture(directory: URL(fileURLWithPath: args[index + 1]), seconds: seconds)
+                try CoreAudioCapture.verifySyntheticCapture(directory: URL(fileURLWithPath: args[index + 1]), seconds: seconds)
                 FileHandle.standardOutput.write(Data("Synthetic two-track capture: PASS\n".utf8))
-                try CaptureController.verifySyntheticSplitCapture(directory: URL(fileURLWithPath: args[index + 1]))
+                try CoreAudioCapture.verifySyntheticSplitCapture(directory: URL(fileURLWithPath: args[index + 1]))
                 FileHandle.standardOutput.write(Data("Synthetic split-clock capture: PASS\n".utf8))
                 exit(0)
             } catch { FileHandle.standardError.write(Data("\(error)\n".utf8)); exit(1) }
@@ -74,7 +74,7 @@ import HWYDCore
         // A demo instance must not take the shortcut from a real one running alongside.
         if !args.contains("--demo") { model.enableRecordingShortcut() }
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { _ in
-            Task { @MainActor in if AppEnvironment.model.activeCaptureID != nil { AppEnvironment.model.stopCapture() } }
+            Task { @MainActor in AppEnvironment.model.systemWillSleep() }
         }
         model.calendar.onAction = { [weak model] event, join in
             Task { @MainActor in
@@ -129,9 +129,11 @@ import HWYDCore
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         let model = AppEnvironment.model
         if CommandLine.arguments.contains("--snapshot") { return .terminateNow }
-        if model.activeCaptureID != nil { model.stopCapture() }
-        model.cancelProcessing(); model.cancelSummary()
+        // The capture ends first, so its transcription request is cancelled with the rest.
+        let stopping = model.stopCapture()
         Task {
+            await stopping.value
+            model.cancelProcessing(); model.cancelSummary()
             await model.idle()
             await model.flush()
             if model.hasUnsavedChanges { openWindow(); NSApp.reply(toApplicationShouldTerminate: false) }
