@@ -384,12 +384,12 @@ import HWYDCore
         var external = try await reopened.recording(session.id)
         external.title = "Titre écrit par un autre processus" // l10n:ignore
         try await reopened.save(external)
-        model.update(session.id) { $0.notes = "Note locale en attente" } // l10n:ignore
+        model.update(session.id) { $0.notes += "\nNote locale en attente" } // l10n:ignore
         await model.sessionLibrary.checkForChanges()
         await model.flush()
         let merged = try await reopened.recording(session.id)
         guard model.recordings.first(where: { $0.id == session.id }) == merged,
-              merged.title == external.title, merged.notes == "Note locale en attente", !model.hasUnsavedChanges else { // l10n:ignore
+              merged.title == external.title, merged.notes == "Note enregistrée depuis le modèle UI\nNote locale en attente", !model.hasUnsavedChanges else { // l10n:ignore
             throw CaptureFailure(message: "A commit from another process was lost or overwrote a pending edit")
         }
         model.enterDemo()
