@@ -24,6 +24,9 @@ struct CaptureFailure: LocalizedError {
     private var initialOutput: AudioObjectID = 0
     /// Paused: the devices are stopped, so neither the microphone nor system audio is captured.
     private(set) var isPaused = false
+    /// Restarts the microphone stream once another app opened the input after the capture started.
+    private var claimWatch: MicrophoneClaimWatch?
+    private var lastClaimPoll: TimeInterval = 0
     var micLevel: Float { writer?.status().mic ?? 0 }
     var systemLevel: Float { writer?.status().system ?? 0 }
     var failure: String? {
@@ -129,6 +132,7 @@ struct CaptureFailure: LocalizedError {
                 }
                 try await Task.sleep(for: .milliseconds(50))
             }
+            claimWatch = MicrophoneClaimWatch(readers: inputReaders())
         } catch { _ = stop(); throw error }
     }
     /// Stops the devices without ending the session. Buffered audio is written first.
@@ -146,6 +150,38 @@ struct CaptureFailure: LocalizedError {
         try check(AudioDeviceStart(aggregate, ioProc), String(localized: "Reprise de la capture"))
         if let micProc { try check(AudioDeviceStart(initialInput, micProc), String(localized: "Reprise du micro")) }
         isPaused = false
+        claimWatch?.reset(readers: inputReaders())
+    }
+    /// A meeting app that opens the microphone after the capture started may switch on voice processing,
+    /// which leaves the stream already running about 30 dB lower. Stopping and starting it again, like a manual
+    /// pause and resume, restores the level. Returns true when the stream restarted; the gap lasts a few
+    /// milliseconds and, like a pause, is left out of the timeline.
+    func restartIfMicrophoneClaimed() throws -> Bool {
+        guard !isPaused, claimWatch != nil else { return false }
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastClaimPoll >= 0.5 else { return false }
+        lastClaimPoll = now
+        guard claimWatch?.poll(readers: inputReaders(), now: now) == true else { return false }
+        pause()
+        try resume()
+        return true
+    }
+    /// The other processes currently reading audio input, from any device. A meeting app with voice processing
+    /// reads through its own aggregate device, so the reader is not filtered on the capture's microphone.
+    private func inputReaders() -> Set<Int32> {
+        var prop = address(kAudioHardwarePropertyProcessObjectList), size: UInt32 = 0
+        let system = AudioObjectID(kAudioObjectSystemObject)
+        guard AudioObjectGetPropertyDataSize(system, &prop, 0, nil, &size) == noErr, size > 0 else { return [] }
+        var processes = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(system, &prop, 0, nil, &size, &processes) == noErr else { return [] }
+        let own = getpid()
+        var readers: Set<Int32> = []
+        for process in processes {
+            guard (try? scalar(process, kAudioProcessPropertyIsRunningInput, as: UInt32.self)) ?? 0 != 0,
+                  let pid = try? scalar(process, kAudioProcessPropertyPID, as: pid_t.self), pid != own else { continue }
+            readers.insert(pid)
+        }
+        return readers
     }
     func stop() -> [AudioChunk] {
         if let ioProc, aggregate != 0 { AudioDeviceStop(aggregate, ioProc); AudioDeviceDestroyIOProcID(aggregate, ioProc) }
@@ -159,6 +195,7 @@ struct CaptureFailure: LocalizedError {
         if let ring { HWYDRingDestroy(ring); self.ring = nil }
         if let micRing { HWYDRingDestroy(micRing); self.micRing = nil }
         if lockFD >= 0 { flock(lockFD, LOCK_UN); close(lockFD); lockFD = -1 }
+        claimWatch = nil
         return chunks
     }
     /// Each check reports what it read, so a failure on another Mac can be diagnosed from the message alone.
