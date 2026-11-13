@@ -20,13 +20,34 @@ public struct MutationReceipt: Codable, Sendable {
     public var identity_enrollment = "not_performed"
     public var export_state = "pending"
 }
+/// Settings shared by the app, `hwyd-mcp` and the export publisher, stored in SQLite so that a
+/// helper reads them without the app. Their keys are declared here only.
+enum IntegrationSetting: String {
+    /// "true" lets an MCP client started with `--allow-write` change notes and voice names.
+    case mcpWritesEnabled = "mcp_writes_enabled"
+    /// Folder where saved sessions are published; empty or missing means no publication.
+    case exportDirectory = "export_directory"
+
+    static func value(_ key: Self, in db: Database) throws -> String? {
+        try String.fetchOne(db, sql: "SELECT value FROM integration_settings WHERE key=?", arguments: [key.rawValue])
+    }
+}
 extension SessionStore {
-    public func setting(_ key: String) throws -> String? {
-        try database.read { try String.fetchOne($0, sql: "SELECT value FROM integration_settings WHERE key=?", arguments: [key]) }
+    private func setting(_ key: IntegrationSetting) throws -> String? {
+        try database.read { try IntegrationSetting.value(key, in: $0) }
     }
-    public func setSetting(_ key: String, value: String) throws {
-        try database.write { try $0.execute(sql: "INSERT INTO integration_settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", arguments: [key, value]) }
+    private func setSetting(_ key: IntegrationSetting, value: String) throws {
+        try database.write { try $0.execute(sql: "INSERT INTO integration_settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", arguments: [key.rawValue, value]) }
     }
+    /// Whether MCP clients may write. Off unless the user turned it on.
+    public func mcpWritesEnabled() throws -> Bool { try setting(.mcpWritesEnabled) == "true" }
+    public func setMCPWritesEnabled(_ enabled: Bool) throws { try setSetting(.mcpWritesEnabled, value: enabled ? "true" : "false") }
+    /// The publication folder, nil when none is chosen.
+    public func exportDirectory() throws -> URL? {
+        guard let path = try setting(.exportDirectory), !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: path, isDirectory: true)
+    }
+    public func setExportDirectory(_ directory: URL) throws { try setSetting(.exportDirectory, value: directory.path) }
     public func sequence() throws -> Int { try database.read { try Int.fetchOne($0, sql: "SELECT seq FROM integration_sequence") ?? 0 } }
     public func recording(_ id: UUID, revision: Int? = nil) throws -> Recording {
         try database.read { db in
@@ -52,7 +73,7 @@ extension SessionStore {
         let payload = String(decoding: try JSONSerialization.data(withJSONObject: input, options: [.sortedKeys]), as: UTF8.self)
         let hash = SHA256.hash(data: Data(payload.utf8)).map { String(format: "%02x", $0) }.joined()
         return try database.write { db in
-            guard try String.fetchOne(db, sql: "SELECT value FROM integration_settings WHERE key='mcp_writes_enabled'") == "true" else { throw IntegrationError("WRITE_DISABLED") }
+            guard try IntegrationSetting.value(.mcpWritesEnabled, in: db) == "true" else { throw IntegrationError("WRITE_DISABLED") }
             if let row = try Row.fetchOne(db, sql: "SELECT fingerprint,payload FROM mutation_receipts WHERE id=?", arguments: [requestID.uuidString]) {
                 guard row["fingerprint"] as String == hash else { throw IntegrationError("IDEMPOTENCY_CONFLICT") }
                 return try JSONDecoder().decode(MutationReceipt.self, from: row["payload"])
@@ -78,7 +99,7 @@ extension SessionStore {
         }
     }
     public func publishPending() throws {
-        guard let root = try setting("export_directory"), !root.isEmpty else { return }
+        guard let root = try exportDirectory()?.path else { return }
         let deleted: [(String, Int)] = try database.read { db in try Row.fetchAll(db, sql: "SELECT recording_id,revision FROM export_deletions").map { ($0["recording_id"], $0["revision"]) } }
         for (id, revision) in deleted {
             try SessionExporter.delete(id: id.lowercased(), revision: revision, from: URL(fileURLWithPath: root))

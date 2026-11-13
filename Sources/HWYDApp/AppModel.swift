@@ -232,8 +232,8 @@ final class AppModel: ObservableObject {
             let count = try await store.recoverInterrupted()
             recordings = try await store.all()
             people = try await store.people()
-            mcpWritesEnabled = try await store.setting("mcp_writes_enabled") == "true"
-            exportDirectory = try await store.setting("export_directory") ?? ""
+            mcpWritesEnabled = try await store.mcpWritesEnabled()
+            exportDirectory = try await store.exportDirectory()?.path ?? ""
             try await store.publishPending()
             for item in recordings where item.transcriptState == .pending {
                 update(item.id) { $0.transcriptState = .failed }
@@ -924,7 +924,7 @@ final class AppModel: ObservableObject {
     func setMCPWrites(_ enabled: Bool) {
         guard !isDemoMode, let store else { return }
         Task {
-            do { try await store.setSetting("mcp_writes_enabled", value: enabled ? "true" : "false"); mcpWritesEnabled = enabled }
+            do { try await store.setMCPWritesEnabled(enabled); mcpWritesEnabled = enabled }
             catch { errorMessage = error.localizedDescription }
         }
     }
@@ -935,7 +935,7 @@ final class AppModel: ObservableObject {
         if panel.runModal() == .OK, let url = panel.url {
             Task {
                 do {
-                    try await store.setSetting("export_directory", value: url.path); exportDirectory = url.path
+                    try await store.setExportDirectory(url); exportDirectory = url.path
                     await flush()
                     try await store.publishPending()
                     notice = String(localized: "Dossier de publication configuré.")

@@ -183,8 +183,8 @@ if args.contains("--help") {
         }
         let requestedWrites = handoff == nil && args.contains("--allow-write") && !args.contains("--read-only")
         let store = try SessionStore(directory: URL(fileURLWithPath: path), readOnly: !requestedWrites, migrate: false)
-        let writeSetting = try await store.setting("mcp_writes_enabled")
-        let writes = requestedWrites && writeSetting == "true"
+        let writeSetting = try await store.mcpWritesEnabled()
+        let writes = requestedWrites && writeSetting
         let schemaData = try Data(contentsOf: Bundle.module.url(forResource: "tools", withExtension: "json")!)
         let schemas = try JSONSerialization.jsonObject(with: schemaData) as! [String: Any]
         let definitions = schemas["$defs"]!

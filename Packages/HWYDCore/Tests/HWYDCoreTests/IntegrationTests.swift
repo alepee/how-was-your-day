@@ -14,7 +14,7 @@ final class IntegrationTests: XCTestCase, @unchecked Sendable {
         let request = UUID()
         do { _ = try await store.mutate(id: r.id, expectedRevision: r.revision, requestID: request, notes: "nouveau"); XCTFail() }
         catch { XCTAssertEqual((error as? IntegrationError)?.code, "WRITE_DISABLED") }
-        try await store.setSetting("mcp_writes_enabled", value: "true")
+        try await store.setMCPWritesEnabled(true)
         let first = try await store.mutate(id: r.id, expectedRevision: r.revision, requestID: request, notes: "Décision nouvelle")
         let retry = try await store.mutate(id: r.id, expectedRevision: r.revision, requestID: request, notes: "Décision nouvelle")
         XCTAssertEqual(first.revision, retry.revision)
@@ -28,7 +28,7 @@ final class IntegrationTests: XCTestCase, @unchecked Sendable {
         let loaded = try await readonly.recording(r.id)
         XCTAssertEqual(loaded.notes, "Décision nouvelle")
         XCTAssertEqual(loaded.notesVersion, 2)
-        try await store.setSetting("mcp_writes_enabled", value: "false")
+        try await store.setMCPWritesEnabled(false)
         do { _ = try await store.mutate(id: r.id, expectedRevision: first.revision, requestID: UUID(), notes: "perdu"); XCTFail() }
         catch { XCTAssertEqual((error as? IntegrationError)?.code, "WRITE_DISABLED") }
     }
@@ -105,7 +105,7 @@ extension IntegrationTests {
     }
     func testDeletionPublishesTombstoneAndPreventsResurrection() async throws {
         let store = try SessionStore(directory: directory()), output = try directory()
-        try await store.setSetting("export_directory", value: output.path)
+        try await store.setExportDirectory(output)
         let r = try await store.save(Recording(title: "Test de suppression"))
         try await store.publishPending()
         try await store.remove(r.id)
