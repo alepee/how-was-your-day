@@ -2226,7 +2226,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Choose a %@ model in the summary settings."
+            "value": "Choose a model for %@ in the summary settings."
           }
         },
         "fr": {
@@ -3378,7 +3378,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Save a %@ API key in the summary settings."
+            "value": "Save an API key for %@ in the summary settings."
           }
         },
         "fr": {
