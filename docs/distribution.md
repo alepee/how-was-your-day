@@ -13,11 +13,13 @@ The signing private key stays on the maintainer's Mac. CI uses ad hoc signing fo
 
 ## Publish
 
-Run the relevant tests first, then:
+Merge the `release: X.Y.Z` PR first (changelog section and `docs/releases/X.Y.Z.md`, see the [release template](development/release-template.md)), run the relevant tests, then on an up-to-date `main`:
 
 ```sh
-scripts/publish-release.sh 0.1.0 docs/releases/0.1.0.md
+make release VERSION=0.1.0
 ```
+
+`make release` checks that `CHANGELOG.md` has a dated `## [0.1.0]` section and that `docs/releases/0.1.0.md` exists, then runs `scripts/publish-release.sh 0.1.0 docs/releases/0.1.0.md`.
 
 The script builds in `build/release`, leaving the running development app untouched. It sets the bundle version, verifies the signature, creates a DMG with an Applications shortcut, a ZIP and `SHA256SUMS`, pushes a tag and publishes the release. Finally it updates only the HWYD cask through GitHub's Contents API, with a SHA check to avoid overwriting concurrent edits.
 
@@ -85,6 +87,6 @@ Commit `Resources/SparklePublicKey.txt`. The private key stays in the maintainer
 
 ## CI and public files
 
-GitHub Actions runs on `xcode-27` (Apple Silicon), runs core/pipeline tests and synthetic app checks, and publishes a short-lived CI ZIP. These artifacts are not user releases and must not be used to update the cask.
+GitHub Actions runs the Swift jobs on `xcode-27` (Apple Silicon) and the Python contract tests on Linux, each only when its files change (see [CONTRIBUTING.md](../CONTRIBUTING.md#pull-requests)). The `app` job publishes a short-lived CI ZIP. These artifacts are not user releases and must not be used to update the cask.
 
 Build directories, audio, databases, signing keys and private calibration reports are ignored. The original architecture documents are retained in French. New public documentation and release notes are written in English; app localization is unchanged.
