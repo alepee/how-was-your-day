@@ -1,6 +1,6 @@
 # How Was Your Day
 
-[Website](https://alepee.github.io/how-was-your-day/) · [Download](https://github.com/alepee/how-was-your-day/releases/latest)
+[Website](https://alepee.github.io/how-was-your-day/) · [Download](https://github.com/alepee/how-was-your-day/releases/latest) · [Changelog](CHANGELOG.md)
 
 A native macOS app for recording, transcribing and reviewing conversations locally. Built with SwiftUI and Swift Package Manager.
 
@@ -57,7 +57,7 @@ Release builds include a Sparkle updater. On the second launch, Sparkle asks whe
 
 ## Build
 
-Install Xcode 27 with Swift 6.4 or later. The pinned Swift Collections dependency requires Swift 6.4; the app deployment target remains macOS 26. No `.xcodeproj` is needed.
+Install Xcode 27 with Swift 6.4 or later. The pinned Swift Collections dependency requires Swift 6.4; the app deployment target remains macOS 26. No `.xcodeproj` is needed. `make build` wraps the command below.
 
 ```sh
 SIGN_IDENTITY='Your persistent code signing identity' scripts/build-app.sh debug
@@ -77,6 +77,8 @@ HWYD_APP_OUTPUT='build/validation/How Was Your Day.app' scripts/build-app.sh deb
 ```
 
 ## Test
+
+`make help` lists the shortcuts: `make check`, `make test` (no app needed), `make test-app` (synthetic checks against the built app), `make snapshot`, and `make ci` for everything CI runs. The underlying commands:
 
 ```sh
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --package-path Packages/HWYDCore
@@ -122,4 +124,4 @@ The app does not need to be running. Reads are enabled by default. Writing notes
 | `Packages/HWYDCore` | Models, store, summaries, exports and tests |
 | `docs` | Original French design documents, including planned features |
 
-The [architecture draft](docs/architecture.md) describes the target, not a list of delivered features. See [release instructions](docs/distribution.md) for signing, packaging and Homebrew updates.
+The [architecture draft](docs/architecture.md) describes the target, not a list of delivered features. See [release instructions](docs/distribution.md) for signing, packaging and Homebrew updates, and [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution workflow.

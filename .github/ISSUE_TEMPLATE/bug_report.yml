@@ -1,0 +1,92 @@
+name: Bug Report
+description: Report a bug in How Was Your Day
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not attach recordings, transcripts or summaries of real conversations: they hold other people's words. Describe the problem, or reproduce it with a synthetic session.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      placeholder: Describe the bug clearly
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start a session ...
+        2. Click on ...
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      placeholder: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: input
+    id: app-version
+    attributes:
+      label: HWYD version
+      placeholder: "e.g., 0.12.1 (About How Was Your Day)"
+    validations:
+      required: true
+
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      placeholder: "e.g., 26.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Recording / audio capture
+        - Transcription
+        - Voices / diarization
+        - Summary
+        - Exports
+        - MCP server
+        - Interface
+        - Install / update
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: audio-setup
+    attributes:
+      label: Audio setup
+      description: Microphone and output devices (built-in, USB interface, Bluetooth headset), and the meeting app if any.
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error message or logs
+      description: The exact error shown in the app, or relevant lines from Console.app (process HWYD). Remove any transcript text.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+    validations:
+      required: false

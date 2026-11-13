@@ -3,13 +3,40 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
 permissions:
   contents: read
+# Each push to a PR replaces its previous run. On main every run completes.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
+  # Which parts a PR touches, so a docs-only PR skips the macOS build.
+  # A push to main runs everything.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ github.event_name == 'push' || steps.filter.outputs.app == 'true' }}
+    steps:
+      - uses: dorny/paths-filter@v4
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            app:
+              - 'Sources/**'
+              - 'Packages/**'
+              - 'Tests/**'
+              - 'Resources/**'
+              - 'scripts/**'
+              - 'Package.swift'
+              - 'Package.resolved'
+              - 'Makefile'
+              - '.github/workflows/ci.yml'
+
   build-and-test:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: xcode-27
     timeout-minutes: 35
     steps:
@@ -48,3 +75,18 @@ jobs:
           name: HowWasYourDay-ci-arm64
           path: build/HowWasYourDay-ci.zip
           retention-days: 7
+
+  # The only required status check (main ruleset). It passes when every job
+  # passed or was skipped. Add any new blocking job to its `needs`.
+  ci:
+    runs-on: ubuntu-latest
+    needs: [changes, build-and-test]
+    if: always()
+    steps:
+      - name: Check job results
+        run: |
+          echo "changes: ${{ needs.changes.result }}, build-and-test: ${{ needs.build-and-test.result }}"
+          test "${{ needs.changes.result }}" = success
+          for result in "${{ needs.build-and-test.result }}"; do
+            [[ "$result" == success || "$result" == skipped ]] || exit 1
+          done
