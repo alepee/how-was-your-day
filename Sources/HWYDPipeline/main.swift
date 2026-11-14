@@ -9,6 +9,8 @@ import HWYDCore
             switch args.first {
             case let command where ["enroll-voice", "identify-voices", "forget-voice", "forget-voice-source", "voice-sources", "probe-voice"].contains(command ?? "") && args.count == 4:
                 let store = try SessionStore(directory: URL(fileURLWithPath: args[1]))
+                // Second line of defense: the app's WorkCoordinator already runs one job at a time. This lock
+                // guards against a process it cannot see, such as a second app instance or a script.
                 let lock = open(store.directory.appendingPathComponent("pipeline.lock").path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
                 guard lock >= 0 else { throw CLIError(message: String(localized: "Verrou indisponible.", bundle: .hwyd)) }
                 defer { close(lock) }
@@ -29,6 +31,8 @@ import HWYDCore
                 print("Modèles de séparation des voix installés.") // l10n:ignore (log line)
             case let command where (command == "transcribe" || command == "transcribe-calibration") && args.count == 4:
                 let store = try SessionStore(directory: URL(fileURLWithPath: args[1]))
+                // Second line of defense: the app's WorkCoordinator already runs one job at a time. This lock
+                // guards against a process it cannot see, such as a second app instance or a script.
                 let lock = open(store.directory.appendingPathComponent("pipeline.lock").path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
                 guard lock >= 0 else { throw CLIError(message: String(localized: "Impossible de verrouiller le pipeline.", bundle: .hwyd)) }
                 defer { close(lock) }

@@ -25,7 +25,7 @@ final class AppModel: ObservableObject {
     @Published var newSessionTitle = ""
     @Published var isDemoMode = false { didSet { summarySettings.isDemo = isDemoMode } }
     @Published var isLoading = true
-    @Published var activeCaptureID: UUID?
+    @Published var activeCaptureID: UUID? { didSet { updateBusy() } }
     @Published var elapsed: Double = 0
     /// The active capture is paused: no audio is captured and the clock is frozen.
     @Published var isCapturePaused = false
@@ -49,7 +49,6 @@ final class AppModel: ObservableObject {
     @Published var exportDirectory = ""
     private var refreshTask: Task<Void, Never>?
     private var lastRefresh = Date.distantPast
-    @Published var voiceBusy = false
     @Published var people: [VoicePerson] = []
     /// Confirmed voice waiting for the user to confirm its enrollment.
     @Published var enrollmentCandidateID: UUID?
@@ -57,27 +56,31 @@ final class AppModel: ObservableObject {
     @Published var voiceContributions: [UUID: [VoiceContribution]] = [:]
     /// Voice prints of known people, served by the pipeline helper in the app.
     let voiceMemory: any VoiceMemory
-    private var voiceTask: Task<Void, Never>?
-    @Published var summaryID: UUID?
     /// Provider, model, key and agent settings of the summary. Its changes are republished by this model.
     let summarySettings: SummarySettings
     private var summarySettingsChanges: AnyCancellable?
     @Published var summaryProgress: SummaryProgress?
-    private var summaryTask: Task<Void, Never>?
-    @Published var processingID: UUID?
-    @Published var isInstallingDiarizer = false
     @Published var diarizationEnabled = false {
         didSet { if persistPreferences && !isDemoMode { settings.set(diarizationEnabled, for: .diarizationEnabled) } }
     }
-    @Published var isInstallingModel = false
-    /// Language installing right now, shown next to its row.
-    @Published var installingSpeechLocale: String?
     /// Transcribes sessions, through the pipeline helper in the app.
     let transcription: any TranscriptionService
-    private var processingTask: Task<Void, Never>?
     /// Installed and installable speech languages and voice models.
     let speechModels: any SpeechModelCatalog
-    private var installTask: Task<Void, Never>?
+    /// Runs transcription, voice jobs, model installs and summaries one at a time. The model
+    /// requests work and shows the coordinator's state; it keeps no busy flag of its own.
+    let coordinator: WorkCoordinator
+    /// The coordinator's latest state, as the views show it. Snapshots and synthetic checks set it
+    /// directly to render or test a state.
+    @Published var work = WorkSnapshot()
+    /// A capture or some heavy work is in progress: the updater waits and the library is not
+    /// reloaded from disk. Changes only when that answer flips.
+    @Published private(set) var isBusy = false
+    private var workBusy = false { didSet { updateBusy() } }
+    /// Triggers run their request in the order they were made: a cancel never overtakes the
+    /// request it cancels, and `idle()` knows when every request so far is decided.
+    private var requestChain: Task<Void, Never>?
+    private var pendingRequests = 0
     /// Session whose language should be chosen again, from a detection notice.
     @Published var languageChoiceID: UUID?
     /// System-wide shortcut that starts or ends a recording. Nil when the user cleared it.
@@ -138,7 +141,7 @@ final class AppModel: ObservableObject {
             let other = SpeechLanguage.confusable[SpeechLanguage.languageCode(of: locale)]
             let name = SpeechLanguage.displayName(locale) + (other.map { String(localized: " (ou \(SpeechLanguage.displayName($0)))") } ?? "")
             notifier.notify(.info(String(localized: "La langue de \(label(suggestion.source)) semble être : \(name). Ce modèle n’est pas installé."), actions: [
-                .perform(String(localized: "Installer et retranscrire")) { [weak self] in self?.installSpeechModel(locale) { self?.transcribe(id, language: SpeechLanguage.automatic) } },
+                .perform(String(localized: "Installer et retranscrire")) { [weak self] in self?.installSpeechModel(locale) { [weak self] in self?.transcribe(id, language: SpeechLanguage.automatic) } },
                 .navigate(String(localized: "Choisir la langue"), to: .languageChoice(id))], sticky: true))
         } else if let unknown = detections.first(where: { $0.unrecognized == true }) {
             notifier.notify(.info(String(localized: "La langue de \(label(unknown.source)) n’a pas été reconnue parmi les langues installées."), actions: [
@@ -147,8 +150,16 @@ final class AppModel: ObservableObject {
     }
     /// The voice separation models are on disk, as the pipeline helper reports.
     @Published private(set) var diarizerReady = false
-    var pipelineBusy: Bool { processingID != nil || isInstallingModel || isInstallingDiarizer || voiceBusy }
-    var modelWorkBusy: Bool { pipelineBusy || summaryID != nil }
+    /// Whether heavy work can start now, for the controls that request it.
+    var workAvailability: Availability<Never> { work.availability }
+    /// The session being transcribed.
+    var processingID: UUID? { if case .transcription(let id)? = work.running { id } else { nil } }
+    /// The session being summarized.
+    var summaryID: UUID? { if case .summary(let id)? = work.running { id } else { nil } }
+    var voiceBusy: Bool { work.running?.kind == .voice }
+    /// Language installing right now, shown next to its row.
+    var installingSpeechLocale: String? { if case .speechModel(let locale)? = work.running { locale } else { nil } }
+    var isInstallingDiarizer: Bool { work.running == .diarizer }
     @Published var savedAt: Date?
     @Published var hasUnsavedChanges = false
     @Published var appearancePreference: AppearancePreference = .system {
@@ -181,7 +192,7 @@ final class AppModel: ObservableObject {
     /// The pipeline ports default to the bundled helper working on `dataDirectory`.
     init(directory: URL? = nil, preview: Bool = false, settings: SettingsStore? = nil, helpers: HelperLocator = .app,
          transcription: (any TranscriptionService)? = nil, voiceMemory: (any VoiceMemory)? = nil, speechModels: (any SpeechModelCatalog)? = nil,
-         appliesAppearance: Bool = true, persistPreferences: Bool? = nil) {
+         coordinator: WorkCoordinator = WorkCoordinator(), appliesAppearance: Bool = true, persistPreferences: Bool? = nil) {
         let installed = directory == nil && !preview
         let toastCenter = ToastCenter()
         self.toastCenter = toastCenter; notifier = toastCenter
@@ -205,6 +216,7 @@ final class AppModel: ObservableObject {
         self.transcription = transcription ?? HelperTranscriptionService(helpers: helpers, store: dataDirectory)
         self.voiceMemory = voiceMemory ?? HelperVoiceMemory(helpers: helpers, store: dataDirectory)
         self.speechModels = speechModels ?? HelperSpeechModelCatalog(helpers: helpers, store: dataDirectory)
+        self.coordinator = coordinator
         if appliesAppearance { NSApp.appearance = appearancePreference.appearance }
         if preview {
             recordings = DemoContent.recordings(); isDemoMode = true; isLoading = false
@@ -217,6 +229,12 @@ final class AppModel: ObservableObject {
         toastCenter.navigate = { [weak self] intent in self?.navigate(to: intent) }
         summarySettingsChanges = summarySettings.objectWillChange.sink { [weak self] _ in
             MainActor.assumeIsolated { self?.objectWillChange.send() }
+        }
+        Task { [weak self] in
+            for await snapshot in await coordinator.snapshots() { self?.show(snapshot) }
+        }
+        Task { [weak self] in
+            for await busy in await coordinator.busyChanges() { self?.workBusy = busy }
         }
     }
     func load() async {
@@ -254,7 +272,7 @@ final class AppModel: ObservableObject {
     func select(_ item: Recording) { showSettings = false; showNewSession = false; stopPlayback(); selectedID = item.id; activeTab = .defaultTab(for: item); playbackTime = 0; playback.activeSegmentIDs = []; mutedTracks = []; soloTracks = []; trackEnvelopes = [:] }
     func library() { showSettings = false; showNewSession = false; stopPlayback(); selectedID = nil; search = "" }
     func enterDemo() {
-        guard activeCaptureID == nil, !modelWorkBusy, !hasUnsavedChanges else { return }
+        guard activeCaptureID == nil, !work.isBusy, pendingRequests == 0, !hasUnsavedChanges else { return }
         calendar.suspend()
         stopPlayback(); isDemoMode = true; selectedID = nil; recordings = DemoContent.recordings(); startTicker()
     }
@@ -311,7 +329,7 @@ final class AppModel: ObservableObject {
     /// Names the voice if needed, then adds a sample of it to the person's voice print. The
     /// channel follows the voice's track. Only an explicit request from the user leads here.
     func rememberSpeaker(name: String, speakerID: UUID) {
-        guard let id = selectedID, !voiceEditingLocked, !pipelineBusy, var item = selected,
+        guard let id = selectedID, !voiceEditingLocked, var item = selected,
               let speaker = item.speakers.first(where: { $0.id == speakerID }) else { return }
         let person: VoicePerson
         do throws(EnrollmentRefusal) { person = try EnrollVoice.person(named: name, for: speaker, among: people) } catch {
@@ -469,32 +487,84 @@ final class AppModel: ObservableObject {
         update(id) { $0.duration = duration; $0.state = finalizationError == nil ? .sealed : .interrupted; $0.audioChunks = chunks }
         if let finalizationError { notifier.notify(.error(finalizationError)) }
         selectedID = id; activeTab = .notes
-        notifier.notify(.info(isDemoMode ? String(localized: "Simulation terminée. Les notes restent disponibles.") : (chunks.isEmpty ? String(localized: "Aucun audio reçu. Vos notes sont conservées.") : String(localized: "Audio et notes conservés. La transcription locale va démarrer."))))
+        if isDemoMode { notifier.notify(.info(String(localized: "Simulation terminée. Les notes restent disponibles."))) }
+        else if chunks.isEmpty { notifier.notify(.info(String(localized: "Aucun audio reçu. Vos notes sont conservées."))) }
+        // Queued behind other work if needed; the request says which.
+        else { enqueue { [weak self] in await self?.requestTranscription(id, afterCapture: true) } }
         if reveal || finalizationError != nil { showWindow?() }
-        if !isDemoMode, !chunks.isEmpty {
-            if modelWorkBusy { notifier.notify(.info(String(localized: "Audio conservé. Un traitement est déjà en cours ; lancez la transcription depuis cette session ensuite."))) }
-            else { transcribe(id) }
+    }
+    // MARK: Heavy work
+
+    /// Stops the running transcription, installation or voice job, and drops waiting transcriptions.
+    func cancelProcessing() { enqueue { [coordinator] in await coordinator.cancel { $0.kind != .summary } } }
+    /// Stops or drops this session's transcription.
+    func cancelTranscription(_ id: UUID) { enqueue { [coordinator] in await coordinator.cancel(.transcription(session: id)) } }
+    /// Returns once every request made so far is decided and no work runs or waits.
+    func idle() async {
+        while true {
+            let chain = requestChain
+            await chain?.value
+            await coordinator.idle()
+            if requestChain == chain || Task.isCancelled { break }
+        }
+        show(await coordinator.snapshot)
+    }
+    private func show(_ snapshot: WorkSnapshot) {
+        if snapshot.revision > work.revision { work = snapshot }
+    }
+    private func updateBusy() {
+        let busy = activeCaptureID != nil || workBusy
+        if busy != isBusy { isBusy = busy }
+    }
+    /// Runs a trigger's request after the ones made before it.
+    private func enqueue(_ body: @escaping @MainActor () async -> Void) {
+        let previous = requestChain
+        pendingRequests += 1
+        requestChain = Task {
+            await previous?.value
+            await body()
+            pendingRequests -= 1
         }
     }
-    /// Stops the running transcription, installation or voice job.
-    func cancelProcessing() { processingTask?.cancel(); installTask?.cancel(); voiceTask?.cancel() }
-    func installSpeechModel(_ locale: String, then completion: (() -> Void)? = nil) {
-        guard !modelWorkBusy, !isDemoMode else { return }
-        isInstallingModel = true; installingSpeechLocale = locale
-        installTask = Task {
-            defer { isInstallingModel = false; installingSpeechLocale = nil; installTask = nil; refreshSpeechLanguages() }
+    /// Hands a job to the coordinator and tells the user why it was refused.
+    @discardableResult
+    private func request(_ job: WorkJob, _ run: @escaping @MainActor @Sendable () async -> Void) async -> WorkDecision {
+        let decision = await coordinator.request(job) { await run() }
+        show(await coordinator.snapshot)
+        if case .refused(let refusal) = decision { notifier.notify(.info(refusal.localizedDescription)) }
+        return decision
+    }
+    /// A request the session or the mode cannot serve, said to the user.
+    private func refuse(_ reason: String) -> WorkDecision {
+        notifier.notify(.info(reason))
+        return .refused(.unavailable(reason))
+    }
+    private var demoRefusal: WorkDecision { refuse(String(localized: "Les exemples ne lancent aucun traitement.")) }
+
+    func installSpeechModel(_ locale: String, then completion: (@MainActor @Sendable () -> Void)? = nil) {
+        enqueue { [weak self] in await self?.requestSpeechModel(locale, then: completion) }
+    }
+    /// Installs a language. `completion` runs after a successful install; the work it requests
+    /// waits for the install to end.
+    @discardableResult
+    func requestSpeechModel(_ locale: String, then completion: (@MainActor @Sendable () -> Void)? = nil) async -> WorkDecision {
+        guard !isDemoMode else { return demoRefusal }
+        return await request(.speechModel(locale: locale)) { [weak self] in
+            guard let self else { return }
             do {
                 try await speechModels.install(locale: locale)
                 notifier.notify(.info(String(localized: "Langue installée : \(SpeechLanguage.displayName(locale)). La transcription reste locale.")))
-                if let completion { isInstallingModel = false; installingSpeechLocale = nil; completion() }
+                completion?()
             } catch { notifier.notify(.error(error.localizedDescription)) }
+            refreshSpeechLanguages()
         }
     }
-    func installDiarizer() {
-        guard !modelWorkBusy, !isDemoMode else { return }
-        isInstallingDiarizer = true
-        installTask = Task {
-            defer { isInstallingDiarizer = false; installTask = nil }
+    func installDiarizer() { enqueue { [weak self] in await self?.requestDiarizer() } }
+    @discardableResult
+    func requestDiarizer() async -> WorkDecision {
+        guard !isDemoMode else { return demoRefusal }
+        return await request(.diarizer) { [weak self] in
+            guard let self else { return }
             do {
                 try await speechModels.installDiarizer()
                 diarizerReady = await speechModels.diarizerReady()
@@ -505,34 +575,52 @@ final class AppModel: ObservableObject {
     }
     /// `language` replaces the session's language for this run and becomes its new choice.
     func transcribe(_ id: UUID, language: String? = nil) {
-        guard !isDemoMode, !modelWorkBusy, let item = recordings.first(where: { $0.id == id }), item.state != .recording, !item.audioChunks.isEmpty else { return }
-        processingID = id
+        enqueue { [weak self] in await self?.requestTranscription(id, language: language) }
+    }
+    /// Starts the transcription, or queues it behind the work in progress. After a capture, says
+    /// which, since the window may be closed.
+    @discardableResult
+    func requestTranscription(_ id: UUID, language: String? = nil, afterCapture: Bool = false) async -> WorkDecision {
+        guard !isDemoMode else { return demoRefusal }
+        guard let item = recordings.first(where: { $0.id == id }), item.state != .recording, !item.audioChunks.isEmpty else {
+            return refuse(String(localized: "Aucun fichier audio disponible pour cette session."))
+        }
+        let decision = await request(.transcription(session: id)) { [weak self] in await self?.runTranscription(id, language: language) }
+        if afterCapture {
+            switch decision {
+            case .accepted: notifier.notify(.info(String(localized: "Audio et notes conservés. La transcription locale va démarrer.")))
+            case .queued: notifier.notify(.info(String(localized: "Audio et notes conservés. La transcription démarrera après le traitement en cours.")))
+            case .refused: break
+            }
+        }
+        return decision
+    }
+    /// The session is read when its turn comes: edits made while it waited are kept.
+    private func runTranscription(_ id: UUID, language: String?) async {
+        guard let item = recordings.first(where: { $0.id == id }), item.state != .recording, !item.audioChunks.isEmpty else { return }
         let originalVersion = item.transcriptVersion
         update(id) { $0.transcriptState = .pending }
-        processingTask = Task {
-            defer { processingID = nil; processingTask = nil }
-            do {
-                await flush()
-                guard !hasUnsavedChanges else { throw PipelineFailure(message: String(localized: "Sauvegardez les modifications avant de transcrire.")) }
-                // The languages the transcribing process can use, or the last ones read.
-                let locales = (try? await speechModels.locales()) ?? SpeechLocales(installed: installedSpeechLocales, supported: supportedSpeechLocales)
-                showSpeechLocales(locales)
-                let request = TranscriptionRequest(session: item, language: language, diarize: diarizationEnabled, locales: locales)
-                let result = try await transcription.transcribe(request)
-                guard var latest = recordings.first(where: { $0.id == id }), latest.transcriptVersion == originalVersion else { throw TranscriptionError.staleResult }
-                try latest.applyTranscription(result)
-                if let language { latest.speechLanguage = language }
-                update(id) { $0 = latest }
-                await flush()
-                notifier.notify(.info(result.segments.isEmpty ? String(localized: "Traitement terminé : aucune parole reconnue.") : (result.diarizationEngine == nil ? String(localized: "Transcript disponible. Les voix ne sont pas séparées.") : String(localized: "Transcript disponible. Les voix détectées peuvent être nommées dans cette session."))))
-                if let warning = result.identityWarning { notifier.notify(.info(String(localized: "Transcript disponible.") + " " + warning)) }
-                if let detections = result.languageDetection { reportLanguageFindings(detections, id: id) }
-            } catch {
-                update(id) { $0.transcriptState = .failed }
-                notifier.notify(.error(String(localized: "Transcription : \(error.localizedDescription)"),
-                                       actions: [.perform(String(localized: "Réessayer")) { [weak self] in self?.transcribe(id, language: language) }]))
-                await flush()
-            }
+        do {
+            await flush()
+            guard !hasUnsavedChanges else { throw PipelineFailure(message: String(localized: "Sauvegardez les modifications avant de transcrire.")) }
+            // The languages the transcribing process can use, or the last ones read.
+            let locales = (try? await speechModels.locales()) ?? SpeechLocales(installed: installedSpeechLocales, supported: supportedSpeechLocales)
+            showSpeechLocales(locales)
+            let request = TranscriptionRequest(session: item, language: language, diarize: diarizationEnabled, locales: locales)
+            let result = try await transcription.transcribe(request)
+            guard var latest = recordings.first(where: { $0.id == id }), latest.transcriptVersion == originalVersion else { throw TranscriptionError.staleResult }
+            try latest.applyTranscription(result)
+            if let language { latest.speechLanguage = language }
+            update(id) { $0 = latest }
+            await flush()
+            notifier.notify(.info(result.segments.isEmpty ? String(localized: "Traitement terminé : aucune parole reconnue.") : (result.diarizationEngine == nil ? String(localized: "Transcript disponible. Les voix ne sont pas séparées.") : String(localized: "Transcript disponible. Les voix détectées peuvent être nommées dans cette session."))))
+            if let warning = result.identityWarning { notifier.notify(.info(String(localized: "Transcript disponible.") + " " + warning)) }
+            if let detections = result.languageDetection { reportLanguageFindings(detections, id: id) }
+        } catch {
+            update(id) { $0.transcriptState = .failed }
+            notifier.notify(.error(String(localized: "Transcription : \(error.localizedDescription)"),
+                                   actions: [.perform(String(localized: "Réessayer")) { [weak self] in self?.transcribe(id, language: language) }]))
+            await flush()
         }
     }
     private func startTicker() {
@@ -545,13 +633,13 @@ final class AppModel: ObservableObject {
         self.timer = timer
     }
     private func tick() {
-        if Date().timeIntervalSince(lastRefresh) > 3, refreshTask == nil, !isDemoMode, !hasUnsavedChanges, activeCaptureID == nil, !pipelineBusy, summaryID == nil, let store {
+        if Date().timeIntervalSince(lastRefresh) > 3, refreshTask == nil, !isDemoMode, !hasUnsavedChanges, !isBusy, let store {
             lastRefresh = Date()
             refreshTask = Task {
                 defer { refreshTask = nil }
                 if let revisions = try? await store.recordingRevisions(),
                    revisions != Dictionary(uniqueKeysWithValues: recordings.map { ($0.id, $0.revision) }),
-                   let latest = try? await store.all(), !hasUnsavedChanges, activeCaptureID == nil, !pipelineBusy, summaryID == nil { recordings = latest }
+                   let latest = try? await store.all(), !hasUnsavedChanges, !isBusy { recordings = latest }
             }
         }
         if let captureStart {
@@ -628,20 +716,23 @@ final class AppModel: ObservableObject {
     }
     // MARK: Voice memory
 
-    /// Runs one voice memory job at a time, outside demo mode, and reports its failure.
-    private func runVoiceJob(_ job: @escaping @MainActor (SessionStore) async throws -> Void) {
-        guard !isDemoMode, !modelWorkBusy, let store else { return }
-        voiceBusy = true
-        voiceTask = Task {
-            defer { voiceBusy = false; voiceTask = nil }
+    /// Requests a voice memory job, about `session` or about people only, and reports its failure.
+    private func runVoiceJob(session: UUID? = nil, _ job: @escaping @MainActor @Sendable (SessionStore) async throws -> Void) {
+        enqueue { [weak self] in await self?.requestVoiceJob(session: session, job) }
+    }
+    @discardableResult
+    func requestVoiceJob(session: UUID?, _ job: @escaping @MainActor @Sendable (SessionStore) async throws -> Void) async -> WorkDecision {
+        guard !isDemoMode else { return demoRefusal }
+        guard let store else { return refuse(String(localized: "Le store local n’est pas disponible.")) }
+        return await request(.voice(session: session)) { [weak self] in
             do { try await job(store) }
-            catch { notifier.notify(.error(String(localized: "Identité vocale : \(error.localizedDescription)"))) }
+            catch { self?.notifier.notify(.error(String(localized: "Identité vocale : \(error.localizedDescription)"))) }
         }
     }
     /// Memorizes a voice of the selected session, then shows who its other voices resemble.
     private func enrollVoice(_ speakerID: UUID, as person: VoicePerson) {
         guard let item = selected else { return }
-        runVoiceJob { [weak self] store in
+        runVoiceJob(session: item.id) { [weak self] store in
             guard let self else { return }
             let outcome = try await EnrollVoice(people: store, memory: voiceMemory)(person, speakerID: speakerID, in: item)
             people = outcome.people
@@ -661,7 +752,7 @@ final class AppModel: ObservableObject {
     /// Proposes a known person for the unconfirmed voices of the selected session.
     func identifyVoices() {
         guard let item = selected else { return }
-        runVoiceJob { [weak self] store in
+        runVoiceJob(session: item.id) { [weak self] store in
             guard let self else { return }
             let matches = try await voiceMemory.identify(in: item)
             people = try await store.people()
@@ -732,7 +823,7 @@ final class AppModel: ObservableObject {
             summarySettings.agentDirectory = (url.path as NSString).abbreviatingWithTildeInPath; summarySettings.save()
         }
     }
-    func cancelSummary() { summaryTask?.cancel() }
+    func cancelSummary() { enqueue { [coordinator] in await coordinator.cancel { $0.kind == .summary } } }
     private var summarizerEnvironment: SummarizerEnvironment {
         // Previews, demos and tests never touch the keychain.
         let readsKeychain = persistPreferences
@@ -745,7 +836,8 @@ final class AppModel: ObservableObject {
     var summarizerOverride: (any Summarizer)?
     /// The summarizer for the current settings. It owns whether a summary can run and why not.
     var summarizer: any Summarizer { summarizerOverride ?? SummarizerFactory.make(summarySettings.configuration, environment: summarizerEnvironment) }
-    var summaryAvailability: SummaryAvailability { summarizer.availability }
+    /// The summarizer's own conditions, then whether other work keeps it waiting.
+    var summaryAvailability: SummaryAvailability { summarizer.availability.combined(with: work.availability) }
     /// Where the configured summarizer writes its draft and what leaves the Mac, as the summary tab shows it.
     var summaryDisclosure: SummaryDisclosure { summarizer.disclosure }
     /// Opens the session's summary and runs it again.
@@ -754,45 +846,51 @@ final class AppModel: ObservableObject {
         navigate(to: .session(id, .summary)); generateSummary()
     }
     func generateSummary() {
-        guard !modelWorkBusy, !isDemoMode, let recordingID = selected?.id, let store else { return }
+        guard let id = selected?.id else { return }
+        enqueue { [weak self] in await self?.requestSummary(id) }
+    }
+    @discardableResult
+    func requestSummary(_ recordingID: UUID) async -> WorkDecision {
+        guard !isDemoMode else { return demoRefusal }
+        guard let store, recordings.contains(where: { $0.id == recordingID }) else { return refuse(String(localized: "Session introuvable sur ce Mac.")) }
         let summarizer = summarizer
         if case .unavailable(let reason) = summarizer.availability {
             notifier.notify(.error(String(localized: "Synthèse : \(reason.localizedDescription)"), actions: [
                 .navigate(String(localized: "Réglages"), to: .summarySettings)]))
-            return
+            return .refused(.unavailable(reason.localizedDescription))
         }
-        summaryID = recordingID
-        summaryTask = Task {
-            defer { summaryID = nil; summaryTask = nil; summaryProgress = nil }
-            do {
-                // Capture the revision only after pending UI edits have reached the store.
-                // Otherwise the normal autosave can make our own snapshot look stale.
-                await flush()
-                try Task.checkCancellation()
-                guard !hasUnsavedChanges else { return } // flush already exposes the save error.
-                guard !isDemoMode, let item = recordings.first(where: { $0.id == recordingID }) else { throw SummaryFailure.stale }
-                let result = try await summarizer.summarize(item) { value in
-                    await MainActor.run { self.summaryProgress = value }
-                }
-                try Task.checkCancellation()
-                guard let latest = recordings.first(where: { $0.id == item.id }), latest.transcriptVersion == item.transcriptVersion,
-                    try SummaryPipeline.inputHash(latest) == result.inputHash else { throw SummaryFailure.stale }
-                let persisted = try await store.recording(item.id)
-                guard persisted.revision == item.revision else { throw SummaryFailure.stale }
-                update(item.id) { $0.summary = result.structured.markdown; $0.summaryProvenance = result }
-                await flush()
-                // A long run (agents take minutes) may finish while another screen is open.
-                let showsSummary = selectedID == item.id && activeTab == .summary && !showSettings
-                notifier.notify(.success(String(localized: "Synthèse prête : \(item.title)"),
-                                         actions: showsSummary ? [] : [.navigate(String(localized: "Afficher"), to: .session(item.id, .summary))]))
-            } catch {
-                if error is CancellationError || Task.isCancelled || (error as? URLError)?.code == .cancelled {
-                    notifier.notify(.info(String(localized: "Synthèse annulée.")))
-                } else {
-                    notifier.notify(.error(String(localized: "Synthèse : \(error.localizedDescription)"), actions: [
-                        .perform(String(localized: "Réessayer")) { [weak self] in self?.retrySummary(recordingID) },
-                        .navigate(String(localized: "Réglages"), to: .summarySettings)]))
-                }
+        return await request(.summary(session: recordingID)) { [weak self] in await self?.runSummary(recordingID, with: summarizer, store: store) }
+    }
+    private func runSummary(_ recordingID: UUID, with summarizer: any Summarizer, store: SessionStore) async {
+        defer { summaryProgress = nil }
+        do {
+            // Capture the revision only after pending UI edits have reached the store.
+            // Otherwise the normal autosave can make our own snapshot look stale.
+            await flush()
+            try Task.checkCancellation()
+            guard !hasUnsavedChanges else { return } // flush already exposes the save error.
+            guard !isDemoMode, let item = recordings.first(where: { $0.id == recordingID }) else { throw SummaryFailure.stale }
+            let result = try await summarizer.summarize(item) { value in
+                await MainActor.run { self.summaryProgress = value }
+            }
+            try Task.checkCancellation()
+            guard let latest = recordings.first(where: { $0.id == item.id }), latest.transcriptVersion == item.transcriptVersion,
+                try SummaryPipeline.inputHash(latest) == result.inputHash else { throw SummaryFailure.stale }
+            let persisted = try await store.recording(item.id)
+            guard persisted.revision == item.revision else { throw SummaryFailure.stale }
+            update(item.id) { $0.summary = result.structured.markdown; $0.summaryProvenance = result }
+            await flush()
+            // A long run (agents take minutes) may finish while another screen is open.
+            let showsSummary = selectedID == item.id && activeTab == .summary && !showSettings
+            notifier.notify(.success(String(localized: "Synthèse prête : \(item.title)"),
+                                     actions: showsSummary ? [] : [.navigate(String(localized: "Afficher"), to: .session(item.id, .summary))]))
+        } catch {
+            if error is CancellationError || Task.isCancelled || (error as? URLError)?.code == .cancelled {
+                notifier.notify(.info(String(localized: "Synthèse annulée.")))
+            } else {
+                notifier.notify(.error(String(localized: "Synthèse : \(error.localizedDescription)"), actions: [
+                    .perform(String(localized: "Réessayer")) { [weak self] in self?.retrySummary(recordingID) },
+                    .navigate(String(localized: "Réglages"), to: .summarySettings)]))
             }
         }
     }
@@ -834,18 +932,25 @@ final class AppModel: ObservableObject {
         }
     }
     func deleteConfirmed() {
-        guard let item = deleteCandidate, item.id != activeCaptureID, item.id != processingID, item.id != summaryID else { return }
+        guard let item = deleteCandidate, item.id != activeCaptureID else { return }
         deleteCandidate = nil
-        Task {
-            do {
-                await flush()
-                let files = isDemoMode ? nil : try await store?.remove(item.id)
-                recordings.removeAll { $0.id == item.id }; dirtyIDs.remove(item.id)
-                if selectedID == item.id { selectedID = nil }
-                if let files, !files.isComplete { reportLeftoverFiles(files) }
-                if !isDemoMode { try await store?.publishPending() }
-            } catch { notifier.notify(.error(error.localizedDescription)) }
+        // In the request order, so no job for this session can be requested between the check and the removal.
+        enqueue { [weak self] in await self?.delete(item) }
+    }
+    /// Work running or waiting on the session blocks its deletion: a transcription, a summary or a voice job.
+    private func delete(_ item: Recording) async {
+        guard await coordinator.snapshot.jobs(for: item.id).isEmpty else {
+            notifier.notify(.info(String(localized: "Cette session est en cours de traitement. Annulez le traitement ou attendez sa fin pour la supprimer.")))
+            return
         }
+        do {
+            await flush()
+            let files = isDemoMode ? nil : try await store?.remove(item.id)
+            recordings.removeAll { $0.id == item.id }; dirtyIDs.remove(item.id)
+            if selectedID == item.id { selectedID = nil }
+            if let files, !files.isComplete { reportLeftoverFiles(files) }
+            if !isDemoMode { try await store?.publishPending() }
+        } catch { notifier.notify(.error(error.localizedDescription)) }
     }
     /// The session is gone; its remaining files are retried on next launch.
     private func reportLeftoverFiles(_ report: SessionFiles.Report) {

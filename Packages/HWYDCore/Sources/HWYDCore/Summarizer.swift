@@ -49,16 +49,9 @@ public enum SummaryUnavailability: LocalizedError, Equatable, Sendable {
     }
 }
 
-public enum SummaryAvailability: Equatable, Sendable {
-    case ready
-    case unavailable(SummaryUnavailability)
-
-    public var isReady: Bool { self == .ready }
-    /// The reason to show, nil when ready.
-    public var reason: String? {
-        if case .unavailable(let reason) = self { reason.localizedDescription } else { nil }
-    }
-}
+/// A summarizer is `ready` or `unavailable`; the app combines it with the work coordinator, which
+/// adds `busy` while other heavy work runs (`Availability.combined(with:)`).
+public typealias SummaryAvailability = Availability<SummaryUnavailability>
 
 /// What the summary tab tells the user about a summarizer: where the draft is written and what
 /// leaves the Mac. Each implementation states its own; views only display it.

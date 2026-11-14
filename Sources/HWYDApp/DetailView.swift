@@ -82,16 +82,20 @@ struct DetailView: View {
     @ViewBuilder private var transcriptHeader: some View {
         if !recording.isDemo {
             HStack {
-                if recording.transcriptState == .pending {
+                if recording.transcriptState == .pending || model.work.isQueued(.transcription(session: recording.id)) {
                     ProgressView().controlSize(.small)
-                    Text("Traitement audio local en cours…").font(.system(size: Studio.Size.body))
+                    if recording.transcriptState == .pending {
+                        Text("Traitement audio local en cours…").font(.system(size: Studio.Size.body))
+                    } else {
+                        Text("Transcription en attente : elle démarrera après le traitement en cours.").font(.system(size: Studio.Size.body))
+                    }
                     Spacer()
-                    Button("Annuler") { model.cancelProcessing() }.buttonStyle(StudioButtonStyle())
+                    Button("Annuler") { model.cancelTranscription(recording.id) }.buttonStyle(StudioButtonStyle())
                 } else {
                     Text(recording.transcriptState == .failed ? String(localized: "Le traitement a été interrompu ou a échoué.") : (recording.transcription.map { SessionLanguageLabel.transcript($0) + ($0.diarizationEngine == nil ? String(localized: " · Apple Speech · sur ce Mac") : " · Apple Speech + Community-1") } ?? SessionLanguageLabel.title(recording.speechLanguage ?? SpeechLanguage.defaultLocale) + String(localized: " · Apple Speech · sur ce Mac"))).font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted)
                     Spacer()
                     Button(recording.transcriptVersion > 0 ? "Retranscrire" : "Transcrire") { if recording.transcriptVersion > 0 { model.refreshSpeechLanguages(); confirmReprocessing = true } else { model.transcribe(recording.id) } }
-                        .buttonStyle(StudioButtonStyle()).disabled(model.modelWorkBusy || recording.audioChunks.isEmpty)
+                        .buttonStyle(StudioButtonStyle()).disabled(recording.audioChunks.isEmpty) // Queued behind other work.
                 }
             }
         }
@@ -101,7 +105,7 @@ struct DetailView: View {
         if !recording.isDemo {
             HStack {
                 Button(model.summaryID == recording.id ? "Génération…" : recording.summary == nil ? "Générer une synthèse" : "Régénérer") { model.generateSummary() }
-                    .buttonStyle(StudioButtonStyle(primary: true)).disabled(!model.summaryAvailability.isReady || model.modelWorkBusy || recording.segments.isEmpty)
+                    .buttonStyle(StudioButtonStyle(primary: true)).disabled(!model.summaryAvailability.isReady || recording.segments.isEmpty)
                 if model.summaryID == recording.id { Button("Annuler") { model.cancelSummary() }.buttonStyle(StudioButtonStyle()) }
                 if recording.summary != nil {
                     Menu {

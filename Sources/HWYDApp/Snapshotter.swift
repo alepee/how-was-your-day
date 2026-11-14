@@ -118,12 +118,16 @@ import HWYDCore
         model.activeCaptureID = nil; model.isDemoMode = false
         var pending = Recording(title: "Préparer le prototype") // l10n:ignore
         pending.transcriptState = .pending
-        model.recordings = [pending]; model.selectedID = pending.id; model.processingID = pending.id; model.activeTab = .transcript
+        model.recordings = [pending]; model.selectedID = pending.id; model.work = WorkSnapshot(running: .transcription(session: pending.id)); model.activeTab = .transcript
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-processing.png"))
+        // A transcription requested while other work runs says it waits its turn.
+        var waiting = pending; waiting.transcriptState = .unavailable
+        model.recordings = [waiting]; model.work = WorkSnapshot(running: .summary(session: UUID()), queued: [.transcription(session: pending.id)])
+        render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-processing-queued.png"))
         pending.transcriptState = .ready
         pending.segments = [.init(start: 0.12, end: 6.17, speakerID: nil, source: .mic, text: "Bonjour Antoine, la réunion commence à 9h. Nous devons préparer le prototype pour vendredi.")] // l10n:ignore
         pending.transcriptVersion = 1
-        model.processingID = nil; model.recordings = [pending]
+        model.work = WorkSnapshot(); model.recordings = [pending]
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-asr.png"))
         // The summary button explains why it is unavailable: a hosted provider without a key. Preview models never read the keychain.
         model.summarySettings.enabled = true; model.summarySettings.select(.anthropic); model.activeTab = .summary

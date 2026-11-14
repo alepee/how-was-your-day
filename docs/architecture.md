@@ -234,7 +234,20 @@ The adapters (`Sources/HWYDApp/HelperPipeline.swift`) are the only code that kno
 - **Readiness.** `diarizerReady()` reads the models on disk (`hwyd-pipeline diarizer-status <store>` checks every file the offline diarizer loads). The app no longer infers it from a preference or the transcript history.
 - **Voice identity.** `Recording.linkSpeaker(_:to:)` is the one mutation that confirms a voice as a person (name validation, opposed person refused); the voice tiles, the end of an enrollment and the MCP rename (`SessionStore.mutate`) all use it. It reads and writes no voice print. `EnrollVoice` (`EnrollVoice.swift`) is the only path to a print: `EnrollVoice.person(named:for:among:)` validates the name, finds the person and refuses an opposed one; running it records the user's request on the person through the `VoicePeople` port (`SessionStore`, or `InMemoryVoicePeople`), then calls `VoiceMemory.enroll`. `Recording.applyEnrollment` and `proposeIdentities` apply its outcome. A speaker correction never leads to `EnrollVoice`.
 
-Known gaps, for later steps: `AppModel` still arbitrates one job at a time with its busy flags and waits on them, and the helper polls its process every 200 ms.
+Known gap, for later steps: `PipelineRunner` polls the helper process every 200 ms.
+
+### Heavy work
+
+`WorkCoordinator` (`Packages/HWYDCore/Sources/HWYDCore/WorkCoordinator.swift`), an actor, owns heavy-work exclusivity: transcription, voice jobs, model installs and summaries (`WorkJob`) run one at a time, since they share the CPU, the Neural Engine, the helper's lock and the transcript they read.
+
+- **Requests.** A trigger calls `request(job, run:)` and gets a `WorkDecision`: `accepted` (the job starts), `queued(behind:)` or `refused(WorkRefusal)` with the reason (the job that runs, the same job already requested, or a condition of the session or the mode). Transcriptions wait their turn (`WorkJob.waitsWhenBusy`), so the end of a capture never loses one; jobs the user starts by hand are refused with the reason. `AppModel` says every refusal in a notice: no trigger hits a silent guard.
+- **Availability.** `Availability<Reason>` is `ready`, `busy(WorkBusy)` or `unavailable(Reason)`. A service states its own conditions (`SummaryAvailability` is `Availability<SummaryUnavailability>`); `combined(with:)` adds the coordinator's `busy`, and the service's own reason comes first. Views read `AppModel.workAvailability` and `summaryAvailability` instead of busy flags.
+- **State.** `snapshots()` streams `WorkSnapshot` (running job, waiting jobs, growing `revision`); `AppModel.work` mirrors it, so views show what runs and what waits. `busyChanges()` streams only the flips of `isBusy`; `AppModel.isBusy` adds a running capture to it, and the updater and the library refresh read it instead of the whole model's changes. `idle()` returns once nothing runs or waits, and returns early when its task is cancelled. `cancel(where:)` stops a running job (it still runs its cleanup) and drops waiting ones.
+- **Order.** `AppModel` runs trigger requests one after another (`enqueue`), so a cancel never overtakes the request it cancels; `AppModel.idle()` waits for those requests, then for the coordinator. App termination and the synthetic checks await it instead of polling.
+- **Deletion.** A session with work running or waiting on it (transcription, summary, voice job) cannot be deleted; the user is told why.
+- **Second line of defense.** `hwyd-pipeline` keeps its `flock` on `<store>/pipeline.lock` for transcription and voice commands (model installs take none). It only guards against a process the coordinator cannot see (a second app instance, a script); inside the app, the coordinator decides first.
+
+Known gaps, for later steps: the waiting order lives in memory, so a queued transcription is lost if the app quits (the session keeps its audio and can be transcribed by hand); demo mode is still a flag checked by each request.
 
 ### User notices
 
@@ -268,7 +281,7 @@ The app asks for a summary through one interface, `Summarizer` (`Packages/HWYDCo
 | `AgentSummarizer` | an agent command | `ACPSummaryAgent` with the bundled `hwyd-mcp` |
 | `UnavailableSummarizer` | never (null object, summary turned off) | nothing |
 
-Resumable checkpoints (`cache/summaries/<id>`) and cache reuse stay inside the pipeline implementations. `SummarizerFactory.make(configuration, environment:)` is the only place that maps the settings (`SummaryConfiguration`, one `Equatable` value) to an implementation; `SummarizerEnvironment` carries the data directory, the `hwyd-mcp` path and key access. Callers (the Generate button today) keep only app policy: one model job at a time, demo mode, flush before the run, stale check, persistence and toasts. They read `availability` to disable the button and explain why, and never check the summarizer's conditions themselves.
+Resumable checkpoints (`cache/summaries/<id>`) and cache reuse stay inside the pipeline implementations. `SummarizerFactory.make(configuration, environment:)` is the only place that maps the settings (`SummaryConfiguration`, one `Equatable` value) to an implementation; `SummarizerEnvironment` carries the data directory, the `hwyd-mcp` path and key access. Callers (the Generate button today) keep only app policy: demo mode, flush before the run, stale check, persistence and toasts; one job at a time is the `WorkCoordinator`'s (§ 11). They read `availability`, combined with the coordinator's `busy`, to disable the button and explain why, and never check the summarizer's conditions themselves.
 
 Each implementation also states, through `disclosure` (`SummaryDisclosure`), where its draft is written and what leaves the Mac: the line under the summary controls and the explanation shown before a first summary. The local server says the draft is local; a hosted provider names itself, since the transcript is sent to it; an agent says the draft comes from the user's agent; a summary turned off claims no location and says how to turn it on. The summary tab only displays these texts.
 
