@@ -7,22 +7,57 @@ import HWYDCore
         let suite = "HWYDAppearanceTests.\(UUID().uuidString)"
         guard let preferences = UserDefaults(suiteName: suite) else { throw CaptureFailure(message: "Missing isolated preferences") }
         defer { preferences.removePersistentDomain(forName: suite) }
-        let model = AppModel(directory: directory, settings: UserDefaultsSettings(preferences), appliesAppearance: false, persistPreferences: true)
+        let defaults = UserDefaultsSettings(preferences)
+        let model = AppModel(environment: try .synthetic(directory: directory, preferences: defaults))
         guard model.appearancePreference == .system else { throw CaptureFailure(message: "Appearance must default to system") }
         model.appearancePreference = .dark
-        let reopened = AppModel(directory: directory, settings: UserDefaultsSettings(preferences), appliesAppearance: false)
+        // A second model reads what the first saved, through a view that keeps its own changes in memory.
+        let reopened = AppModel(environment: try .synthetic(directory: directory, preferences: VolatileSettings(over: defaults)))
         guard reopened.appearancePreference == .dark else { throw CaptureFailure(message: "Appearance did not survive reopening") }
         model.enterDemo(); model.appearancePreference = .light
-        let preview = AppModel(preview: true, settings: UserDefaultsSettings(preferences), appliesAppearance: false)
+        let preview = AppModel(environment: .preview())
         preview.appearancePreference = .system
         reopened.appearancePreference = .light
         guard preferences.string(forKey: "appearancePreference") == "dark" else { throw CaptureFailure(message: "Demo, preview or isolated test changed preferences") }
-        model.isDemoMode = false; model.appearancePreference = .system
+        model.leaveDemo(); model.appearancePreference = .system
         guard preferences.string(forKey: "appearancePreference") == "system", model.appearancePreference.appearance == nil, model.appearancePreference.colorScheme == nil else { throw CaptureFailure(message: "System appearance must clear overrides") }
         preferences.set("unknown-future-value", forKey: "appearancePreference")
-        let fallback = AppModel(preview: true, settings: UserDefaultsSettings(preferences), appliesAppearance: false)
+        let fallback = AppModel(environment: .preview(preferences: VolatileSettings(over: defaults)))
         guard fallback.appearancePreference == .system else { throw CaptureFailure(message: "Invalid preference must follow system") }
         print("Appearance persistence, system fallback and demo/test isolation: PASS")
+    }
+    /// The root gives every synthetic mode in-memory preferences, no store of the user, no
+    /// keychain, and a capture that never opens the microphone.
+    private static func checkSyntheticEnvironments(directory: URL) async throws {
+        for mode in [LaunchMode.snapshot(directory), .uiTest(directory), .asrTest(directory), .selfTest(directory, seconds: 2), .preview] {
+            let environment = AppEnvironment.launch(mode)
+            guard mode.isSynthetic, environment.preferences is InMemorySettings, !environment.usesSystem, environment.user.store == nil,
+                  environment.user.capture.isSimulated, environment.examples().capture.isSimulated,
+                  (try environment.user.capture.make()) is SimulatedCapture else {
+                throw CaptureFailure(message: "A synthetic mode reached the user's preferences, data or microphone: \(mode)")
+            }
+        }
+        let checks = try AppEnvironment.synthetic(directory: directory)
+        guard checks.preferences is InMemorySettings, !checks.usesSystem, !checks.user.capture.isSimulated,
+              (try? checks.user.capture.make()) == nil, checks.examples().transcription.refusal == .examples,
+              checks.examples().summarizer(SummaryConfiguration()).refusal == .examples else {
+            throw CaptureFailure(message: "The checks' environment can record or process the examples")
+        }
+        print("Synthetic environments: in-memory preferences, no user store, no keychain, no microphone: PASS")
+    }
+    /// The summarizer a check puts in place of the configured one, through the environment.
+    @MainActor private final class SummarizerSlot { var fixture: (any Summarizer)? }
+    /// Returns once `condition` holds, failing after `seconds`.
+    private static func waitUntil(_ failure: String, seconds: Double = 3, _ condition: () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(seconds)
+        while !condition() {
+            guard Date() < deadline else { throw CaptureFailure(message: failure) }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+    /// Runs an action the user would pick in a notice.
+    private static func perform(_ action: UserNotice.Action) {
+        if case .perform(let run) = action.effect { run() }
     }
     /// Stands in for a provider: records what it was given, then fails or waits to be cancelled.
     private struct FixtureSummarizer: Summarizer {
@@ -50,6 +85,17 @@ import HWYDCore
         try await waitIdle(model, seconds: 3, "Summary did not finish")
     }
     /// Holds a job until the check releases it.
+    /// The in-memory voice memory, whose recognition waits for a gate: it holds a voice job.
+    private struct HeldVoiceMemory: VoiceMemory {
+        let memory: InMemoryVoiceMemory, gate: Gate
+        func enroll(speakerID: UUID, in recording: Recording, as personID: UUID) async throws -> VoiceMatches {
+            try await memory.enroll(speakerID: speakerID, in: recording, as: personID)
+        }
+        func identify(in recording: Recording) async throws -> VoiceMatches { await gate.wait(); return try await memory.identify(in: recording) }
+        func forget(personID: UUID) async throws { try await memory.forget(personID: personID) }
+        func forget(personID: UUID, source recordingID: UUID?) async throws { try await memory.forget(personID: personID, source: recordingID) }
+        func sources(personID: UUID) async throws -> [VoiceContribution] { try await memory.sources(personID: personID) }
+    }
     private actor Gate {
         private var open = false
         private var waiters: [CheckedContinuation<Void, Never>] = []
@@ -57,7 +103,10 @@ import HWYDCore
         func release() { open = true; waiters.forEach { $0.resume() }; waiters = [] }
     }
     private static func checkSummaryLifecycle(directory: URL) async throws {
-        let model = AppModel(directory: directory, appliesAppearance: false)
+        let slot = SummarizerSlot(), notices = RecordingNotifier()
+        let keyless = SummarizerEnvironment(dataDirectory: directory, mcpExecutable: HelperLocator.app.mcp) { _ in nil }
+        let model = AppModel(environment: try .synthetic(directory: directory, notifier: notices,
+                                                         summarizer: { slot.fixture ?? SummarizerFactory.make($0, environment: keyless) }))
         await model.load()
         let recording = Recording(title: "Summary lifecycle fixture", notes: "Before")
         model.sessionLibrary.insert(recording); model.selectedID = recording.id
@@ -70,14 +119,14 @@ import HWYDCore
             throw CaptureFailure(message: "A non-loopback summary server must be unavailable")
         }
         guard case .refused(.unavailable) = await model.requestSummary(recording.id), model.summaryID == nil,
-              model.toastCenter.toasts.contains(where: { $0.style == .error && $0.actions.first?.title == String(localized: "Réglages") }) else {
+              notices.notices.contains(where: { $0.style == .error && $0.actions.first?.title == String(localized: "Réglages") }) else {
             throw CaptureFailure(message: "Unavailable summary did not explain why")
         }
-        model.toastCenter.dismissAll()
+        notices.clear()
         // Pending edits reach the store before the provider runs.
         let probe = Probe()
         let store = model.store
-        model.summarizerOverride = FixtureSummarizer { given in
+        slot.fixture = FixtureSummarizer { given in
             let stored = try await store?.recording(given.id).notes
             await probe.record(given.notes, stored)
         }
@@ -85,13 +134,13 @@ import HWYDCore
         model.generateSummary()
         try await waitForSummary(model)
         let given = await probe.given, stored = await probe.stored
-        guard model.summaryID == nil, !model.hasUnsavedChanges, model.toastCenter.toasts.contains(where: { $0.style == .error }), given == "Pending edit", stored == "Pending edit",
+        guard model.summaryID == nil, !model.hasUnsavedChanges, notices.notices.contains(where: { $0.style == .error }), given == "Pending edit", stored == "Pending edit",
               let persisted = try await model.store?.recording(recording.id), persisted.notes == "Pending edit",
               persisted.revision == model.recordings.first?.revision else {
             throw CaptureFailure(message: "Summary did not flush pending edits before the provider ran")
         }
-        model.toastCenter.dismissAll()
-        model.summarizerOverride = FixtureSummarizer { _ in try await Task.sleep(for: .seconds(30)) }
+        notices.clear()
+        slot.fixture = FixtureSummarizer { _ in try await Task.sleep(for: .seconds(30)) }
         model.generateSummary()
         model.enterDemo()
         guard !model.isDemoMode, model.recordings.first?.id == recording.id else {
@@ -100,15 +149,16 @@ import HWYDCore
         }
         model.cancelSummary()
         try await waitForSummary(model)
-        guard model.summaryID == nil, !model.toastCenter.toasts.contains(where: { $0.style == .error }),
-              model.toastCenter.toasts.last?.message == String(localized: "Synthèse annulée.") else {
+        guard model.summaryID == nil, !notices.notices.contains(where: { $0.style == .error }),
+              notices.messages.last == String(localized: "Synthèse annulée.") else {
             throw CaptureFailure(message: "Cancelled summary surfaced as a provider error")
         }
         print("Summary availability, pending-edit flush, demo exclusion and cancellation: PASS")
     }
     /// Synthetic placeholder files stand in for audio and derived files; no microphone.
     private static func checkSessionDeletion(directory: URL) async throws {
-        let model = AppModel(directory: directory, appliesAppearance: false)
+        let notices = RecordingNotifier()
+        let model = AppModel(environment: try .synthetic(directory: directory, notifier: notices))
         await model.load()
         guard let store = model.store else { throw CaptureFailure(message: "Deletion check needs a store") }
         func write(_ relative: String) throws {
@@ -145,14 +195,15 @@ import HWYDCore
         while model.recordings.contains(where: { $0.id == deleted.id }), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         let remaining = try await store.all()
         guard !exists(audio), !exists("cache/summaries/" + deleted.id.uuidString),
-              !model.toastCenter.toasts.contains(where: { $0.style == .error }),
+              !notices.notices.contains(where: { $0.style == .error }),
               remaining.map(\.id) == [kept.id], model.recordings.map(\.id) == [kept.id] else {
             throw CaptureFailure(message: "Deleting a session left its files or rows behind")
         }
         print("Session deletion removes audio and derived files, launch sweep of earlier deletions: PASS")
     }
     static func runTranscription(directory: URL) async throws {
-        let model = AppModel(directory: directory)
+        let notices = RecordingNotifier()
+        let model = AppModel(environment: try .synthetic(directory: directory, notifier: notices))
         // Synthetic checks read no user preference: voice separation starts off.
         guard !model.diarizationEnabled else { throw CaptureFailure(message: "A test model read the user's preferences") }
         await model.load()
@@ -168,7 +219,7 @@ import HWYDCore
         model.transcribe(recording.id)
         model.update(recording.id) { $0.notes = "Note écrite pendant la transcription" } // l10n:ignore
         do { try await waitIdle(model, seconds: 90, "ASR timeout") } catch { model.cancelProcessing(); throw error }
-        if let error = model.toastCenter.toasts.last(where: { $0.style == .error }) { throw CaptureFailure(message: error.message) }
+        if let error = notices.notices.last(where: { $0.style == .error }) { throw CaptureFailure(message: error.message) }
         let saved = try await SessionStore(directory: directory).all()
         guard let item = saved.first(where: { $0.id == recording.id }),
               item.transcriptState == .ready, item.transcriptVersion == 1,
@@ -184,17 +235,17 @@ import HWYDCore
         guard let cancelled = model.recordings.first(where: { $0.id == recording.id }),
               cancelled.transcriptState == .failed, cancelled.segments == item.segments,
               cancelled.notes == item.notes else { throw CaptureFailure(message: "Cancellation lost previous transcript") }
-        model.toastCenter.dismissAll()
+        notices.clear()
         model.transcribe(recording.id)
         try await waitIdle(model, seconds: 90, "ASR retry timeout")
         guard model.recordings.first(where: { $0.id == recording.id })?.transcriptVersion == 2,
-              !model.toastCenter.toasts.contains(where: { $0.style == .error }) else { throw CaptureFailure(message: "Retry after cancellation failed") }
+              !notices.notices.contains(where: { $0.style == .error }) else { throw CaptureFailure(message: "Retry after cancellation failed") }
         print("Real Apple ASR through bundled helper: tracks, timestamps, persistence, concurrent notes, cancellation and retry: PASS")
     }
     /// Agent summaries through the bundled `hwyd-mcp`: a scripted ACP agent connects to the real
     /// helper, sees only `submit_summary`, gets a rejection it can read, then an acceptance.
     private static func checkAgentSummary(directory: URL) async throws {
-        let model = AppModel(directory: directory, appliesAppearance: false)
+        let model = AppModel(environment: try .synthetic(directory: directory))
         await model.load()
         let camille = Speaker(label: "Camille", confirmed: true)
         var recording = Recording(title: "Agent fixture", speakers: [camille])
@@ -251,17 +302,18 @@ import HWYDCore
     /// A model opened on a test directory refuses a real capture, even outside demo mode: only the
     /// installed app opens the microphone.
     private static func checkNoMicrophone(directory: URL) async throws {
-        let model = AppModel(directory: directory, appliesAppearance: false)
+        let notices = RecordingNotifier()
+        let model = AppModel(environment: try .synthetic(directory: directory, notifier: notices))
         await model.startCapture(reveal: false).value
         guard !model.isDemoMode, model.activeCaptureID == nil, !model.isStarting, model.recordings.isEmpty,
-              model.toastCenter.toasts.last?.message == "This model never opens the microphone." else { // l10n:ignore
+              notices.messages.last == "This model never opens the microphone." else { // l10n:ignore
             throw CaptureFailure(message: "A test model started a real capture")
         }
         print("No real capture outside the installed app: PASS")
     }
     /// The setup screen never records by itself, and toasts stack, deduplicate and expire.
     private static func checkNewSessionAndToasts() async throws {
-        let model = AppModel(preview: true, appliesAppearance: false)
+        let model = AppModel(environment: .preview())
         model.requestNewSession()
         guard model.showNewSession, model.activeCaptureID == nil else { throw CaptureFailure(message: "New session must open its setup screen without recording") }
         model.newSessionKind = .call
@@ -274,22 +326,23 @@ import HWYDCore
         guard model.activeCapture?.title == "Idée produit", model.activeCapture?.kind == .voiceMemo else { throw CaptureFailure(message: "Typed name was not applied") } // l10n:ignore
         await model.stopCapture().value
 
-        let toasts = model.toastCenter
-        toasts.dismissAll()
-        model.notifier.notify(.info("Premier")); model.notifier.notify(.info("Premier"))
-        model.notifier.notify(.error("Décision", actions: [.perform("Réessayer") {}])) // l10n:ignore
+        // A fresh model: its toasts hold none of the capture notices above.
+        let shown = AppModel(environment: .preview())
+        let toasts = shown.toastCenter
+        shown.notifier.notify(.info("Premier")); shown.notifier.notify(.info("Premier"))
+        shown.notifier.notify(.error("Décision", actions: [.perform("Réessayer") {}])) // l10n:ignore
         guard toasts.toasts.count == 2, toasts.toasts.last?.staysOnScreen == true, toasts.toasts.last?.message == "Décision" else { throw CaptureFailure(message: "Toasts did not deduplicate or keep their actions") } // l10n:ignore
-        for index in 0..<5 { model.notifier.notify(.info("Message \(index)")) }
+        for index in 0..<5 { shown.notifier.notify(.info("Message \(index)")) }
         guard toasts.toasts.count == 4, toasts.toasts.contains(where: { $0.message == "Décision" }) else { throw CaptureFailure(message: "Overflow must drop transient toasts before decisions") } // l10n:ignore
         try await Task.sleep(for: .seconds(5.5))
         guard toasts.toasts.map(\.message) == ["Décision"] else { throw CaptureFailure(message: "Transient toasts must expire, decisions must stay: \(toasts.toasts.map(\.message))") } // l10n:ignore
         // A navigating action is handed to the model, which opens the destination.
-        let target = model.recordings[0]
-        model.showSettings = true
-        model.notifier.notify(.success("Prête", actions: [.navigate("Afficher", to: .session(target.id, .notes))])) // l10n:ignore
+        let target = shown.recordings[0]
+        shown.showSettings = true
+        shown.notifier.notify(.success("Prête", actions: [.navigate("Afficher", to: .session(target.id, .notes))])) // l10n:ignore
         guard let ready = toasts.toasts.last else { throw CaptureFailure(message: "Missing navigation toast") }
         toasts.run(ready.actions[0], of: ready)
-        guard !model.showSettings, model.selectedID == target.id, model.activeTab == .notes, toasts.toasts.map(\.message) == ["Décision"] else { // l10n:ignore
+        guard !shown.showSettings, shown.selectedID == target.id, shown.activeTab == .notes, toasts.toasts.map(\.message) == ["Décision"] else { // l10n:ignore
             throw CaptureFailure(message: "Navigation intent did not open the session tab")
         }
         print("New session setup without recording, kind and name, toast stacking, expiry and decisions: PASS")
@@ -308,7 +361,9 @@ import HWYDCore
             result.speakers = voices; result.diarizationEngine = "fixture" // l10n:ignore
             return result
         }
-        let model = AppModel(directory: directory, transcription: service, voiceMemory: memory, speechModels: catalog, appliesAppearance: false)
+        let notices = RecordingNotifier(), gate = Gate()
+        let model = AppModel(environment: try .synthetic(directory: directory, notifier: notices, transcription: service,
+                                                         voiceMemory: HeldVoiceMemory(memory: memory, gate: gate), speechModels: catalog))
         await model.load()
         func idle() async throws { try await waitIdle(model, seconds: 5, "Pipeline port did not finish") }
         guard !model.diarizerReady else { throw CaptureFailure(message: "Diarizer must start missing") }
@@ -338,12 +393,11 @@ import HWYDCore
 
         // One job at a time: a voice job on a session blocks its deletion, a transcription waits
         // its turn and says so, other work is refused with the running job as the reason.
-        model.toastCenter.dismissAll()
+        notices.clear()
         var queued = Recording(title: "File d’attente") // l10n:ignore
         queued.audioChunks = recording.audioChunks
         model.sessionLibrary.insert(queued)
-        let gate = Gate()
-        guard await model.requestVoiceJob(session: recording.id, { _ in await gate.wait() }) == .accepted, model.voiceBusy, !model.workAvailability.isReady else {
+        guard await model.requestIdentification(of: recording.id) == .accepted, model.voiceBusy, !model.workAvailability.isReady else {
             throw CaptureFailure(message: "Voice job did not start")
         }
         model.deleteCandidate = model.selected; model.deleteConfirmed()
@@ -354,13 +408,13 @@ import HWYDCore
             throw CaptureFailure(message: "Transcription was not queued")
         }
         guard await model.requestDiarizer() == .refused(.busy(busy)),
-              model.toastCenter.toasts.contains(where: { $0.message == WorkRefusal.busy(busy).localizedDescription }) else {
+              notices.messages.contains(WorkRefusal.busy(busy).localizedDescription) else {
             throw CaptureFailure(message: "Busy refusal was silent")
         }
         await gate.release()
         try await idle()
         guard model.recordings.contains(where: { $0.id == recording.id }),
-              model.toastCenter.toasts.contains(where: { $0.message == String(localized: "Cette session est en cours de traitement. Annulez le traitement ou attendez sa fin pour la supprimer.") }) else {
+              notices.messages.contains(String(localized: "Cette session est en cours de traitement. Annulez le traitement ou attendez sa fin pour la supprimer.")) else {
             throw CaptureFailure(message: "A session was deleted while a voice job ran on it")
         }
         guard await service.requests.count == 2, model.recordings.first(where: { $0.id == queued.id })?.segments.isEmpty == false, !model.work.isBusy, !model.isBusy else {
@@ -377,7 +431,9 @@ import HWYDCore
         try await checkSessionDeletion(directory: directory.appendingPathComponent("deletion-test"))
         try await checkNewSessionAndToasts()
         try await checkNoMicrophone(directory: directory.appendingPathComponent("no-microphone-test"))
-        let model = AppModel(directory: directory)
+        try await checkSyntheticEnvironments(directory: directory.appendingPathComponent("environments-test"))
+        let notices = RecordingNotifier(), coordinator = WorkCoordinator()
+        let model = AppModel(environment: try .synthetic(directory: directory, notifier: notices, coordinator: coordinator))
         // Synthetic checks read no user preference: voice separation starts off.
         guard !model.diarizationEnabled else { throw CaptureFailure(message: "A test model read the user's preferences") }
         await model.load()
@@ -416,10 +472,13 @@ import HWYDCore
               corrected.speakers == beforeCorrection.speakers else {
             throw CaptureFailure(message: "Segment correction changed cluster profiles")
         }
-        model.work = WorkSnapshot(running: .transcription(session: beforeCorrection.id))
+        // A transcription of the session runs, held by its job: corrections wait for it.
+        let held = Gate()
+        _ = await coordinator.request(.transcription(session: beforeCorrection.id)) { await held.wait() }
+        try await waitUntil("Held transcription not shown") { model.processingID == beforeCorrection.id }
         model.assignSpeaker(passage.speakerID, to: passage.id, recordingID: beforeCorrection.id)
         guard model.selected == corrected else { throw CaptureFailure(message: "Correction allowed during processing") }
-        model.work = WorkSnapshot()
+        await held.release(); await model.idle()
         model.assignSpeaker(passage.speakerID, to: passage.id, recordingID: beforeCorrection.id)
         guard model.selected?.segments == beforeCorrection.segments else { throw CaptureFailure(message: "Segment restoration failed") }
         // Regrouping two voices from the tiles is a transcript correction, never an enrollment.
@@ -431,9 +490,9 @@ import HWYDCore
             throw CaptureFailure(message: "Tile merge failed or triggered enrollment")
         }
         // The merge offers « Annuler » in a toast that still leaves on its own, and can be separated later.
-        guard let undo = model.toastCenter.toasts.last(where: { $0.actions.first?.title == String(localized: "Annuler") }), !undo.staysOnScreen,
+        guard let undo = notices.notices.last(where: { $0.actions.first?.title == String(localized: "Annuler") }), !undo.waitsForUser,
               merged.separableVoices(of: camille.id).map(\.id) == [unknown.id] else { throw CaptureFailure(message: "Merge cannot be undone") }
-        model.toastCenter.run(undo.actions[0], of: undo)
+        perform(undo.actions[0])
         guard let restored = model.selected, restored.segments == beforeMerge.segments, restored.speakers == beforeMerge.speakers,
               restored.transcriptVersion == merged.transcriptVersion + 1 else { throw CaptureFailure(message: "Merge undo failed") }
         model.mergeSpeaker(unknown.id, into: camille.id)
@@ -447,7 +506,7 @@ import HWYDCore
         model.requestEnrollment(camille.id)
         guard model.enrollmentCandidateID == camille.id, !model.voiceBusy, model.people == peopleBefore else { throw CaptureFailure(message: "Enrollment started without confirmation") }
         model.enrollmentCandidateID = nil
-        model.toastCenter.dismissAll()
+        notices.clear()
         var splitExample = TranscriptSegment(start: 0, end: 2, speakerID: nil, source: .mic, text: "Oui. Bonjour")
         splitExample.words = [.init(text: "Oui.", start: 0, end: 1), .init(text: " Bonjour", start: 1, end: 2)]
         let splitRecording = Recording(title: "Découpage synthétique", segments: [splitExample], isDemo: true) // l10n:ignore
@@ -459,7 +518,7 @@ import HWYDCore
         guard !model.splitSegment(splitExample, beforeWord: 1, recordingID: splitRecording.id) else {
             throw CaptureFailure(message: "Stale split accepted")
         }
-        model.toastCenter.dismissAll()
+        notices.clear()
         await model.startCapture().value
         try await Task.sleep(for: .milliseconds(650))
         guard let active = model.activeCapture, model.elapsed > 0, model.micLevel > 0 else { throw CaptureFailure(message: "Demo capture timer or levels failed") }

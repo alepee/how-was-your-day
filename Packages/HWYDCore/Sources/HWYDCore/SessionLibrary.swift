@@ -59,6 +59,7 @@ public final class SessionLibrary {
     @ObservationIgnored private let exportTarget: @Sendable () async throws -> (any ExportPublisher)?
     @ObservationIgnored private let debounce: Duration
     @ObservationIgnored private let watchInterval: Duration?
+    @ObservationIgnored private let sweepsFiles: Bool
     /// The stored version each working copy was last rebased on.
     @ObservationIgnored private var base: [UUID: Recording] = [:]
     @ObservationIgnored private var dirty: Set<UUID> = []
@@ -74,18 +75,20 @@ public final class SessionLibrary {
 
     /// `exportTarget` gives the publisher of the moment, nil when publication is off; it is asked
     /// at each drain, so a folder chosen later applies at once. `watchInterval` nil turns off the
-    /// watch of other writers (tests call `checkForChanges()` themselves).
+    /// watch of other writers (tests call `checkForChanges()` themselves). `sweepsFiles` lets each
+    /// load remove the files of sessions deleted earlier; the composition root turns it on only for
+    /// a data folder it owns.
     public init(repository: any RecordingRepository,
                 exportTarget: @escaping @Sendable () async throws -> (any ExportPublisher)? = { nil },
-                debounce: Duration = .milliseconds(300), watchInterval: Duration? = .seconds(2)) {
+                debounce: Duration = .milliseconds(300), watchInterval: Duration? = .seconds(2), sweepsFiles: Bool = false) {
         self.repository = repository; self.exportTarget = exportTarget
-        self.debounce = debounce; self.watchInterval = watchInterval
+        self.debounce = debounce; self.watchInterval = watchInterval; self.sweepsFiles = sweepsFiles
         isReady = false
     }
 
     /// Sessions kept in memory only: edits apply, nothing is saved, published or watched.
     public init(volatile recordings: [Recording]) {
-        repository = nil; exportTarget = { nil }; debounce = .zero; watchInterval = nil
+        repository = nil; exportTarget = { nil }; debounce = .zero; watchInterval = nil; sweepsFiles = false
         self.recordings = recordings; isReady = true
     }
 
@@ -115,9 +118,10 @@ public final class SessionLibrary {
     /// recovered. The library is ready once this returns, even after a failure; after a failure
     /// the watch reads every session again at its next tick.
     ///
-    /// After a successful load, `fileSweep` removes in the background the files of sessions deleted
-    /// earlier (`RecordingRepository.removeOrphanFiles`). It starts once the library is ready, holds
-    /// no library operation, and reports through `changes` only what it could not do.
+    /// After a successful load, and when `sweepsFiles` is on, `fileSweep` removes in the background
+    /// the files of sessions deleted earlier (`RecordingRepository.removeOrphanFiles`). It starts once
+    /// the library is ready, holds no library operation, and reports through `changes` only what it
+    /// could not do.
     @discardableResult
     public func load() async throws -> Int {
         defer { becomeReady() }
@@ -131,7 +135,7 @@ public final class SessionLibrary {
             await publishLocked()
         }
         // Never on an empty library: a missing or replaced database is not evidence that its sessions were deleted.
-        if !recordings.isEmpty { sweepFiles(repository) }
+        if sweepsFiles, !recordings.isEmpty { sweepFiles(repository) }
         return recovered
     }
 
@@ -214,12 +218,6 @@ public final class SessionLibrary {
         recordings.removeAll { $0.id == recording.id }
         recordings.insert(recording, at: recordings.firstIndex { Self.isOrdered(recording, before: $0) } ?? recordings.endIndex)
         markDirty(recording.id)
-    }
-
-    /// Replaces what a volatile library shows, for previews and snapshots.
-    public func show(_ recordings: [Recording]) {
-        precondition(repository == nil, "Only a volatile library is replaced without saving")
-        self.recordings = recordings
     }
 
     /// Saves every pending edit now. A save that meets another writer's commit is rebased on it

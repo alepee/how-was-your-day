@@ -41,7 +41,7 @@ struct SettingsView: View {
     @State private var apiKeyDraft = ""
     /// Bindings to the summary settings; the model republishes their changes.
     private var summaryBindings: ObservedObject<SummarySettings>.Wrapper { ObservedObject(wrappedValue: model.summarySettings).projectedValue }
-    @ObservedObject private var updater = AppEnvironment.updater
+    @ObservedObject private var updater = AppRoot.updater
     private static let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?" // l10n:ignore
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -441,6 +441,6 @@ struct ShortcutRecorder: View {
     private func stop() {
         if let monitor { NSEvent.removeMonitor(monitor) }
         monitor = nil
-        if listening { listening = false; AppEnvironment.model.reloadRecordingShortcut() }
+        if listening { listening = false; AppRoot.model.reloadRecordingShortcut() }
     }
 }

@@ -37,7 +37,6 @@ struct Toast: Identifiable {
         timers.removeValue(forKey: id)?.cancel()
         toasts.removeAll { $0.id == id }
     }
-    func dismissAll() { for toast in toasts { dismiss(toast.id) } }
     func run(_ action: UserNotice.Action, of toast: Toast) {
         dismiss(toast.id)
         switch action.effect {

@@ -19,7 +19,11 @@ public protocol VoiceMemory: Sendable {
     func forget(personID: UUID, source recordingID: UUID?) async throws
     /// What each session added to the person's print.
     func sources(personID: UUID) async throws -> [VoiceContribution]
+    /// Set when this adapter refuses every request in the current mode (the examples), with the
+    /// reason told to the user before any work is queued. Nil for a working service.
+    var refusal: WorkRefusal? { get }
 }
+extension VoiceMemory { public var refusal: WorkRefusal? { nil } }
 
 /// Keeps who was enrolled from which session, never a vector. Identification answers `matches`.
 public actor InMemoryVoiceMemory: VoiceMemory {

@@ -12,7 +12,11 @@ public protocol SpeechModelCatalog: Sendable {
     func diarizerReady() async -> Bool
     /// Downloads the voice separation models.
     func installDiarizer() async throws
+    /// Set when this adapter refuses every request in the current mode (the examples), with the
+    /// reason told to the user before any work is queued. Nil for a working service.
+    var refusal: WorkRefusal? { get }
 }
+extension SpeechModelCatalog { public var refusal: WorkRefusal? { nil } }
 
 /// Answers from memory: installing a language or the diarizer marks it installed.
 public actor InMemorySpeechModelCatalog: SpeechModelCatalog {

@@ -6,12 +6,13 @@ import HWYDCore
 
 @MainActor
 final class AppModel: ObservableObject {
-    /// The sessions shown: the stored library, or a volatile one for previews and demo mode.
-    /// Its edits, saves, merges with other writers and stale checks are its own.
-    @Published private(set) var sessionLibrary = SessionLibrary(volatile: [])
-    /// The library over the store, kept while demo mode shows the volatile one. Nil for previews
-    /// and when the store cannot be opened.
-    private var storedLibrary: SessionLibrary?
+    /// The adapters this model was built with, chosen once by the composition root.
+    private let environment: AppEnvironment
+    /// The sessions shown and the adapters that serve them: the user's, or the examples.
+    /// The model checks no mode: refusals, persistence and capture are the workspace's adapters'.
+    @Published private(set) var workspace: Workspace
+    /// The sessions shown. Its edits, saves, merges with other writers and stale checks are its own.
+    var sessionLibrary: SessionLibrary { workspace.library }
     /// What the library shows, pending edits included.
     var recordings: [Recording] { sessionLibrary.recordings }
     @Published var selectedID: UUID?
@@ -27,31 +28,28 @@ final class AppModel: ObservableObject {
     /// The setup screen shown before a capture starts: kind and optional name.
     @Published var showNewSession = false
     @Published var newSessionKind: SessionKind = .adHoc {
-        didSet { if persistPreferences && !isDemoMode { settings.set(newSessionKind, for: .newSessionKind) } }
+        didSet { workspace.settings.set(newSessionKind, for: .newSessionKind) }
     }
     @Published var newSessionTitle = ""
-    @Published var isDemoMode = false { didSet { summarySettings.isDemo = isDemoMode } }
+    /// The examples show: banner and « Simulation » labels. Presentation only.
+    var isDemoMode: Bool { workspace.isExamples }
     /// The library has not finished its first load.
     var isLoading: Bool { !sessionLibrary.isReady }
-    /// Runs the capture: its clock, pause, end and what follows it. The properties below show
-    /// its state; snapshots set them directly to render a capture.
-    private(set) lazy var captureSession = CaptureSession(notifier: notifier) { [weak self] id in
+    /// Runs the capture: its clock, pause, end and what follows it. The properties below show its state.
+    private(set) lazy var captureSession = CaptureSession(notifier: notifier, transcribe: { [weak self] id in
         await self?.enqueued { [weak self] in await self?.requestTranscription(id) ?? .refused(.unavailable("")) } ?? .refused(.unavailable(""))
-    }
-    @Published var activeCaptureID: UUID? { didSet { updateBusy() } }
-    @Published var elapsed: Double = 0
+    }, now: environment.clock)
+    @Published private(set) var activeCaptureID: UUID? { didSet { updateBusy() } }
+    @Published private(set) var elapsed: Double = 0
     /// The active capture is paused: no audio is captured and the clock is frozen.
-    @Published var isCapturePaused = false
-    @Published var micLevel: Float = 0
-    @Published var systemLevel: Float = 0
+    @Published private(set) var isCapturePaused = false
+    @Published private(set) var micLevel: Float = 0
+    @Published private(set) var systemLevel: Float = 0
     @Published var isStarting = false
     private var shownCapturePhase: CapturePhase = .idle
     private var captureChanges: [AnyCancellable] = []
-    /// Whether the end of the capture being stopped brings the window forward.
-    private var revealsCaptureEnd = true
-    /// Only the installed app records for real. Previews and models opened on another directory
-    /// (tests, synthetic checks) never open the microphone, even outside demo mode.
-    private let microphoneAllowed: Bool
+    /// Moves the session clock shown while a capture runs.
+    private var captureClock: Timer?
     /// Playback ticks live outside `objectWillChange`: only views reading them are invalidated.
     let playback = PlaybackState()
     var isPlaying: Bool { get { playback.isPlaying } set { playback.isPlaying = newValue } }
@@ -73,24 +71,23 @@ final class AppModel: ObservableObject {
     /// What each session added to a person's voice print, loaded on demand in the settings.
     @Published var voiceContributions: [UUID: [VoiceContribution]] = [:]
     /// Voice prints of known people, served by the pipeline helper in the app.
-    let voiceMemory: any VoiceMemory
+    var voiceMemory: any VoiceMemory { workspace.voiceMemory }
     /// Provider, model, key and agent settings of the summary. Its changes are republished by this model.
     let summarySettings: SummarySettings
     private var summarySettingsChanges: AnyCancellable?
     @Published var summaryProgress: SummaryProgress?
     @Published var diarizationEnabled = false {
-        didSet { if persistPreferences && !isDemoMode { settings.set(diarizationEnabled, for: .diarizationEnabled) } }
+        didSet { workspace.settings.set(diarizationEnabled, for: .diarizationEnabled) }
     }
-    /// Transcribes sessions, through the pipeline helper in the app.
-    let transcription: any TranscriptionService
+    /// Transcribes sessions: the pipeline helper, a double, or the examples' refusal.
+    var transcription: any TranscriptionService { workspace.transcription }
     /// Installed and installable speech languages and voice models.
-    let speechModels: any SpeechModelCatalog
+    var speechModels: any SpeechModelCatalog { workspace.speechModels }
     /// Runs transcription, voice jobs, model installs and summaries one at a time. The model
     /// requests work and shows the coordinator's state; it keeps no busy flag of its own.
     let coordinator: WorkCoordinator
-    /// The coordinator's latest state, as the views show it. Snapshots and synthetic checks set it
-    /// directly to render or test a state.
-    @Published var work = WorkSnapshot()
+    /// The coordinator's latest state, as the views show it.
+    @Published private(set) var work = WorkSnapshot()
     /// A capture or some heavy work is in progress: the updater waits. Changes only when that
     /// answer flips.
     @Published private(set) var isBusy = false
@@ -106,7 +103,8 @@ final class AppModel: ObservableObject {
         didSet {
             guard oldValue != recordingShortcut else { return }
             // Empty data records that the user cleared the shortcut.
-            if persistPreferences { settings.set(recordingShortcut.flatMap { try? JSONEncoder().encode($0) } ?? Data(), for: .recordingShortcut) }
+            // System-wide, so saved even while the examples show.
+            preferences.set(recordingShortcut.flatMap { try? JSONEncoder().encode($0) } ?? Data(), for: .recordingShortcut)
             registerRecordingShortcut()
         }
     }
@@ -135,7 +133,8 @@ final class AppModel: ObservableObject {
     var sessionLanguageChoices: [String] { [SpeechLanguage.automatic] + installedSpeechLocales }
     /// Reads the installed languages and the voice models again.
     func refreshSpeechLanguages() {
-        guard !isDemoMode else { return }
+        let speechModels = speechModels
+        guard speechModels.refusal == nil else { return }
         Task {
             diarizerReady = await speechModels.diarizerReady()
             if let locales = try? await speechModels.locales() { showSpeechLocales(locales) }
@@ -182,76 +181,50 @@ final class AppModel: ObservableObject {
     var hasUnsavedChanges: Bool { sessionLibrary.hasUnsavedChanges }
     @Published var appearancePreference: AppearancePreference = .system {
         didSet {
-            if persistPreferences && !isDemoMode { settings.set(appearancePreference.rawValue, for: .appearance) }
+            workspace.settings.set(appearancePreference.rawValue, for: .appearance)
             if appliesAppearance { NSApp.appearance = appearancePreference.appearance }
         }
     }
-    /// Preferences: the user's for the installed app, in memory for previews, tests and synthetic checks.
-    private let settings: SettingsStore
-    private let appliesAppearance: Bool
-    private let persistPreferences: Bool
+    /// Preferences read at start: the user's for the installed app, in memory for previews, tests
+    /// and synthetic checks. Changes go to the workspace's settings.
+    private var preferences: SettingsStore { environment.preferences }
+    private var appliesAppearance: Bool { environment.appliesAppearance }
     let calendar: CalendarIntegration
     /// Paths to `hwyd-pipeline` and `hwyd-mcp`.
-    let helpers: HelperLocator
-    let dataDirectory: URL
-    var store: SessionStore?
+    var helpers: HelperLocator { environment.helpers }
+    var dataDirectory: URL { environment.dataDirectory }
+    /// The store of the sessions shown; nil for the examples and previews.
+    var store: SessionStore? { workspace.store }
     var showWindow: (() -> Void)?
     var openNotepad: (() -> Void)?
-    private var timer: Timer?
+    /// Moves the playhead while something plays.
+    private var playbackClock: Timer?
     let player = SessionPlayback()
 
-    /// `settings` defaults to the user's preferences for the installed app only; previews and
-    /// models opened on another directory get an empty in-memory store and never read them.
-    /// The pipeline ports default to the bundled helper working on `dataDirectory`.
-    init(directory: URL? = nil, preview: Bool = false, settings: SettingsStore? = nil, helpers: HelperLocator = .app,
-         transcription: (any TranscriptionService)? = nil, voiceMemory: (any VoiceMemory)? = nil, speechModels: (any SpeechModelCatalog)? = nil,
-         coordinator: WorkCoordinator = WorkCoordinator(), appliesAppearance: Bool = true, persistPreferences: Bool? = nil) {
-        let installed = directory == nil && !preview
-        let toastCenter = ToastCenter()
-        self.toastCenter = toastCenter; notifier = toastCenter
-        let settings = settings ?? (installed ? UserDefaultsSettings() : InMemorySettings())
-        calendar = CalendarIntegration(settings: settings, allowed: installed)
-        self.settings = settings
-        self.helpers = helpers
-        self.appliesAppearance = appliesAppearance
-        self.persistPreferences = persistPreferences ?? installed
-        microphoneAllowed = installed
+    init(environment: AppEnvironment) {
+        self.environment = environment
+        toastCenter = environment.toasts; notifier = environment.notifier ?? environment.toasts
+        let preferences = environment.preferences
+        workspace = environment.startsWithExamples ? environment.examples() : environment.user
+        calendar = CalendarIntegration(settings: preferences, allowed: environment.usesSystem)
+        coordinator = environment.coordinator
         // Previews, demos and tests never touch the keychain nor start a process to find agents.
-        summarySettings = SummarySettings(store: settings, usesSystem: self.persistPreferences, notifier: toastCenter,
-                                          discovery: self.persistPreferences ? LoginShellAgentDiscovery() : FixedAgentDiscovery())
-        newSessionKind = settings.value(.newSessionKind)
-        diarizationEnabled = settings.value(.diarizationEnabled)
-        if let data = settings.value(.recordingShortcut) {
+        summarySettings = SummarySettings(store: preferences, usesSystem: environment.usesSystem, notifier: notifier, discovery: environment.agentDiscovery)
+        newSessionKind = preferences.value(.newSessionKind)
+        diarizationEnabled = preferences.value(.diarizationEnabled)
+        if let data = preferences.value(.recordingShortcut) {
             recordingShortcut = data.isEmpty ? nil : (try? JSONDecoder().decode(RecordingShortcut.self, from: data)) ?? .standard
         }
-        appearancePreference = AppearancePreference(rawValue: settings.value(.appearance) ?? "") ?? .system
-        let dataDirectory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("HWYD")
-        self.dataDirectory = dataDirectory
-        self.transcription = transcription ?? HelperTranscriptionService(helpers: helpers, store: dataDirectory)
-        self.voiceMemory = voiceMemory ?? HelperVoiceMemory(helpers: helpers, store: dataDirectory)
-        self.speechModels = speechModels ?? HelperSpeechModelCatalog(helpers: helpers, store: dataDirectory)
-        self.coordinator = coordinator
+        appearancePreference = AppearancePreference(rawValue: preferences.value(.appearance) ?? "") ?? .system
         if appliesAppearance { NSApp.appearance = appearancePreference.appearance }
-        if preview {
-            sessionLibrary = SessionLibrary(volatile: DemoContent.recordings()); isDemoMode = true
-            installedSpeechLocales = ["fr-FR", "en-US"]; supportedSpeechLocales = ["de-DE", "en-US", "es-ES", "fr-FR"]
-        } else {
-            do {
-                let store = try SessionStore(directory: dataDirectory)
-                self.store = store
-                // Asked at each publication, so a folder chosen later applies at once.
-                let library = SessionLibrary(repository: store) { try await store.exportDirectory().map(FolderExportPublisher.init) }
-                storedLibrary = library; sessionLibrary = library
-            } catch {
-                sessionLibrary = SessionLibrary(volatile: [])
-                notifier.notify(.error(String(localized: "Impossible d’ouvrir les données locales : \(error.localizedDescription)")))
-            }
-        }
-        summarySettings.isDemo = isDemoMode
+        if let locales = environment.initialLocales { installedSpeechLocales = locales.installed; supportedSpeechLocales = locales.supported }
+        if let error = environment.startupError { notifier.notify(.error(error)) }
+        summarySettings.isDemo = workspace.isExamples
         toastCenter.navigate = { [weak self] intent in self?.navigate(to: intent) }
         summarySettingsChanges = summarySettings.objectWillChange.sink { [weak self] _ in
             MainActor.assumeIsolated { self?.objectWillChange.send() }
         }
+        let coordinator = coordinator
         Task { [weak self] in
             for await snapshot in await coordinator.snapshots() { self?.show(snapshot) }
         }
@@ -263,7 +236,8 @@ final class AppModel: ObservableObject {
             captureSession.$levels.sink { [weak self] in self?.micLevel = $0.mic; self?.systemLevel = $0.system }
         ]
         captureSession.onEnd = { [weak self] in self?.showCaptureEnd($0) }
-        if let changes = storedLibrary?.changes {
+        if environment.user.store != nil {
+            let changes = environment.user.library.changes
             Task { [weak self] in
                 for await change in changes { self?.report(change) }
             }
@@ -286,12 +260,13 @@ final class AppModel: ObservableObject {
         case .saved, .external, .rebased: break
         }
     }
+    /// Loads the sessions of the store shown, if any: the examples and previews have nothing to load.
     func load() async {
-        guard let store, let storedLibrary else { return }
-        if sessionLibrary !== storedLibrary { sessionLibrary = storedLibrary }
+        guard let store else { return }
+        let library = sessionLibrary
         refreshSpeechLanguages()
         do {
-            let count = try await storedLibrary.load()
+            let count = try await library.load()
             people = try await store.people()
             mcpWritesEnabled = try await store.mcpWritesEnabled()
             exportDirectory = try await store.exportDirectory()?.path ?? ""
@@ -301,7 +276,6 @@ final class AppModel: ObservableObject {
             }
             if count > 0 { notifier.notify(.info(String(localized: "\(count) session(s) interrompue(s) retrouvée(s). Vos notes sont conservées."))) }
         } catch { notifier.notify(.error(error.localizedDescription)) }
-        startTicker()
     }
     var selected: Recording? { recordings.first { $0.id == selectedID } }
     var activeCapture: Recording? { recordings.first { $0.id == activeCaptureID } }
@@ -314,14 +288,21 @@ final class AppModel: ObservableObject {
     var olderRecordings: [Recording] { filteredRecordings.filter { !Calendar.current.isDateInToday($0.startedAt) } }
     func select(_ item: Recording) { showSettings = false; showNewSession = false; stopPlayback(); selectedID = item.id; activeTab = .defaultTab(for: item); playbackTime = 0; playback.activeSegmentIDs = []; mutedTracks = []; soloTracks = []; trackEnvelopes = [:] }
     func library() { showSettings = false; showNewSession = false; stopPlayback(); selectedID = nil; search = "" }
+    /// Shows the examples, with the adapters the root gives them. Nothing runs or waits meanwhile.
     func enterDemo() {
         guard activeCaptureID == nil, !work.isBusy, pendingRequests == 0, !hasUnsavedChanges else { return }
         calendar.suspend()
-        stopPlayback(); isDemoMode = true; selectedID = nil; sessionLibrary = SessionLibrary(volatile: DemoContent.recordings()); startTicker()
+        stopPlayback(); selectedID = nil; use(environment.examples())
     }
+    /// Back to the user's sessions; a simulated capture is dropped with the examples.
     func leaveDemo() {
-        stopPlayback(); activeCaptureID = nil; isDemoMode = false; selectedID = nil
+        stopPlayback(); activeCaptureID = nil; selectedID = nil; use(environment.user)
         Task { await captureSession.discard(); await load(); calendar.start() }
+    }
+    private func use(_ next: Workspace) {
+        workspace = next
+        // Summary settings changed among the examples are neither saved nor checked against the keychain.
+        summarySettings.isDemo = next.isExamples
     }
     /// Edits the session now; the library saves it shortly after.
     func update(_ id: UUID, _ edit: (inout Recording) -> Void) { sessionLibrary.edit(id, edit) }
@@ -341,11 +322,7 @@ final class AppModel: ObservableObject {
               let speaker = item.speakers.first(where: { $0.id == speakerID }) else { return }
         let person: VoicePerson
         do throws(EnrollmentRefusal) { person = try EnrollVoice.person(named: name, for: speaker, among: people) } catch {
-            switch error {
-            case .invalidName: notifier.notify(.error(String(localized: "Le nom doit contenir entre 1 et 120 caractères.")))
-            case .opposed(let person): notifier.notify(.error(String(localized: "\(person.name) est exclue de la reconnaissance. Levez l’exclusion dans Réglages › Audio et voix.")))
-            }
-            return
+            notifier.notify(.enrollmentRefused(error)); return
         }
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         if !(speaker.confirmed && speaker.label == name) {
@@ -399,7 +376,8 @@ final class AppModel: ObservableObject {
     /// Records the event; `openLink` also opens its video link first.
     func joinMeeting(_ event: CalendarContext, openLink: Bool = true) {
         showWindow?()
-        guard !isDemoMode, activeCaptureID == nil, !isStarting else {
+        // A meeting is recorded for real: never into a simulation.
+        guard !workspace.capture.isSimulated, activeCaptureID == nil, !isStarting else {
             notifier.notify(.info(String(localized: "Une capture est déjà en cours."))); return
         }
         if let existing = recordings.first(where: { $0.calendarContext?.id == event.id }) {
@@ -453,30 +431,24 @@ final class AppModel: ObservableObject {
         guard activeCaptureID == nil, !isStarting else { if reveal { showWindow?() }; return Task {} }
         let request = CaptureRequest(kind: kind ?? .adHoc, title: title, meeting: meeting, language: language)
         showSettings = false; showNewSession = false
-        startTicker(); stopPlayback(); isStarting = true
+        stopPlayback(); isStarting = true
+        let workspace = workspace
         return Task {
             defer { isStarting = captureSession.isStarting }
             do {
-                let capture = try makeCapture()
-                guard try await captureSession.start(request, with: capture, in: sessionLibrary) != nil else { return }
+                // The root chose the capture: Core Audio for the installed app's own data only.
+                let capture = try workspace.capture.make()
+                guard try await captureSession.start(request, with: capture, in: workspace.library) != nil else { return }
                 if reveal { showWindow?() }
             } catch { notifier.notify(.error(error.localizedDescription)); if !reveal { showWindow?() } }
         }
     }
-    /// The capture for the mode: simulated in demo mode, Core Audio for the installed app.
-    /// Composition-root seam (step 7): the mode should pick this once.
-    private func makeCapture() throws -> any AudioCapture {
-        if isDemoMode { return SimulatedCapture() }
-        guard microphoneAllowed else { throw CaptureFailure(message: "This model never opens the microphone.") } // l10n:ignore
-        guard store != nil else { throw CaptureFailure(message: String(localized: "Le store local n’est pas disponible.")) }
-        return CoreAudioCapture(directory: dataDirectory)
-    }
+    /// Ends the capture. `reveal` brings the window forward on the notes; the shortcut, used from
+    /// another application, leaves it where it is.
     @discardableResult
     func stopCapture(reveal: Bool = true) -> Task<Void, Never> {
         Task {
-            revealsCaptureEnd = reveal
-            await captureSession.stop()
-            revealsCaptureEnd = true
+            if await captureSession.stop() != nil, reveal { showWindow?() }
         }
     }
     /// The Mac is going to sleep: the session ends with what was recorded.
@@ -488,13 +460,15 @@ final class AppModel: ObservableObject {
         activeCaptureID = phase.sessionID
         isCapturePaused = if case .paused = phase { true } else { false }
         if phase == .starting { isStarting = true }
+        if phase.sessionID == nil { captureClock?.invalidate(); captureClock = nil }
+        else if captureClock == nil { captureClock = repeating { [weak self] in self?.tickCapture() } }
     }
-    /// Shows the notes of the session that just ended. A capture stopped by the user from
-    /// elsewhere (the shortcut) leaves the window where it is, unless sealing failed.
+    /// Shows the notes of the session that just ended. A capture that ended on its own (sleep, a
+    /// fault) or failed to seal brings the window forward; one the user stopped is revealed by
+    /// `stopCapture(reveal:)`.
     private func showCaptureEnd(_ ending: CaptureEnding) {
         selectedID = ending.sessionID; activeTab = .notes
-        let reveal = ending.cause == .requested ? revealsCaptureEnd : true
-        if reveal || ending.finalizationError != nil { showWindow?() }
+        if ending.cause != .requested || ending.finalizationError != nil { showWindow?() }
     }
     // MARK: Heavy work
 
@@ -540,15 +514,14 @@ final class AppModel: ObservableObject {
     private func request(_ job: WorkJob, _ run: @escaping @MainActor @Sendable () async -> Void) async -> WorkDecision {
         let decision = await coordinator.request(job) { await run() }
         show(await coordinator.snapshot)
-        if case .refused(let refusal) = decision { notifier.notify(.info(refusal.localizedDescription)) }
+        if case .refused(let refusal) = decision { notifier.notify(.refusal(refusal)) }
         return decision
     }
-    /// A request the session or the mode cannot serve, said to the user.
-    private func refuse(_ reason: String) -> WorkDecision {
-        notifier.notify(.info(reason))
-        return .refused(.unavailable(reason))
+    /// A request the session or the service cannot serve, said to the user.
+    private func refuse(_ refusal: WorkRefusal) -> WorkDecision {
+        notifier.notify(.refusal(refusal))
+        return .refused(refusal)
     }
-    private var demoRefusal: WorkDecision { refuse(String(localized: "Les exemples ne lancent aucun traitement.")) }
 
     func installSpeechModel(_ locale: String, then completion: (@MainActor @Sendable () -> Void)? = nil) {
         enqueue { [weak self] in await self?.requestSpeechModel(locale, then: completion) }
@@ -557,7 +530,8 @@ final class AppModel: ObservableObject {
     /// waits for the install to end.
     @discardableResult
     func requestSpeechModel(_ locale: String, then completion: (@MainActor @Sendable () -> Void)? = nil) async -> WorkDecision {
-        guard !isDemoMode else { return demoRefusal }
+        let speechModels = speechModels
+        if let refusal = speechModels.refusal { return refuse(refusal) }
         return await request(.speechModel(locale: locale)) { [weak self] in
             guard let self else { return }
             do {
@@ -571,7 +545,8 @@ final class AppModel: ObservableObject {
     func installDiarizer() { enqueue { [weak self] in await self?.requestDiarizer() } }
     @discardableResult
     func requestDiarizer() async -> WorkDecision {
-        guard !isDemoMode else { return demoRefusal }
+        let speechModels = speechModels
+        if let refusal = speechModels.refusal { return refuse(refusal) }
         return await request(.diarizer) { [weak self] in
             guard let self else { return }
             do {
@@ -589,27 +564,27 @@ final class AppModel: ObservableObject {
     /// Starts the transcription, or queues it behind the work in progress.
     @discardableResult
     func requestTranscription(_ id: UUID, language: String? = nil) async -> WorkDecision {
-        guard !isDemoMode else { return demoRefusal }
-        guard let item = recordings.first(where: { $0.id == id }), item.state != .recording, !item.audioChunks.isEmpty else {
-            return refuse(String(localized: "Aucun fichier audio disponible pour cette session."))
-        }
-        return await request(.transcription(session: id)) { [weak self] in await self?.runTranscription(id, language: language) }
+        let workspace = workspace
+        if let refusal = workspace.transcription.refusal { return refuse(refusal) }
+        guard let item = workspace.library.recording(id), item.state != .recording, !item.audioChunks.isEmpty else { return refuse(.noAudio) }
+        return await request(.transcription(session: id)) { [weak self] in await self?.runTranscription(id, language: language, in: workspace) }
     }
     /// The session is read when its turn comes: edits made while it waited are kept.
-    private func runTranscription(_ id: UUID, language: String?) async {
-        guard let item = recordings.first(where: { $0.id == id }), item.state != .recording, !item.audioChunks.isEmpty else { return }
+    private func runTranscription(_ id: UUID, language: String?, in workspace: Workspace) async {
+        let library = workspace.library
+        guard let item = library.recording(id), item.state != .recording, !item.audioChunks.isEmpty else { return }
         let originalVersion = item.transcriptVersion
-        update(id) { $0.transcriptState = .pending }
+        library.edit(id) { $0.transcriptState = .pending }
         do {
-            await flush()
-            guard !hasUnsavedChanges else { throw PipelineFailure(message: String(localized: "Sauvegardez les modifications avant de transcrire.")) }
+            await library.flush()
+            guard !library.hasUnsavedChanges else { throw PipelineFailure(message: String(localized: "Sauvegardez les modifications avant de transcrire.")) }
             // The languages the transcribing process can use, or the last ones read.
-            let locales = (try? await speechModels.locales()) ?? SpeechLocales(installed: installedSpeechLocales, supported: supportedSpeechLocales)
+            let locales = (try? await workspace.speechModels.locales()) ?? SpeechLocales(installed: installedSpeechLocales, supported: supportedSpeechLocales)
             showSpeechLocales(locales)
             let request = TranscriptionRequest(session: item, language: language, diarize: diarizationEnabled, locales: locales)
-            let result = try await transcription.transcribe(request)
+            let result = try await workspace.transcription.transcribe(request)
             do {
-                try await sessionLibrary.apply(id, ifStillAt: originalVersion) { latest in
+                try await library.apply(id, ifStillAt: originalVersion) { latest in
                     try latest.applyTranscription(result)
                     if let language { latest.speechLanguage = language }
                 }
@@ -619,29 +594,31 @@ final class AppModel: ObservableObject {
             if let warning = result.identityWarning { notifier.notify(.info(String(localized: "Transcript disponible.") + " " + warning)) }
             if let detections = result.languageDetection { reportLanguageFindings(detections, id: id) }
         } catch {
-            update(id) { $0.transcriptState = .failed }
+            library.edit(id) { $0.transcriptState = .failed }
             notifier.notify(.error(String(localized: "Transcription : \(error.localizedDescription)"),
                                    actions: [.perform(String(localized: "Réessayer")) { [weak self] in self?.transcribe(id, language: language) }]))
-            await flush()
+            await library.flush()
         }
     }
-    private func startTicker() {
-        guard timer == nil else { return }
-        let timer = Timer(timeInterval: 0.2, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.tick() }
-        }
-        // Common modes keep the playhead moving while the user scrolls or drags.
+    /// A 200 ms timer on the main run loop. Common modes keep it running while the user scrolls or drags.
+    private func repeating(_ tick: @escaping @MainActor () -> Void) -> Timer {
+        let timer = Timer(timeInterval: 0.2, repeats: true) { _ in Task { @MainActor in tick() } }
         RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
+        return timer
     }
-    private func tick() {
-        // The session clock counts recorded time; the capture reports levels and faults itself.
+    /// The session clock counts recorded time; the capture reports levels and faults itself.
+    private func tickCapture() {
         if captureSession.sessionID != nil { elapsed = captureSession.elapsed }
-        if isPlaying {
-            playbackTime = player.position
-            if player.playlistFinished || playbackTime >= (selected?.duration ?? 0) { stopPlayback() }
-            updatePlaybackFocus()
-        }
+    }
+    private func tickPlayback() {
+        guard isPlaying else { return }
+        playbackTime = player.position
+        if player.playlistFinished || playbackTime >= (selected?.duration ?? 0) { stopPlayback() }
+        updatePlaybackFocus()
+    }
+    /// Starts the playhead clock; `stopPlayback()` stops it.
+    func startPlaybackClock() {
+        if playbackClock == nil { playbackClock = repeating { [weak self] in self?.tickPlayback() } }
     }
     func isTrackAudible(_ source: AudioSource) -> Bool {
         !mutedTracks.contains(source) && (soloTracks.isEmpty || soloTracks.contains(source))
@@ -674,10 +651,13 @@ final class AppModel: ObservableObject {
         do {
             playbackTime = min(max(0, time), item.duration)
             try player.start(chunks: item.audioChunks, store: store, at: playbackTime, duration: item.duration)
-            applyTrackMix(); isPlaying = true; playback.generation += 1; updatePlaybackFocus()
+            applyTrackMix(); isPlaying = true; playback.generation += 1; updatePlaybackFocus(); startPlaybackClock()
         } catch { notifier.notify(.error(String(localized: "Lecture impossible : \(error.localizedDescription)"))) }
     }
-    func stopPlayback() { player.stop(); isPlaying = false; playback.voiceID = nil }
+    func stopPlayback() {
+        player.stop(); isPlaying = false; playback.voiceID = nil
+        playbackClock?.invalidate(); playbackClock = nil
+    }
     func loadWaveforms(for item: Recording) async {
         trackEnvelopes = [:]; waveformError = nil
         guard let store, !item.audioChunks.isEmpty else { waveformLoading = false; return }
@@ -694,106 +674,73 @@ final class AppModel: ObservableObject {
     // MARK: Voice memory
 
     /// Requests a voice memory job, about `session` or about people only, and reports its failure.
-    private func runVoiceJob(session: UUID? = nil, _ job: @escaping @MainActor @Sendable (SessionStore) async throws -> Void) {
-        enqueue { [weak self] in await self?.requestVoiceJob(session: session, job) }
+    private func runVoiceRequest(session: UUID? = nil, _ body: @escaping @MainActor @Sendable (VoiceRequests, SessionLibrary) async throws -> VoiceResult) {
+        enqueue { [weak self] in await self?.requestVoice(session: session, body) }
     }
+    /// The voice memory adapter refuses first (the examples), then a missing store; otherwise the
+    /// job waits for the coordinator. Its typed result becomes the notice.
     @discardableResult
-    func requestVoiceJob(session: UUID?, _ job: @escaping @MainActor @Sendable (SessionStore) async throws -> Void) async -> WorkDecision {
-        guard !isDemoMode else { return demoRefusal }
-        guard let store else { return refuse(String(localized: "Le store local n’est pas disponible.")) }
+    private func requestVoice(session: UUID?, _ body: @escaping @MainActor @Sendable (VoiceRequests, SessionLibrary) async throws -> VoiceResult) async -> WorkDecision {
+        let workspace = workspace
+        if let refusal = workspace.voiceMemory.refusal { return refuse(refusal) }
+        guard let store = workspace.store else { return refuse(.storeUnavailable) }
+        let requests = VoiceRequests(people: store, memory: workspace.voiceMemory), library = workspace.library
         return await request(.voice(session: session)) { [weak self] in
-            do { try await job(store) }
-            catch { self?.notifier.notify(.error(String(localized: "Identité vocale : \(error.localizedDescription)"))) }
+            do { self?.show(try await body(requests, library)) }
+            catch {
+                self?.notifier.notify(.error(String(localized: "Identité vocale : \(error.localizedDescription)")))
+                // A request can fail after changing someone, as an opposition whose erasure failed.
+                if let people = try? await store.people() { self?.people = people }
+            }
         }
+    }
+    private func show(_ result: VoiceResult) {
+        people = result.people
+        switch result.contributions {
+        case .read(let personID, let sources)?: voiceContributions[personID] = sources
+        case .cleared(let personID)?: voiceContributions[personID] = nil
+        case .withdrawn(let personID, let source)?: voiceContributions[personID]?.removeAll { $0.recordingID == source }
+        case nil: break
+        }
+        if let notice = UserNotice.voice(result.outcome) { notifier.notify(notice) }
     }
     /// Memorizes a voice of the selected session, then shows who its other voices resemble.
     private func enrollVoice(_ speakerID: UUID, as person: VoicePerson) {
         guard let item = selected else { return }
-        runVoiceJob(session: item.id) { [weak self] store in
-            guard let self else { return }
-            let outcome = try await EnrollVoice(people: store, memory: voiceMemory)(person, speakerID: speakerID, in: item)
-            people = outcome.people
-            let name = outcome.person.name
-            var proposed = 0
-            // A transcript edited meanwhile, here or elsewhere, keeps the user's version.
-            do {
-                try await sessionLibrary.apply(item.id, ifStillAt: item.transcriptVersion) { current in
-                    proposed = (try? current.applyEnrollment(outcome, speakerID: speakerID)) ?? 0
-                }
-            } catch is StaleResult { notifier.notify(.info(String(localized: "Voix de \(name) mémorisée."))); return }
-            catch is UnsavedResult {} // The proposals stay pending; the save failure is shown.
-            let found = proposed == 0 ? nil : proposed == 1 ? String(localized: "Une autre voix ressemble à une personne connue, à confirmer.")
-                : String(localized: "\(proposed) autres voix ressemblent à des personnes connues, à confirmer.")
-            notifier.notify(.info([String(localized: "Voix de \(name) mémorisée."), found].compactMap { $0 }.joined(separator: " ")))
-        }
+        runVoiceRequest(session: item.id) { requests, library in try await requests.enroll(person, speakerID: speakerID, in: item, library: library) }
     }
     /// Proposes a known person for the unconfirmed voices of the selected session.
     func identifyVoices() {
-        guard let item = selected else { return }
-        runVoiceJob(session: item.id) { [weak self] store in
-            guard let self else { return }
-            let matches = try await voiceMemory.identify(in: item)
-            people = try await store.people()
-            var proposed = 0
-            let people = people
-            do {
-                try await sessionLibrary.apply(item.id, ifStillAt: item.transcriptVersion) { proposed = $0.proposeIdentities(matches, people: people) }
-            } catch is StaleResult {
-                notifier.notify(.info(String(localized: "La session a changé pendant la reconnaissance. Aucune proposition appliquée."))); return
-            } catch is UnsavedResult {} // The proposals stay pending; the save failure is shown.
-            notifier.notify(.info(String(localized: "\(proposed) correspondance(s) proposée(s), à confirmer.")))
-        }
+        guard let id = selected?.id else { return }
+        enqueue { [weak self] in await self?.requestIdentification(of: id) }
+    }
+    /// Proposes a known person for the session's unconfirmed voices, as it is now.
+    @discardableResult
+    func requestIdentification(of id: UUID) async -> WorkDecision {
+        guard let item = recordings.first(where: { $0.id == id }) else { return refuse(.sessionNotFound) }
+        return await requestVoice(session: id) { requests, library in try await requests.identify(in: item, library: library) }
     }
     /// Reads what each session added to a person's voice print.
     func loadVoiceSources(of personID: UUID) {
-        runVoiceJob { [weak self] store in
-            guard let self else { return }
-            let sources = try await voiceMemory.sources(personID: personID)
-            people = try await store.people()
-            voiceContributions[personID] = sources
-        }
+        runVoiceRequest { requests, _ in try await requests.sources(of: personID) }
     }
     /// Erases a person's voice print. The name stays in sessions; the voice can be memorized again.
     func forgetVoice(of person: VoicePerson) {
-        runVoiceJob { [weak self] store in
-            guard let self else { return }
-            try await voiceMemory.forget(personID: person.id)
-            people = try await store.people(); voiceContributions[person.id] = nil
-            notifier.notify(.info(String(localized: "Empreinte de \(person.name) effacée. Sa voix ne sera plus reconnue avant une nouvelle mémorisation.")))
-        }
+        runVoiceRequest { requests, _ in try await requests.forget(person) }
     }
     /// Records the person's opposition, then erases their voice print. Also retries an erasure
     /// that failed after an opposition.
     func opposeVoice(of person: VoicePerson) {
-        var opposed = person; opposed.opposed = true; opposed.consentedAt = nil
-        runVoiceJob { [weak self] store in
-            guard let self else { return }
-            try await store.savePerson(opposed); people = try await store.people()
-            try await voiceMemory.forget(personID: opposed.id)
-            people = try await store.people(); voiceContributions[opposed.id] = nil
-            notifier.notify(.info(String(localized: "Empreintes de \(opposed.name) supprimées. Opposition enregistrée.")))
-        }
+        runVoiceRequest { requests, _ in try await requests.oppose(person) }
     }
     /// Withdraws what one session added to a person's voice print.
     func withdrawVoiceSource(_ recordingID: UUID?, of person: VoicePerson) {
-        runVoiceJob { [weak self] store in
-            guard let self else { return }
-            try await voiceMemory.forget(personID: person.id, source: recordingID)
-            people = try await store.people()
-            voiceContributions[person.id]?.removeAll { $0.recordingID == recordingID }
-            notifier.notify(.info(String(localized: "Apport retiré de l’empreinte de \(person.name).")))
-        }
+        runVoiceRequest { requests, _ in try await requests.withdraw(recordingID, of: person) }
     }
     /// Ends an opposition. Any sample left by an interrupted erasure goes first, so recognition
     /// resumes only after a new enrollment.
     func liftOpposition(_ person: VoicePerson) {
-        runVoiceJob { [weak self] store in
-            guard let self else { return }
-            try await voiceMemory.forget(personID: person.id)
-            try await store.liftOpposition(person.id)
-            people = try await store.people(); voiceContributions[person.id] = nil
-            notifier.notify(.info(String(localized: "\(person.name) n’est plus exclue. Mémorisez sa voix depuis une session pour la reconnaître à nouveau.")))
-        }
+        runVoiceRequest { requests, _ in try await requests.liftOpposition(person) }
     }
     func chooseSummaryAgentDirectory() {
         let panel = NSOpenPanel(); panel.canChooseFiles = false; panel.canChooseDirectories = true
@@ -803,18 +750,9 @@ final class AppModel: ObservableObject {
         }
     }
     func cancelSummary() { enqueue { [coordinator] in await coordinator.cancel { $0.kind == .summary } } }
-    private var summarizerEnvironment: SummarizerEnvironment {
-        // Previews, demos and tests never touch the keychain.
-        let readsKeychain = persistPreferences
-        return SummarizerEnvironment(dataDirectory: dataDirectory,
-                                     mcpExecutable: helpers.mcp) { service in
-            readsKeychain ? try SummaryKeychain.key(for: service) : nil
-        }
-    }
-    /// Replaces the configured summarizer in synthetic checks, so they run no model and no network call.
-    var summarizerOverride: (any Summarizer)?
-    /// The summarizer for the current settings. It owns whether a summary can run and why not.
-    var summarizer: any Summarizer { summarizerOverride ?? SummarizerFactory.make(summarySettings.configuration, environment: summarizerEnvironment) }
+    /// The summarizer for the current settings, from the workspace: it owns whether a summary can
+    /// run and why not. Only the installed app's reads keys from the keychain.
+    var summarizer: any Summarizer { workspace.summarizer(summarySettings.configuration) }
     /// The summarizer's own conditions, then whether other work keeps it waiting.
     var summaryAvailability: SummaryAvailability { summarizer.availability.combined(with: work.availability) }
     /// Where the configured summarizer writes its draft and what leaves the Mac, as the summary tab shows it.
@@ -830,32 +768,32 @@ final class AppModel: ObservableObject {
     }
     @discardableResult
     func requestSummary(_ recordingID: UUID) async -> WorkDecision {
-        guard !isDemoMode else { return demoRefusal }
-        guard store != nil, recordings.contains(where: { $0.id == recordingID }) else { return refuse(String(localized: "Session introuvable sur ce Mac.")) }
-        let summarizer = summarizer
+        let summarizer = summarizer, library = sessionLibrary
+        if let refusal = summarizer.refusal { return refuse(refusal) }
+        guard store != nil, library.recording(recordingID) != nil else { return refuse(.sessionNotFound) }
         if case .unavailable(let reason) = summarizer.availability {
             notifier.notify(.error(String(localized: "Synthèse : \(reason.localizedDescription)"), actions: [
                 .navigate(String(localized: "Réglages"), to: .summarySettings)]))
             return .refused(.unavailable(reason.localizedDescription))
         }
-        return await request(.summary(session: recordingID)) { [weak self] in await self?.runSummary(recordingID, with: summarizer) }
+        return await request(.summary(session: recordingID)) { [weak self] in await self?.runSummary(recordingID, with: summarizer, in: library) }
     }
-    private func runSummary(_ recordingID: UUID, with summarizer: any Summarizer) async {
+    private func runSummary(_ recordingID: UUID, with summarizer: any Summarizer, in library: SessionLibrary) async {
         defer { summaryProgress = nil }
         do {
             // Capture the revision only after pending UI edits have reached the store.
             // Otherwise the normal autosave can make our own snapshot look stale.
-            await flush()
+            await library.flush()
             try Task.checkCancellation()
-            guard !hasUnsavedChanges else { return } // flush already exposes the save error.
-            guard !isDemoMode, let item = recordings.first(where: { $0.id == recordingID }) else { throw SummaryFailure.stale }
+            guard !library.hasUnsavedChanges else { return } // flush already exposes the save error.
+            guard let item = library.recording(recordingID) else { throw SummaryFailure.stale }
             let result = try await summarizer.summarize(item) { value in
                 await MainActor.run { self.summaryProgress = value }
             }
             try Task.checkCancellation()
             // Stale once the transcript or anything the summary read changed, here or in another process.
             do {
-                try await sessionLibrary.apply(item.id, ifStillAt: item.transcriptVersion, where: { try SummaryPipeline.inputHash($0) == result.inputHash }) {
+                try await library.apply(item.id, ifStillAt: item.transcriptVersion, where: { try SummaryPipeline.inputHash($0) == result.inputHash }) {
                     $0.summary = result.structured.markdown; $0.summaryProvenance = result
                 }
             } catch is StaleResult { throw SummaryFailure.stale }
@@ -875,14 +813,14 @@ final class AppModel: ObservableObject {
         }
     }
     func setMCPWrites(_ enabled: Bool) {
-        guard !isDemoMode, let store else { return }
+        guard let store else { return }
         Task {
             do { try await store.setMCPWritesEnabled(enabled); mcpWritesEnabled = enabled }
             catch { notifier.notify(.error(error.localizedDescription)) }
         }
     }
     func chooseExportDirectory() {
-        guard !isDemoMode, let store else { return }
+        guard let store else { return }
         let panel = NSOpenPanel(); panel.canChooseFiles = false; panel.canChooseDirectories = true; panel.canCreateDirectories = true
         panel.prompt = String(localized: "Utiliser ce dossier"); panel.message = String(localized: "Les sessions sauvegardées seront publiées ici en Markdown et JSON.")
         if panel.runModal() == .OK, let url = panel.url {
