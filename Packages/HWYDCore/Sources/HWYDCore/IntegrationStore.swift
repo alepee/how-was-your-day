@@ -84,13 +84,13 @@ extension SessionStore {
             guard item.state != .recording else { throw IntegrationError("STORE_BUSY") }
             if let notes { guard notes.count <= 200_000 else { throw IntegrationError("INVALID_ARGUMENTS") }; item.notes = notes }
             else {
-                guard let speaker, let personID, let index = item.speakers.firstIndex(where: { $0.id == speaker }),
+                guard let speaker, let personID,
                       let personData = try Data.fetchOne(db, sql: "SELECT payload FROM voice_people WHERE id=?", arguments: [personID.uuidString]) else { throw IntegrationError("NOT_FOUND") }
-                let person = try JSONDecoder().decode(VoicePerson.self, from: personData)
-                guard !person.opposed else { throw IntegrationError("PERSON_OPPOSED") }
-                item.speakers[index].label = person.name; item.speakers[index].confirmed = true
-                item.speakers[index].personID = personID; item.speakers[index].proposedIdentity = nil
-                item.transcriptVersion += 1; item.summary = nil
+                // The same confirmation as in the app: a rename, never an enrollment.
+                do { try item.linkSpeaker(speaker, to: try JSONDecoder().decode(VoicePerson.self, from: personData)) }
+                catch VoiceReviewError.opposedPerson { throw IntegrationError("PERSON_OPPOSED") }
+                catch StoreError.notFound { throw IntegrationError("NOT_FOUND") }
+                catch StoreError.invalidName { throw IntegrationError("INVALID_ARGUMENTS") }
             }
             item = try Self.persist(item, db: db)
             let receipt = MutationReceipt(id: id, revision: item.revision, request_id: requestID)
