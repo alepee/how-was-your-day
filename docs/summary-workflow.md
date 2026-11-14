@@ -56,7 +56,7 @@ A Claude reference obtained through read-only MCP is a comparison artifact, not 
 
 ## Entry point
 
-The app reaches every provider through the `Summarizer` contract described in [architecture §12](architecture.md#12-traitements-llm-synthèse-action-items). Each implementation reports whether it can run and why not; the summary tab shows that reason under the Generate button.
+The app reaches every provider through the `Summarizer` contract described in [architecture §12](architecture.md#12-traitements-llm-synthèse-action-items). Each implementation reports whether it can run and why not; the summary tab shows that reason under the Generate button. It also states where its draft is written and what leaves the Mac (local server, named hosted provider, ACP agent); the tab shows that line instead of a fixed one. Summary settings live in `SummarySettings`, saved through the `SettingsStore` port.
 
 ## Hosted providers
 

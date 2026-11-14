@@ -205,6 +205,19 @@ Un enregistrement (`Recording`) porte quatre artefacts, chacun avec son cycle de
 
 Plus les métadonnées : `kind`, titre, date, durée, événement calendrier lié, participants (confirmés / devinés avec score), `consent_announced`.
 
+### Settings and helper paths
+
+Two stores hold settings, each behind typed accessors; no caller spells a key.
+
+- **Preferences** go through the `SettingsStore` port (`Packages/HWYDCore/Sources/HWYDCore/Settings.swift`). Every key is declared once as a `SettingKey<Value>` with its type and default, under the UserDefaults name earlier versions wrote, so an update keeps the user's choices. Adapters: `UserDefaultsSettings` for the installed app, `InMemorySettings` for previews, tests and synthetic checks. `AppModel` and `CalendarIntegration` read and write only the store they are given; a model built for a preview or another data directory gets an in-memory store and never reads the user's preferences.
+- **Integration settings**, read by `hwyd-mcp` without the app, stay in SQLite (`integration_settings`). `SessionStore.mcpWritesEnabled()`, `exportDirectory()` and their setters are the only access; their keys are named in `IntegrationSetting`. The app, the store's mutation gate and export publisher, and `hwyd-mcp` all use them.
+
+`SummarySettings` (HWYDCore) holds the summary preferences shown in the app, loads and saves them through the `SettingsStore`, manages the hosted provider's key and model list, and produces the `SummaryConfiguration` given to `SummarizerFactory` (§ 12). It finds installed ACP agents through the `AgentDiscovery` port: `LoginShellAgentDiscovery` (app, `zsh -lc`) for the installed app, `FixedAgentDiscovery` for previews and tests.
+
+`HelperLocator` (HWYDCore) is the only place that knows where `hwyd-pipeline` and `hwyd-mcp` live. The app builds it once from its bundle (`HelperLocator.app`) and hands it to `PipelineRunner`, the language query and the summarizer environment.
+
+Known gaps, for later steps: speech and voice model readiness is still inferred in `AppModel` (a flag set after installation and the transcript history), and the keychain is reached through static enums.
+
 ## 12. Traitements LLM (synthèse, action items)
 
 Opt-in dans les réglages. Un protocole unique `LLMProvider` (`generate(prompt, schema) -> structured output`) et trois backends :
@@ -229,6 +242,8 @@ The app asks for a summary through one interface, `Summarizer` (`Packages/HWYDCo
 | `UnavailableSummarizer` | never (null object, summary turned off) | nothing |
 
 Resumable checkpoints (`cache/summaries/<id>`) and cache reuse stay inside the pipeline implementations. `SummarizerFactory.make(configuration, environment:)` is the only place that maps the settings (`SummaryConfiguration`, one `Equatable` value) to an implementation; `SummarizerEnvironment` carries the data directory, the `hwyd-mcp` path and key access. Callers (the Generate button today) keep only app policy: one model job at a time, demo mode, flush before the run, stale check, persistence and toasts. They read `availability` to disable the button and explain why, and never check the summarizer's conditions themselves.
+
+Each implementation also states, through `disclosure` (`SummaryDisclosure`), where its draft is written and what leaves the Mac: the line under the summary controls and the explanation shown before a first summary. The local server says the draft is local; a hosted provider names itself, since the transcript is sent to it; an agent says the draft comes from the user's agent; a summary turned off claims no location and says how to turn it on. The summary tab only displays these texts.
 
 ## 13. Serveur MCP
 

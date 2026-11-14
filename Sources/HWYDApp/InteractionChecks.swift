@@ -7,20 +7,20 @@ import HWYDCore
         let suite = "HWYDAppearanceTests.\(UUID().uuidString)"
         guard let preferences = UserDefaults(suiteName: suite) else { throw CaptureFailure(message: "Missing isolated preferences") }
         defer { preferences.removePersistentDomain(forName: suite) }
-        let model = AppModel(directory: directory, preferences: preferences, appliesAppearance: false, persistPreferences: true)
+        let model = AppModel(directory: directory, settings: UserDefaultsSettings(preferences), appliesAppearance: false, persistPreferences: true)
         guard model.appearancePreference == .system else { throw CaptureFailure(message: "Appearance must default to system") }
         model.appearancePreference = .dark
-        let reopened = AppModel(directory: directory, preferences: preferences, appliesAppearance: false)
+        let reopened = AppModel(directory: directory, settings: UserDefaultsSettings(preferences), appliesAppearance: false)
         guard reopened.appearancePreference == .dark else { throw CaptureFailure(message: "Appearance did not survive reopening") }
         model.enterDemo(); model.appearancePreference = .light
-        let preview = AppModel(preview: true, preferences: preferences, appliesAppearance: false)
+        let preview = AppModel(preview: true, settings: UserDefaultsSettings(preferences), appliesAppearance: false)
         preview.appearancePreference = .system
         reopened.appearancePreference = .light
         guard preferences.string(forKey: "appearancePreference") == "dark" else { throw CaptureFailure(message: "Demo, preview or isolated test changed preferences") }
         model.isDemoMode = false; model.appearancePreference = .system
         guard preferences.string(forKey: "appearancePreference") == "system", model.appearancePreference.appearance == nil, model.appearancePreference.colorScheme == nil else { throw CaptureFailure(message: "System appearance must clear overrides") }
         preferences.set("unknown-future-value", forKey: "appearancePreference")
-        let fallback = AppModel(preview: true, preferences: preferences, appliesAppearance: false)
+        let fallback = AppModel(preview: true, settings: UserDefaultsSettings(preferences), appliesAppearance: false)
         guard fallback.appearancePreference == .system else { throw CaptureFailure(message: "Invalid preference must follow system") }
         print("Appearance persistence, system fallback and demo/test isolation: PASS")
     }
@@ -29,6 +29,7 @@ import HWYDCore
         struct Failure: LocalizedError { var errorDescription: String? { "fixture provider" } } // l10n:ignore
         let run: @Sendable (Recording) async throws -> Void
         var availability: SummaryAvailability { .ready }
+        var disclosure: SummaryDisclosure { SummaryDisclosure(label: "fixture", detail: "fixture") } // l10n:ignore
         func summarize(_ recording: Recording, progress: @escaping @Sendable (SummaryProgress) async -> Void) async throws -> SummaryProvenance {
             try await run(recording); throw Failure()
         }
@@ -44,10 +45,10 @@ import HWYDCore
         let recording = Recording(title: "Summary lifecycle fixture", notes: "Before")
         model.recordings = [recording]; model.selectedID = recording.id
         // The summarizer owns its conditions: off, then a non-loopback server, are refused before any run.
-        model.summaryEnabled = false
+        model.summarySettings.enabled = false
         guard model.summaryAvailability == .unavailable(.disabled) else { throw CaptureFailure(message: "Disabled summary must be unavailable") }
-        model.summaryEnabled = true
-        model.selectSummaryService(.local); model.summaryEndpoint = "https://example.com/v1"; model.summaryModel = "fixture"
+        model.summarySettings.enabled = true
+        model.summarySettings.select(.local); model.summarySettings.endpoint = "https://example.com/v1"; model.summarySettings.localModel = "fixture"
         guard model.summaryAvailability == .unavailable(.localServerNotConfigured) else {
             throw CaptureFailure(message: "A non-loopback summary server must be unavailable")
         }
@@ -131,9 +132,8 @@ import HWYDCore
     }
     static func runTranscription(directory: URL) async throws {
         let model = AppModel(directory: directory)
-        let previousDiarization = model.diarizationEnabled
-        model.diarizationEnabled = false
-        defer { model.diarizationEnabled = previousDiarization }
+        // Synthetic checks read no user preference: voice separation starts off.
+        guard !model.diarizationEnabled else { throw CaptureFailure(message: "A test model read the user's preferences") }
         await model.load()
         var recording = Recording(title: "ASR synthétique", notes: "Avant traitement") // l10n:ignore
         recording.audioChunks = [
@@ -219,7 +219,7 @@ import HWYDCore
                 mcp.stdin.close(); mcp.wait(timeout=10)
                 send({"jsonrpc": "2.0", "id": msg["id"], "result": {"stopReason": "end_turn"}})
         """.write(to: script, atomically: true, encoding: .utf8)
-        let helper = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/hwyd-mcp")
+        let helper = model.helpers.mcp
         let result = try await ACPSummaryAgent.run(stored, command: "python3 " + script.path, workingDirectory: directory,
                                                    mcpExecutable: helper, storeDirectory: directory)
         guard result.structured.action_items.first?.evidence_segment_ids == [stored.segments[1].id],
@@ -264,9 +264,8 @@ import HWYDCore
         try await checkSessionDeletion(directory: directory.appendingPathComponent("deletion-test"))
         try await checkNewSessionAndToasts()
         let model = AppModel(directory: directory)
-        let previousDiarization = model.diarizationEnabled
-        model.diarizationEnabled = false
-        defer { model.diarizationEnabled = previousDiarization }
+        // Synthetic checks read no user preference: voice separation starts off.
+        guard !model.diarizationEnabled else { throw CaptureFailure(message: "A test model read the user's preferences") }
         await model.load()
         let session = Recording(title: "Test UI persistant", notes: "Avant édition") // l10n:ignore
         model.recordings.insert(session, at: 0)

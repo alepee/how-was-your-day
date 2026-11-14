@@ -1821,6 +1821,22 @@
         }
       }
     },
+    "Brouillon de votre agent, à relire": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draft from your agent, review it"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brouillon de votre agent, à relire"
+          }
+        }
+      }
+    },
     "Brouillon généré par un modèle. Les décisions et actions gardent leurs références au transcript.": {
       "localizations": {
         "en": {
@@ -1849,6 +1865,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Brouillon local, à relire"
+          }
+        }
+      }
+    },
+    "Brouillon rédigé par %@, à relire": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draft written by %@, review it"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brouillon rédigé par %@, à relire"
+          }
+        }
+      }
+    },
+    "Brouillon à relire": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draft, review it"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brouillon à relire"
           }
         }
       }
@@ -2226,7 +2274,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Choose a %@ model in the summary settings."
+            "value": "Choose a model for %@ in the summary settings."
           }
         },
         "fr": {
@@ -3378,7 +3426,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Save a %@ API key in the summary settings."
+            "value": "Save an API key for %@ in the summary settings."
           }
         },
         "fr": {

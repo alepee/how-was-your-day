@@ -109,11 +109,11 @@ import HWYDCore
         model.settingsCategory = .summary
         render(RootView().environmentObject(model), size: .init(width: 860, height: 660), to: directory.appendingPathComponent("studio-settings-compact.png"))
         // Preview models never read the keychain or persist this choice.
-        model.selectSummaryService(.anthropic)
+        model.summarySettings.select(.anthropic)
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-settings-summary-remote.png"))
-        model.selectSummaryService(.agent)
+        model.summarySettings.select(.agent)
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-settings-summary-agent.png"))
-        model.selectSummaryService(.local)
+        model.summarySettings.select(.local)
         model.showSettings = false
         model.activeCaptureID = nil; model.isDemoMode = false
         var pending = Recording(title: "Préparer le prototype") // l10n:ignore
@@ -126,9 +126,9 @@ import HWYDCore
         model.processingID = nil; model.recordings = [pending]
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-asr.png"))
         // The summary button explains why it is unavailable: a hosted provider without a key. Preview models never read the keychain.
-        model.summaryEnabled = true; model.selectSummaryService(.anthropic); model.activeTab = .summary
+        model.summarySettings.enabled = true; model.summarySettings.select(.anthropic); model.activeTab = .summary
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-summary-unavailable.png"))
-        model.summaryEnabled = false; model.selectSummaryService(.local); model.activeTab = .transcript
+        model.summarySettings.enabled = false; model.summarySettings.select(.local); model.activeTab = .transcript
         model.recordings = []; model.activeCaptureID = nil; model.selectedID = nil; model.isDemoMode = false
         render(RootView().environmentObject(model), size: .init(width: 900, height: 700), to: directory.appendingPathComponent("studio-empty.png"))
         print("Snapshots: \(directory.path)")

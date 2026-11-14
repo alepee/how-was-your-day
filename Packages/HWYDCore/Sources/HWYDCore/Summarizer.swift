@@ -60,10 +60,22 @@ public enum SummaryAvailability: Equatable, Sendable {
     }
 }
 
+/// What the summary tab tells the user about a summarizer: where the draft is written and what
+/// leaves the Mac. Each implementation states its own; views only display it.
+public struct SummaryDisclosure: Equatable, Sendable {
+    /// One line under the summary controls.
+    public let label: String
+    /// Explanation shown before the first summary of a session.
+    public let detail: String
+    public init(label: String, detail: String) { self.label = label; self.detail = detail }
+}
+
 /// Writes the summary of a recording. Each implementation decides from its own configuration
 /// whether it can run; callers ask `availability` to explain, and only ever call `summarize`.
 public protocol Summarizer: Sendable {
     var availability: SummaryAvailability { get }
+    /// Where the draft is written and what leaves the Mac, in the user's language.
+    var disclosure: SummaryDisclosure { get }
     /// Summarizes the recording as it is given. Throws `SummaryUnavailability` when not ready,
     /// and `CancellationError` (or a cancelled `URLError`) when the task is cancelled.
     func summarize(_ recording: Recording, progress: @escaping @Sendable (SummaryProgress) async -> Void) async throws -> SummaryProvenance
@@ -116,6 +128,10 @@ public struct UnavailableSummarizer: Summarizer {
     public let reason: SummaryUnavailability
     public init(reason: SummaryUnavailability) { self.reason = reason }
     public var availability: SummaryAvailability { .unavailable(reason) }
+    /// No provider is chosen: the line claims no location, the detail says what is missing.
+    public var disclosure: SummaryDisclosure {
+        SummaryDisclosure(label: String(localized: "Brouillon à relire", bundle: .hwyd), detail: reason.localizedDescription)
+    }
     public func summarize(_ recording: Recording, progress: @escaping @Sendable (SummaryProgress) async -> Void) async throws -> SummaryProvenance {
         throw reason
     }
@@ -140,6 +156,10 @@ public struct LocalSummarizer: Summarizer {
         return url
     }
     public var availability: SummaryAvailability { url == nil ? .unavailable(.localServerNotConfigured) : .ready }
+    public var disclosure: SummaryDisclosure {
+        SummaryDisclosure(label: String(localized: "Brouillon local, à relire", bundle: .hwyd),
+                          detail: String(localized: "Lancez la génération avec votre modèle local. Vos notes et votre transcript restent indépendants.", bundle: .hwyd))
+    }
     /// Characters per request: the loaded context minus room for instructions and output, two characters per token.
     var inputCharacterLimit: Int { max(12_000, (contextTokens - 10_000) * 2) }
 
@@ -172,6 +192,11 @@ public struct HostedSummarizer: Summarizer {
         if model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return .unavailable(.modelMissing(service)) }
         return .ready
     }
+    /// The transcript is sent to the provider: both lines name it.
+    public var disclosure: SummaryDisclosure {
+        SummaryDisclosure(label: String(localized: "Brouillon rédigé par \(service.displayName), à relire", bundle: .hwyd),
+                          detail: String(localized: "Le transcript sera envoyé à \(service.displayName). Vos notes restent sur ce Mac.", bundle: .hwyd))
+    }
 
     public func summarize(_ recording: Recording, progress: @escaping @Sendable (SummaryProgress) async -> Void) async throws -> SummaryProvenance {
         try requireReady()
@@ -196,6 +221,10 @@ public struct AgentSummarizer: Summarizer {
 
     public var availability: SummaryAvailability {
         command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .unavailable(.agentCommandMissing) : .ready
+    }
+    public var disclosure: SummaryDisclosure {
+        SummaryDisclosure(label: String(localized: "Brouillon de votre agent, à relire", bundle: .hwyd),
+                          detail: String(localized: "Votre agent ACP rédigera la synthèse à partir du transcript et de son propre contexte. Vos notes restent sur ce Mac.", bundle: .hwyd))
     }
     var workingDirectory: URL { URL(fileURLWithPath: (directory as NSString).expandingTildeInPath, isDirectory: true) }
 

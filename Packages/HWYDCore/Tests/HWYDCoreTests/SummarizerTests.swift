@@ -100,4 +100,23 @@ final class SummarizerTests: XCTestCase {
             XCTFail("Ran without a key")
         } catch { XCTAssertEqual(error as? SummaryUnavailability, .apiKeyMissing(.openai)) }
     }
+
+    /// Each implementation states where the draft is written; only a hosted one names a provider.
+    func testEachSummarizerDisclosesWhereTheDraftIsWritten() {
+        func disclosure(_ service: SummaryService, enabled: Bool = true) -> SummaryDisclosure {
+            SummarizerFactory.make(configuration(service, enabled: enabled), environment: environment).disclosure
+        }
+        XCTAssertEqual(disclosure(.local).label, "Brouillon local, à relire")
+        XCTAssertEqual(disclosure(.agent).label, "Brouillon de votre agent, à relire")
+        for service in SummaryService.allCases where service.isRemote {
+            XCTAssertTrue(disclosure(service).label.contains(service.displayName))
+            XCTAssertTrue(disclosure(service).detail.contains(service.displayName))
+            XCTAssertFalse(disclosure(service).label.contains("local"))
+        }
+        let off = disclosure(.anthropic, enabled: false)
+        XCTAssertEqual(off.label, "Brouillon à relire")
+        XCTAssertEqual(off.detail, SummaryUnavailability.disabled.localizedDescription)
+        // Availability does not change the disclosure: a hosted provider without a key still says where the transcript would go.
+        XCTAssertEqual(HostedSummarizer(service: .mistral, model: "", keyStored: false, environment: environment).disclosure, disclosure(.mistral))
+    }
 }

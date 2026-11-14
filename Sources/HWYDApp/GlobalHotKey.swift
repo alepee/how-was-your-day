@@ -8,7 +8,6 @@ struct RecordingShortcut: Codable, Equatable, Sendable {
     var modifiers: UInt32
     var display: String
     static let standard = RecordingShortcut(keyCode: UInt32(kVK_ANSI_R), modifiers: UInt32(controlKey | optionKey | cmdKey), display: "⌃⌥⌘R")
-    static let preferenceKey = "shortcut.record"
 
     /// Builds a shortcut from a key press. A global shortcut needs Command, Control or Option,
     /// otherwise it would swallow ordinary typing in every application.

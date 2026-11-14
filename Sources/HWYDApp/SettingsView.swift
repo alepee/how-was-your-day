@@ -39,6 +39,8 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
 struct SettingsView: View {
     @EnvironmentObject var model: AppModel
     @State private var apiKeyDraft = ""
+    /// Bindings to the summary settings; the model republishes their changes.
+    private var summaryBindings: ObservedObject<SummarySettings>.Wrapper { ObservedObject(wrappedValue: model.summarySettings).projectedValue }
     @ObservedObject private var updater = AppEnvironment.updater
     private static let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?" // l10n:ignore
     var body: some View {
@@ -60,19 +62,19 @@ struct SettingsView: View {
                 }.frame(maxWidth: 820, alignment: .leading).padding(30).frame(maxWidth: .infinity, alignment: .leading)
             }.id(model.settingsCategory)
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .onChange(of: model.summaryEnabled) { _, _ in model.saveSummarySettings() }
-            .onChange(of: model.summaryEndpoint) { _, _ in model.saveSummarySettings() }
-            .onChange(of: model.summaryModel) { _, _ in model.saveSummarySettings() }
-            .onChange(of: model.summaryContextTokens) { _, _ in model.saveSummarySettings() }
-            .onChange(of: model.summaryReasoningDisabled) { _, _ in model.saveSummarySettings() }
-            .onChange(of: model.summaryRemoteModel) { _, _ in model.saveSummarySettings() }
-            .onChange(of: model.summaryAgentCommand) { _, _ in model.saveSummarySettings() }
-            .onChange(of: model.summaryAgentDirectory) { _, _ in model.saveSummarySettings() }
-            .onDisappear { model.saveSummarySettings() }
-            .task(id: model.settingsCategory == .summary ? model.summaryService.rawValue + String(model.summaryKeyStored) : "") {
+            .onChange(of: model.summarySettings.enabled) { _, _ in model.summarySettings.save() }
+            .onChange(of: model.summarySettings.endpoint) { _, _ in model.summarySettings.save() }
+            .onChange(of: model.summarySettings.localModel) { _, _ in model.summarySettings.save() }
+            .onChange(of: model.summarySettings.contextTokens) { _, _ in model.summarySettings.save() }
+            .onChange(of: model.summarySettings.reasoningDisabled) { _, _ in model.summarySettings.save() }
+            .onChange(of: model.summarySettings.hostedModel) { _, _ in model.summarySettings.save() }
+            .onChange(of: model.summarySettings.agentCommand) { _, _ in model.summarySettings.save() }
+            .onChange(of: model.summarySettings.agentDirectory) { _, _ in model.summarySettings.save() }
+            .onDisappear { model.summarySettings.save() }
+            .task(id: model.settingsCategory == .summary ? model.summarySettings.service.rawValue + String(model.summarySettings.keyStored) : "") {
                 guard model.settingsCategory == .summary else { return }
-                if model.summaryService == .agent { model.detectSummaryAgents() }
-                else if model.summaryAvailableModels.isEmpty { model.refreshSummaryModels() }
+                if model.summarySettings.service == .agent { model.summarySettings.detectAgents() }
+                else if model.summarySettings.availableModels.isEmpty { model.summarySettings.refreshModels() }
             }
     }
     @ViewBuilder private var content: some View {
@@ -152,13 +154,13 @@ struct SettingsView: View {
             }.disabled(model.isDemoMode)
         case .summary:
             section(String(localized: "Synthèse"), symbol: "sparkles", help: String(localized: "Chaque synthèse est lancée manuellement depuis la session. Les étapes validées sont conservées pour reprendre après une interruption.")) {
-                toggleRow(String(localized: "Activer la synthèse"), isOn: $model.summaryEnabled)
+                toggleRow(String(localized: "Activer la synthèse"), isOn: summaryBindings.enabled)
                 row(String(localized: "Fournisseur"), help: String(localized: "Le serveur local garde le transcript sur ce Mac. Un agent ACP (Claude Code, Codex…) rédige avec votre propre contexte. Avec Mistral, OpenAI, Anthropic ou Google Gemini, le transcript est envoyé au fournisseur à chaque synthèse, une fois sa clé API enregistrée.")) {
-                    Picker("Fournisseur", selection: Binding(get: { model.summaryService }, set: { model.selectSummaryService($0) })) {
+                    Picker("Fournisseur", selection: Binding(get: { model.summarySettings.service }, set: { model.summarySettings.select($0) })) {
                         ForEach(SummaryService.allCases) { service in Text(service.displayName).tag(service) }
                     }.labelsHidden().frame(width: 200)
                 }
-                switch model.summaryService {
+                switch model.summarySettings.service {
                 case .local: localSummaryRows
                 case .agent: agentSummaryRows
                 default: remoteSummaryRows
@@ -183,42 +185,42 @@ struct SettingsView: View {
     }
     @ViewBuilder private var localSummaryRows: some View {
         row(String(localized: "Adresse du serveur local"), help: String(localized: "LM Studio ou Ollama, API OpenAI-compatible et JSON Schema requis. Seules les adresses de boucle locale sont acceptées.")) {
-            TextField("http://127.0.0.1:1234/v1", text: $model.summaryEndpoint).textFieldStyle(.roundedBorder).frame(width: 280)
+            TextField("http://127.0.0.1:1234/v1", text: summaryBindings.endpoint).textFieldStyle(.roundedBorder).frame(width: 280)
         }
         row(String(localized: "Modèle chargé")) {
-            TextField("Identifiant du modèle", text: $model.summaryModel).textFieldStyle(.roundedBorder).frame(width: 280)
+            TextField("Identifiant du modèle", text: summaryBindings.localModel).textFieldStyle(.roundedBorder).frame(width: 280)
         }
         row(String(localized: "Contexte chargé dans le serveur"), help: String(localized: "Indiquez le contexte chargé dans LM Studio. HWYD traite les longues sessions par portions bornées et rédige chaque sujet à partir de ses sources. Un grand contexte serveur n’augmente pas automatiquement la taille des requêtes. Pour limiter la mémoire, chargez un seul modèle et une seule requête à la fois : ce réglage ne modifie pas la mémoire allouée par le serveur.")) {
-            Picker("Contexte chargé dans le serveur", selection: $model.summaryContextTokens) {
+            Picker("Contexte chargé dans le serveur", selection: summaryBindings.contextTokens) {
                 Text("16k tokens").tag(16384)
                 Text("32k tokens").tag(32768)
                 Text("64k tokens").tag(65536)
                 Text("128k tokens").tag(131072)
             }.labelsHidden().frame(width: 150)
         }
-        toggleRow(String(localized: "Désactiver le raisonnement étendu"), help: String(localized: "Peut réduire le temps de génération. À activer si le modèle ne renvoie pas de synthèse avec les sorties structurées. Le serveur doit accepter cette option."), isOn: $model.summaryReasoningDisabled)
+        toggleRow(String(localized: "Désactiver le raisonnement étendu"), help: String(localized: "Peut réduire le temps de génération. À activer si le modèle ne renvoie pas de synthèse avec les sorties structurées. Le serveur doit accepter cette option."), isOn: summaryBindings.reasoningDisabled)
     }
     @ViewBuilder private var agentSummaryRows: some View {
         row(String(localized: "Agent"), help: String(localized: "Agent compatible ACP (Agent Client Protocol) installé et connecté sur ce Mac. La commande s’exécute dans un shell de connexion ; vous pouvez en saisir une autre.")) {
             Menu {
                 ForEach(ACPAgentPreset.all) { preset in
-                    let installed = model.summaryDetectedAgents.contains(preset.command)
+                    let installed = model.summarySettings.detectedAgents.contains(preset.command)
                     Button {
-                        model.summaryAgentCommand = preset.command
+                        model.summarySettings.agentCommand = preset.command
                     } label: {
-                        if model.summaryAgentCommand == preset.command { Label(preset.name, systemImage: "checkmark") }
+                        if model.summarySettings.agentCommand == preset.command { Label(preset.name, systemImage: "checkmark") }
                         else { Text(installed ? preset.name : String(localized: "\(preset.name) (non installé)")) }
                     }
                 }
             } label: {
-                Text(ACPAgentPreset.all.first { $0.command == model.summaryAgentCommand }?.name ?? String(localized: "Autre"))
+                Text(ACPAgentPreset.all.first { $0.command == model.summarySettings.agentCommand }?.name ?? String(localized: "Autre"))
             }.fixedSize()
-            TextField("claude-agent-acp", text: $model.summaryAgentCommand).textFieldStyle(.roundedBorder).frame(width: 200)
+            TextField("claude-agent-acp", text: summaryBindings.agentCommand).textFieldStyle(.roundedBorder).frame(width: 200)
                 .font(.system(size: Studio.Size.caption, design: .monospaced))
                 .accessibilityLabel("Commande de l’agent")
         }
         row(String(localized: "Dossier de travail"), help: String(localized: "L’agent démarre dans ce dossier. Choisissez celui où il trouve son contexte : instructions, mémoire, notes.")) {
-            Text(model.summaryAgentDirectory).font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted).lineLimit(1).truncationMode(.middle)
+            Text(model.summarySettings.agentDirectory).font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted).lineLimit(1).truncationMode(.middle)
             Button("Choisir…") { model.chooseSummaryAgentDirectory() }.buttonStyle(StudioButtonStyle(compact: true))
         }
         Text("L’agent reçoit le titre, le transcript et les noms des voix, et peut consulter son propre contexte pour situer les personnes et les projets. Ce qu’il en tire apparaît dans une section Contexte, à part. Il remet la synthèse à HWYD par l’outil submit_summary ; HWYD refuse ses demandes d’écriture, de suppression ou d’exécution. Les autorisations déjà accordées dans la configuration de l’agent restent les siennes.")
@@ -227,34 +229,34 @@ struct SettingsView: View {
             .overlay(alignment: .top) { Rectangle().fill(Studio.line.opacity(0.55)).frame(height: 0.5) }
     }
     @ViewBuilder private var remoteSummaryRows: some View {
-        let name = model.summaryService.displayName
+        let name = model.summarySettings.service.displayName
         row(String(localized: "Clé API"), help: String(localized: "Stockée dans le trousseau de ce Mac, jamais dans les réglages, les exports ou la base. Les requêtes sont facturées sur votre compte \(name).")) {
-            if model.summaryKeyStored {
+            if model.summarySettings.keyStored {
                 Text("Enregistrée").font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted)
-                Button("Supprimer") { model.removeSummaryKey() }.buttonStyle(StudioButtonStyle(compact: true))
+                Button("Supprimer") { model.summarySettings.removeKey() }.buttonStyle(StudioButtonStyle(compact: true))
             } else {
                 SecureField("Clé \(name)", text: $apiKeyDraft).textFieldStyle(.roundedBorder).frame(width: 220)
-                    .onSubmit { model.saveSummaryKey(apiKeyDraft); apiKeyDraft = "" }
-                Button("Enregistrer") { model.saveSummaryKey(apiKeyDraft); apiKeyDraft = "" }
+                    .onSubmit { model.summarySettings.saveKey(apiKeyDraft); apiKeyDraft = "" }
+                Button("Enregistrer") { model.summarySettings.saveKey(apiKeyDraft); apiKeyDraft = "" }
                     .buttonStyle(StudioButtonStyle(compact: true)).disabled(apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         row(String(localized: "Modèle"), help: String(localized: "Liste des modèles proposés par \(name) pour votre clé. Vous pouvez aussi saisir un identifiant. Le contexte des modèles hébergés est bien plus grand que celui d’un serveur local : une session d’une heure tient en quelques requêtes.")) {
-            if model.summaryModelsLoading { ProgressView().controlSize(.small) }
-            TextField(model.summaryKeyStored ? String(localized: "Choisissez un modèle") : model.summaryService.defaultModel, text: $model.summaryRemoteModel)
+            if model.summarySettings.modelsLoading { ProgressView().controlSize(.small) }
+            TextField(model.summarySettings.keyStored ? String(localized: "Choisissez un modèle") : model.summarySettings.service.defaultModel, text: summaryBindings.hostedModel)
                 .textFieldStyle(.roundedBorder).frame(width: 220)
                 .textInputSuggestions {
                     ForEach(modelSuggestions, id: \.self) { id in Text(id).textInputCompletion(id) }
                 }
             Menu {
-                ForEach(model.summaryAvailableModels, id: \.self) { id in
-                    Button(id) { model.summaryRemoteModel = id }
+                ForEach(model.summarySettings.availableModels, id: \.self) { id in
+                    Button(id) { model.summarySettings.hostedModel = id }
                 }
-                if !model.summaryAvailableModels.isEmpty { Divider() }
-                Button("Actualiser la liste") { model.refreshSummaryModels() }.disabled(!model.summaryKeyStored || model.summaryModelsLoading)
+                if !model.summarySettings.availableModels.isEmpty { Divider() }
+                Button("Actualiser la liste") { model.summarySettings.refreshModels() }.disabled(!model.summarySettings.keyStored || model.summarySettings.modelsLoading)
             } label: { Image(systemName: "list.bullet") }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                .help(model.summaryKeyStored ? "Modèles disponibles chez \(name)" : "Enregistrez une clé pour afficher les modèles")
+                .help(model.summarySettings.keyStored ? "Modèles disponibles chez \(name)" : "Enregistrez une clé pour afficher les modèles")
                 .accessibilityLabel("Modèles disponibles")
         }
         Text("À chaque synthèse, le titre, le transcript et les noms des voix sont envoyés à \(name), dont les conditions de traitement et de conservation s’appliquent. Les notes, l’audio et les empreintes vocales restent sur ce Mac.")
@@ -264,8 +266,8 @@ struct SettingsView: View {
     }
     /// Models matching what is typed, at most ten, for the field's completion list.
     private var modelSuggestions: [String] {
-        let typed = model.summaryRemoteModel.trimmingCharacters(in: .whitespaces).lowercased()
-        let matches = typed.isEmpty ? model.summaryAvailableModels : model.summaryAvailableModels.filter { $0.lowercased().contains(typed) && $0.lowercased() != typed }
+        let typed = model.summarySettings.hostedModel.trimmingCharacters(in: .whitespaces).lowercased()
+        let matches = typed.isEmpty ? model.summarySettings.availableModels : model.summarySettings.availableModels.filter { $0.lowercased().contains(typed) && $0.lowercased() != typed }
         return Array(matches.prefix(10))
     }
     /// The state comes first; the action stays available to repair an installation.
