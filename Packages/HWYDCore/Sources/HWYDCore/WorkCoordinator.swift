@@ -88,12 +88,24 @@ public enum WorkRefusal: LocalizedError, Equatable, Sendable {
     case alreadyRequested(WorkJob)
     /// The service or the session cannot run this job; the reason is already localized.
     case unavailable(String)
+    /// The examples run no processing: their services stand in for the real ones.
+    case examples
+    /// The session holds no audio to process.
+    case noAudio
+    /// The session is not in the library.
+    case sessionNotFound
+    /// The local store could not be opened.
+    case storeUnavailable
 
     public var errorDescription: String? {
         switch self {
         case .busy(let busy): (busy.errorDescription ?? "") + " " + String(localized: "Réessayez une fois ce traitement terminé.", bundle: .hwyd)
         case .alreadyRequested: String(localized: "Ce traitement est déjà en cours ou en attente.", bundle: .hwyd)
         case .unavailable(let reason): reason
+        case .examples: String(localized: "Les exemples ne lancent aucun traitement.", bundle: .hwyd)
+        case .noAudio: String(localized: "Aucun fichier audio disponible pour cette session.", bundle: .hwyd)
+        case .sessionNotFound: String(localized: "Session introuvable sur ce Mac.", bundle: .hwyd)
+        case .storeUnavailable: String(localized: "Le store local n’est pas disponible.", bundle: .hwyd)
         }
     }
 }

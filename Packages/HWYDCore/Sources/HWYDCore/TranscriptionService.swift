@@ -4,7 +4,11 @@ import Foundation
 /// `InMemoryTranscriptionService` answers in tests. Cancelling the calling task stops the work.
 public protocol TranscriptionService: Sendable {
     func transcribe(_ request: TranscriptionRequest) async throws -> TranscriptionResult
+    /// Set when this adapter refuses every request in the current mode (the examples), with the
+    /// reason told to the user before any work is queued. Nil for a working service.
+    var refusal: WorkRefusal? { get }
 }
+extension TranscriptionService { public var refusal: WorkRefusal? { nil } }
 
 extension TranscriptionRequest {
     /// The request for a session. The language is `language` when given, otherwise the session's

@@ -143,3 +143,17 @@ extension SettingKey where Value == [String] {
     /// Legacy list of handled occurrences, removed at start.
     public static var calendarHandled: Self { .init("calendar.handled", default: []) }
 }
+
+/// Preferences read from another store, changed in memory only: the examples read the user's
+/// preferences and never write them, and a check can read a store it must not change.
+public final class VolatileSettings: SettingsStore {
+    private let base: SettingsStore
+    /// Changes made here; `NSNull` marks a removed value.
+    private var changes: [String: Any] = [:]
+    public init(over base: SettingsStore) { self.base = base }
+    public func storedValue(forKey name: String) -> Any? {
+        guard let changed = changes[name] else { return base.storedValue(forKey: name) }
+        return changed is NSNull ? nil : changed
+    }
+    public func setStoredValue(_ value: Any?, forKey name: String) { changes[name] = value ?? NSNull() }
+}

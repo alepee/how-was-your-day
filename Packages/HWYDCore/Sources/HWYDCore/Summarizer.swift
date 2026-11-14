@@ -72,7 +72,12 @@ public protocol Summarizer: Sendable {
     /// Summarizes the recording as it is given. Throws `SummaryUnavailability` when not ready,
     /// and `CancellationError` (or a cancelled `URLError`) when the task is cancelled.
     func summarize(_ recording: Recording, progress: @escaping @Sendable (SummaryProgress) async -> Void) async throws -> SummaryProvenance
+    /// Set when this adapter refuses every request in the current mode (the examples), whatever
+    /// its availability says,, with the
+    /// reason told to the user before any work is queued. Nil for a working service.
+    var refusal: WorkRefusal? { get }
 }
+extension Summarizer { public var refusal: WorkRefusal? { nil } }
 
 extension Summarizer {
     func requireReady() throws {

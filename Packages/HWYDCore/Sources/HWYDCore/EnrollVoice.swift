@@ -6,6 +6,8 @@ public protocol VoicePeople: Sendable {
     func people() async throws -> [VoicePerson]
     /// Refuses (`VoiceError.consentRequired`) to save an unopposed person over an opposed one.
     func savePerson(_ person: VoicePerson) async throws
+    /// Ends an opposition: the person comes back with no print and no enrollment request.
+    func liftOpposition(_ id: UUID) async throws
 }
 extension SessionStore: VoicePeople {}
 
@@ -19,6 +21,11 @@ public actor InMemoryVoicePeople: VoicePeople {
             throw VoiceError.consentRequired
         }
         if let index = stored.firstIndex(where: { $0.id == person.id }) { stored[index] = person } else { stored.append(person) }
+    }
+    public func liftOpposition(_ id: UUID) async throws {
+        guard let index = stored.firstIndex(where: { $0.id == id }) else { throw StoreError.notFound }
+        stored[index].opposed = false; stored[index].consentedAt = nil; stored[index].enrollmentRequestedAt = nil
+        stored[index].enrolledChannels = nil; stored[index].lastEnrolledAt = nil
     }
 }
 
