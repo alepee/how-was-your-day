@@ -24,7 +24,7 @@ struct RootView: View {
         .alert("Supprimer cette session ?", isPresented: Binding(get: { model.deleteCandidate != nil }, set: { if !$0 { model.deleteCandidate = nil } })) {
             Button("Annuler", role: .cancel) { model.deleteCandidate = nil }
             Button("Supprimer", role: .destructive) { model.deleteConfirmed() }
-        } message: { Text("Les notes et les versions du transcript seront supprimées de la bibliothèque locale.") }
+        } message: { Text("Les notes, le transcript, la synthèse et l’audio de cette session seront supprimés.") }
     }
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 7) {

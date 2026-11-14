@@ -537,6 +537,34 @@
         }
       }
     },
+    "%lld fichier(s) de la session n’ont pas pu être effacés. Nouvel essai au prochain lancement.": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld file of the session could not be deleted. It will be retried on next launch."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld files of the session could not be deleted. They will be retried on next launch."
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld fichier(s) de la session n’ont pas pu être effacés. Nouvel essai au prochain lancement."
+          }
+        }
+      }
+    },
     "%lld invité(s)": {
       "localizations": {
         "en": {
@@ -2013,6 +2041,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cette session a été modifiée ailleurs. Rechargez-la avant de réessayer."
+          }
+        }
+      }
+    },
+    "Cette session est en cours d’enregistrement.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This session is still recording."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette session est en cours d’enregistrement."
           }
         }
       }
@@ -5105,18 +5149,18 @@
         }
       }
     },
-    "Les notes et les versions du transcript seront supprimées de la bibliothèque locale.": {
+    "Les notes, le transcript, la synthèse et l’audio de cette session seront supprimés.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Notes and transcript versions will be deleted from the local library."
+            "value": "This session's notes, transcript, summary and audio will be deleted."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les notes et les versions du transcript seront supprimées de la bibliothèque locale."
+            "value": "Les notes, le transcript, la synthèse et l’audio de cette session seront supprimés."
           }
         }
       }

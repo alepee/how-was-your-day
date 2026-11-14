@@ -100,16 +100,37 @@ public actor SessionStore {
             try db.execute(sql: "INSERT INTO recording_search(recording_id,artifact,text) VALUES (?,?,?)", arguments: [recording.id.uuidString, artifact, text])
         }
     }
-    public func remove(_ id: UUID) throws {
-        try database.write { db in
-            if let revision = try Int.fetchOne(db, sql: "SELECT revision FROM ui_recordings WHERE id=?", arguments: [id.uuidString]) {
-                try db.execute(sql: "INSERT OR REPLACE INTO export_deletions VALUES (?,?)", arguments: [id.uuidString, revision + 1])
+    /// Deletes the session, then its files (`SessionFiles`). The row goes first, in one transaction, so a file that cannot be
+    /// removed never leaves a session without its audio: the report lists it, and `removeOrphanFiles` retries on next launch.
+    /// Refuses a session that is still capturing.
+    @discardableResult public func remove(_ id: UUID) throws -> SessionFiles.Report {
+        let removed: Recording? = try database.write { db in
+            let item = try Data.fetchOne(db, sql: "SELECT payload FROM ui_recordings WHERE id=?", arguments: [id.uuidString])
+                .map { try JSONDecoder().decode(Recording.self, from: $0) }
+            if item?.state == .recording { throw StoreError.capturing }
+            if let item {
+                try db.execute(sql: "INSERT OR REPLACE INTO export_deletions VALUES (?,?)", arguments: [id.uuidString, item.revision + 1])
             }
             try db.execute(sql: "DELETE FROM ui_recordings WHERE id = ?", arguments: [id.uuidString])
             try db.execute(sql: "DELETE FROM recording_search WHERE recording_id=?", arguments: [id.uuidString])
             try db.execute(sql: "DELETE FROM export_outbox WHERE recording_id=?", arguments: [id.uuidString])
             try db.execute(sql: "UPDATE integration_sequence SET seq=seq+1")
+            return item
         }
+        return SessionFiles(root: directory).remove(id: id, chunks: removed?.audioChunks ?? [], keeping: try all())
+    }
+    /// Removes files left by sessions deleted earlier (before deletion removed files, or after a failed removal).
+    /// Returns nil without touching anything while a helper job holds `pipeline.lock`. It never takes `capture.lock`, so a
+    /// capture can start at any time: `SessionFiles.removeOrphans` keeps recently written folders instead. The file work runs
+    /// off the actor, so store calls are not held up while it deletes.
+    @concurrent public nonisolated func removeOrphanFiles(now: Date = .now) async throws -> SessionFiles.Report? {
+        let lock = open(directory.appendingPathComponent("pipeline.lock").path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
+        guard lock >= 0 else { throw StoreError.invalidPath }
+        defer { close(lock) }
+        guard flock(lock, LOCK_EX | LOCK_NB) == 0 else { return nil }
+        defer { flock(lock, LOCK_UN) }
+        let live = try await all()
+        return SessionFiles(root: directory).removeOrphans(keeping: live, now: now)
     }
     public func recoverInterrupted() throws -> Int {
         let lock = open(directory.appendingPathComponent("capture.lock").path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)

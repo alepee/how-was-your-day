@@ -242,6 +242,11 @@ final class AppModel: ObservableObject {
         } catch { errorMessage = error.localizedDescription }
         isLoading = false
         startTicker()
+        // After the library shows: the sweep never holds the capture lock, so a capture may start meanwhile.
+        Task {
+            do { if let files = try await store.removeOrphanFiles(), !files.isComplete { reportLeftoverFiles(files) } }
+            catch { errorMessage = error.localizedDescription }
+        }
     }
     var selected: Recording? { recordings.first { $0.id == selectedID } }
     var activeCapture: Recording? { recordings.first { $0.id == activeCaptureID } }
@@ -954,16 +959,23 @@ final class AppModel: ObservableObject {
         }
     }
     func deleteConfirmed() {
-        guard let item = deleteCandidate, item.id != activeCaptureID, item.id != processingID else { return }
+        guard let item = deleteCandidate, item.id != activeCaptureID, item.id != processingID, item.id != summaryID else { return }
         deleteCandidate = nil
         Task {
             do {
                 await flush()
-                if !isDemoMode { try await store?.remove(item.id); try await store?.publishPending() }
+                let files = isDemoMode ? nil : try await store?.remove(item.id)
                 recordings.removeAll { $0.id == item.id }; dirtyIDs.remove(item.id)
                 if selectedID == item.id { selectedID = nil }
+                if let files, !files.isComplete { reportLeftoverFiles(files) }
+                if !isDemoMode { try await store?.publishPending() }
             } catch { errorMessage = error.localizedDescription }
         }
+    }
+    /// The session is gone; its remaining files are retried on next launch.
+    private func reportLeftoverFiles(_ report: SessionFiles.Report) {
+        errorMessage = String(localized: "\(report.failures.count) fichier(s) de la session n’ont pas pu être effacés. Nouvel essai au prochain lancement.")
+            + " " + (report.failures.first.map { "\($0.path) : \($0.reason)" } ?? "")
     }
 }
 enum DetailTab: String, CaseIterable {
