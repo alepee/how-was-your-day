@@ -73,7 +73,7 @@ struct RootView: View {
 }
 struct MenuContentView: View {
     @EnvironmentObject var model: AppModel
-    @ObservedObject private var updater = AppEnvironment.updater
+    @ObservedObject private var updater = AppRoot.updater
     var body: some View {
         VStack(alignment: .leading, spacing: 19) {
             HStack { Image(systemName: "waveform").foregroundStyle(Studio.mint); Text("How Was Your Day").font(.system(size: Studio.Size.body, weight: .semibold)); Spacer() }

@@ -42,7 +42,7 @@ public enum VoiceContributionChange: Equatable, Sendable {
 /// `VoiceMemory` port, applies what concerns a session through its `SessionLibrary` (an outdated
 /// result changes nothing), and returns a typed `VoiceResult`; the presentation words the notice.
 /// Enrollment goes through `EnrollVoice` only.
-@MainActor public struct VoiceRequests {
+@MainActor public struct VoiceRequests: Sendable {
     public let people: any VoicePeople
     public let memory: any VoiceMemory
     public init(people: any VoicePeople, memory: any VoiceMemory) { self.people = people; self.memory = memory }

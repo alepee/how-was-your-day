@@ -89,8 +89,10 @@ final class SessionLibraryTests: XCTestCase {
     }
 
     /// A library that saves only when asked and never watches by itself.
-    private func library(_ repository: any RecordingRepository, publisher: (any ExportPublisher)? = nil) async throws -> SessionLibrary {
-        let library = SessionLibrary(repository: repository, exportTarget: { publisher }, debounce: .seconds(3600), watchInterval: nil)
+    private func library(_ repository: any RecordingRepository, publisher: (any ExportPublisher)? = nil,
+                         sweepsFiles: Bool = false) async throws -> SessionLibrary {
+        let library = SessionLibrary(repository: repository, exportTarget: { publisher }, debounce: .seconds(3600), watchInterval: nil,
+                                     sweepsFiles: sweepsFiles)
         try await library.load()
         return library
     }
@@ -491,17 +493,25 @@ final class SessionLibraryTests: XCTestCase {
         for url in [earlier.appendingPathComponent("mic-000000.caf"), earlier] {
             try FileManager.default.setAttributes([.modificationDate: quiet], ofItemAtPath: url.path)
         }
-        let library = try await library(store)
+        let library = try await library(store, sweepsFiles: true)
         XCTAssertTrue(library.isReady)
+        XCTAssertNotNil(library.fileSweep)
         await library.fileSweep?.value
         XCTAssertFalse(FileManager.default.fileExists(atPath: earlier.path))
+    }
+
+    func testLibraryWithoutSweepLeavesFilesAlone() async throws {
+        let root = try directory(), store = try SessionStore(directory: root)
+        try await store.save(Recording(title: "Gardée", state: .sealed))
+        let library = try await library(store)
+        XCTAssertNil(library.fileSweep)
     }
 
     func testEmptyLibraryIsNotSwept() async throws {
         let root = try directory(), store = try SessionStore(directory: root)
         let unknown = root.appendingPathComponent("audio/\(UUID().uuidString.lowercased())")
         try FileManager.default.createDirectory(at: unknown, withIntermediateDirectories: true)
-        let library = try await library(store)
+        let library = try await library(store, sweepsFiles: true)
         XCTAssertNil(library.fileSweep)
         XCTAssertTrue(FileManager.default.fileExists(atPath: unknown.path))
     }
@@ -510,7 +520,7 @@ final class SessionLibraryTests: XCTestCase {
         let repository = FaultyRepository()
         try await repository.inner.save(Recording(title: "Hier"))
         await repository.failSweep(true)
-        let library = SessionLibrary(repository: repository, debounce: .seconds(3600), watchInterval: nil)
+        let library = SessionLibrary(repository: repository, debounce: .seconds(3600), watchInterval: nil, sweepsFiles: true)
         let changes = library.changes
         try await library.load()
         await library.fileSweep?.value

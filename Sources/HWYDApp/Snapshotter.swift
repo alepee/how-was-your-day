@@ -12,9 +12,20 @@ import HWYDCore
             runTheme(into: destination, preference: preference)
         }
     }
+    /// A capture clock the snapshots set by hand.
+    @MainActor private final class ManualClock { var time: TimeInterval = 0 }
+    /// Lets the tasks of the main actor run until `condition` holds, at most five seconds.
+    private static func settle(_ condition: () -> Bool) {
+        let deadline = Date().addingTimeInterval(5)
+        while !condition(), Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+    }
+    /// Every scene gets its own preview model: fictional sessions, simulated capture, in-memory
+    /// preferences holding the theme. Nothing real is read or written, and no state is forced
+    /// into a model: each one reaches its state through its own requests and doubles.
     private static func runTheme(into directory: URL, preference: AppearancePreference) {
-        let model = AppModel(preview: true)
-        model.appearancePreference = preference
+        let preferences = InMemorySettings()
+        preferences.set(preference.rawValue, for: .appearance)
+        let model = AppModel(environment: .preview(preferences: preferences))
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 770), to: directory.appendingPathComponent("studio-library.png"))
         var playerExample = Recording(title: "Aperçu synthétique du lecteur") // l10n:ignore
         playerExample.duration = 120
@@ -35,7 +46,7 @@ import HWYDCore
         model.playbackTime = 25; model.updatePlaybackFocus()
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-transcript-follow.png"))
         model.playbackTime = 0; model.playback.activeSegmentIDs = []
-        renderVoiceTiles(model: model, to: directory.appendingPathComponent("studio-voices.png"))
+        renderVoiceTiles(preferences: preferences, to: directory.appendingPathComponent("studio-voices.png"))
         var splitExample = TranscriptSegment(start: 12, end: 16, speakerID: nil, source: .mic, text: "Oui. Bonjour à tous.") // l10n:ignore
         splitExample.words = [.init(text: "Oui.", start: 12, end: 12.5), .init(text: " Bonjour", start: 13, end: 14), .init(text: " à", start: 14, end: 14.5), .init(text: " tous.", start: 14.5, end: 16)] // l10n:ignore
         render(SegmentSplitView(recordingID: model.selectedID!, segment: splitExample).environmentObject(model), size: .init(width: 580, height: 490), to: directory.appendingPathComponent("studio-split.png"))
@@ -65,14 +76,16 @@ import HWYDCore
             }
             try? SummaryExport.markdown(item)?.write(to: directory.appendingPathComponent("summary-export.md"), atomically: true, encoding: .utf8)
         }
-        model.notifier.notify(.error(String(localized: "Synthèse : \(SummaryFailure.outputTruncated.localizedDescription)"),
-                                     actions: [.perform(String(localized: "Réessayer")) {}, .navigate(String(localized: "Réglages"), to: .summarySettings)]))
+        // Toasts come from their own model, so the other scenes show none.
+        let toasts = AppModel(environment: .preview(preferences: preferences))
+        toasts.selectedID = toasts.recordings.first?.id; toasts.activeTab = .summary
+        toasts.notifier.notify(.error(String(localized: "Synthèse : \(SummaryFailure.outputTruncated.localizedDescription)"),
+                                      actions: [.perform(String(localized: "Réessayer")) {}, .navigate(String(localized: "Réglages"), to: .summarySettings)]))
         let sampleTitle = "Point produit" // l10n:ignore
-        model.notifier.notify(.success(String(localized: "Synthèse prête : \(sampleTitle)"), actions: [.perform(String(localized: "Afficher")) {}]))
+        toasts.notifier.notify(.success(String(localized: "Synthèse prête : \(sampleTitle)"), actions: [.perform(String(localized: "Afficher")) {}]))
         let sampleName = "Camille"
-        model.notifier.notify(.info(String(localized: "Voix nommée \(sampleName) dans toute cette session.") + " " + String(localized: "Nommer une voix ne crée pas d’empreinte vocale.")))
-        render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-toasts.png"))
-        model.toastCenter.dismissAll()
+        toasts.notifier.notify(.info(String(localized: "Voix nommée \(sampleName) dans toute cette session.") + " " + String(localized: "Nommer une voix ne crée pas d’empreinte vocale.")))
+        render(RootView().environmentObject(toasts), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-toasts.png"))
         let previousSelection = model.selectedID
         model.requestNewSession(); model.newSessionKind = .meeting
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-new-session.png"))
@@ -80,15 +93,64 @@ import HWYDCore
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 1500), to: directory.appendingPathComponent("studio-summary-full.png"))
         // Wide window: the outline appears beside the reading column.
         render(RootView().environmentObject(model), size: .init(width: 1440, height: 1500), to: directory.appendingPathComponent("studio-summary-wide.png"))
-        model.activeCaptureID = model.selectedID; model.elapsed = 1122; model.micLevel = 0.65; model.systemLevel = 0.35
+        renderCapture(of: model.selected, preferences: preferences, into: directory)
+        // Processing: a transcription runs, held by its job, then waits behind a summary.
+        var pending = Recording(title: "Préparer le prototype") // l10n:ignore
+        pending.transcriptState = .pending
+        let running = WorkCoordinator()
+        let processing = AppModel(environment: .preview(recordings: [pending], preferences: preferences, coordinator: running))
+        processing.selectedID = pending.id; processing.activeTab = .transcript
+        hold(.transcription(session: pending.id), on: running)
+        settle { processing.processingID == pending.id }
+        render(RootView().environmentObject(processing), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-processing.png"))
+        // A transcription requested while other work runs says it waits its turn.
+        var waiting = pending; waiting.transcriptState = .unavailable
+        let busy = WorkCoordinator()
+        let queued = AppModel(environment: .preview(recordings: [waiting], preferences: preferences, coordinator: busy))
+        queued.selectedID = waiting.id; queued.activeTab = .transcript
+        hold(.summary(session: UUID()), on: busy); hold(.transcription(session: pending.id), on: busy)
+        settle { queued.work.isQueued(.transcription(session: pending.id)) }
+        render(RootView().environmentObject(queued), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-processing-queued.png"))
+        pending.transcriptState = .ready
+        pending.segments = [.init(start: 0.12, end: 6.17, speakerID: nil, source: .mic, text: "Bonjour Antoine, la réunion commence à 9h. Nous devons préparer le prototype pour vendredi.")] // l10n:ignore
+        pending.transcriptVersion = 1
+        let transcribed = AppModel(environment: .preview(recordings: [pending], preferences: preferences))
+        transcribed.selectedID = pending.id; transcribed.activeTab = .transcript
+        render(RootView().environmentObject(transcribed), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-asr.png"))
+        // The summary button explains why it is unavailable: a hosted provider without a key. Preview models never read the keychain.
+        transcribed.summarySettings.enabled = true; transcribed.summarySettings.select(.anthropic); transcribed.activeTab = .summary
+        render(RootView().environmentObject(transcribed), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-summary-unavailable.png"))
+        let empty = AppModel(environment: .preview(recordings: [], preferences: preferences))
+        render(RootView().environmentObject(empty), size: .init(width: 900, height: 700), to: directory.appendingPathComponent("studio-empty.png"))
+        print("Snapshots: \(directory.path)")
+    }
+    /// Starts a job on the coordinator that runs until the process ends: the views show what the
+    /// coordinator reports, as they do for real work.
+    private static func hold(_ job: WorkJob, on coordinator: WorkCoordinator) {
+        Task { await coordinator.request(job) { try? await Task.sleep(for: .seconds(3600)) } }
+    }
+    /// A simulated capture of the example `shown`, at 18:42 on a clock the snapshot sets, with
+    /// fixed levels, then paused; the settings and the menu are rendered while it runs.
+    private static func renderCapture(of shown: Recording?, preferences: InMemorySettings, into directory: URL) {
+        guard let shown else { return }
+        let clock = ManualClock(), capture = SimulatedCapture(animatesLevels: false)
+        // The example being recorded is not listed among the recent sessions.
+        let model = AppModel(environment: .preview(examples: DemoContent.recordings().filter { $0.title != shown.title }, preferences: preferences,
+                                                   capture: .simulated { capture }, clock: { clock.time }))
+        model.startCapture(kind: shown.kind, title: shown.title)
+        settle { model.activeCaptureID != nil }
+        guard let id = model.activeCaptureID else { return }
+        model.update(id) { $0.notes = shown.notes; $0.noteEntries = shown.noteEntries; $0.consentAnnounced = shown.consentAnnounced }
+        clock.time = 1122; capture.emit(.levels(mic: 0.65, system: 0.35))
+        settle { model.elapsed == 1122 && model.micLevel == 0.65 }
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 850), to: directory.appendingPathComponent("studio-capture.png"))
-        model.isCapturePaused = true; model.micLevel = 0; model.systemLevel = 0
+        model.toggleCapturePause()
+        settle { model.isCapturePaused }
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 850), to: directory.appendingPathComponent("studio-capture-paused.png"))
-        model.isCapturePaused = false
+        model.toggleCapturePause()
+        settle { !model.isCapturePaused }
         render(NotepadWindow().environmentObject(model), size: .init(width: 500, height: 650), to: directory.appendingPathComponent("studio-notepad.png"))
-        model.editingSpeakerID = model.selected?.speakers.first?.id
         render(SpeakerEditor().environmentObject(model), size: .init(width: 600, height: 360), to: directory.appendingPathComponent("studio-speaker.png"))
-        model.editingSpeakerID = nil
         render(MenuContentView().environmentObject(model), size: .init(width: 340, height: 350), to: directory.appendingPathComponent("studio-menu.png"))
         model.calendar.enabled = true
         model.calendar.calendars = [.init(id: "preview", title: "Travail", account: "Google")] // l10n:ignore
@@ -105,7 +167,7 @@ import HWYDCore
             model.settingsCategory = category
             render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-settings-\(category.id == SettingsCategory.general.id ? "general" : String(describing: category)).png"))
         }
-        renderVoicePeople(model: model, to: directory.appendingPathComponent("studio-settings-voice-people.png"))
+        renderVoicePeople(preferences: preferences, to: directory.appendingPathComponent("studio-settings-voice-people.png"))
         model.settingsCategory = .summary
         render(RootView().environmentObject(model), size: .init(width: 860, height: 660), to: directory.appendingPathComponent("studio-settings-compact.png"))
         // Preview models never read the keychain or persist this choice.
@@ -113,32 +175,9 @@ import HWYDCore
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-settings-summary-remote.png"))
         model.summarySettings.select(.agent)
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-settings-summary-agent.png"))
-        model.summarySettings.select(.local)
-        model.showSettings = false
-        model.activeCaptureID = nil; model.isDemoMode = false
-        var pending = Recording(title: "Préparer le prototype") // l10n:ignore
-        pending.transcriptState = .pending
-        model.sessionLibrary.show([pending]); model.selectedID = pending.id; model.work = WorkSnapshot(running: .transcription(session: pending.id)); model.activeTab = .transcript
-        render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-processing.png"))
-        // A transcription requested while other work runs says it waits its turn.
-        var waiting = pending; waiting.transcriptState = .unavailable
-        model.sessionLibrary.show([waiting]); model.work = WorkSnapshot(running: .summary(session: UUID()), queued: [.transcription(session: pending.id)])
-        render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-processing-queued.png"))
-        pending.transcriptState = .ready
-        pending.segments = [.init(start: 0.12, end: 6.17, speakerID: nil, source: .mic, text: "Bonjour Antoine, la réunion commence à 9h. Nous devons préparer le prototype pour vendredi.")] // l10n:ignore
-        pending.transcriptVersion = 1
-        model.work = WorkSnapshot(); model.sessionLibrary.show([pending])
-        render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-asr.png"))
-        // The summary button explains why it is unavailable: a hosted provider without a key. Preview models never read the keychain.
-        model.summarySettings.enabled = true; model.summarySettings.select(.anthropic); model.activeTab = .summary
-        render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-summary-unavailable.png"))
-        model.summarySettings.enabled = false; model.summarySettings.select(.local); model.activeTab = .transcript
-        model.sessionLibrary.show([]); model.activeCaptureID = nil; model.selectedID = nil; model.isDemoMode = false
-        render(RootView().environmentObject(model), size: .init(width: 900, height: 700), to: directory.appendingPathComponent("studio-empty.png"))
-        print("Snapshots: \(directory.path)")
     }
     /// Synthetic voices covering the three states. Audio chunks are references only; nothing is read or played.
-    private static func renderVoiceTiles(model: AppModel, to url: URL) {
+    private static func renderVoiceTiles(preferences: InMemorySettings, to url: URL) {
         let lea = VoicePerson(name: "Léa") // l10n:ignore
         var proposed = Speaker(label: "Léa", source: .system) // l10n:ignore
         proposed.proposedIdentity = VoiceMatch(personID: lea.id, score: 0.81, margin: 0.14, channel: .remote)
@@ -150,26 +189,24 @@ import HWYDCore
             .init(start: 62, end: 140, speakerID: named.id, source: .system, text: "c"),
             .init(start: 141, end: 150, speakerID: duplicate.id, source: .mic, text: "d")])
         example.audioChunks = [.init(source: .mic, relativePath: "preview-mic.caf", start: 0, duration: 150)]
-        let previousPeople = model.people, previousSelection = model.selectedID
-        model.people = [lea]; model.sessionLibrary.show(model.recordings + [example]); model.selectedID = example.id; model.playback.voiceID = room.id
+        let model = AppModel(environment: .preview(examples: DemoContent.recordings() + [example], preferences: preferences))
+        model.people = [lea]; model.selectedID = example.id; model.playback.voiceID = room.id
         render(VoiceTilesView(recording: example).environmentObject(model).padding(16), size: .init(width: 1040, height: 110), to: url)
-        model.playback.voiceID = nil; model.people = previousPeople; model.sessionLibrary.show(model.recordings.filter { $0.id != example.id }); model.selectedID = previousSelection
     }
     /// Remembered people with their samples per session. Synthetic: the keychain is never read.
-    private static func renderVoicePeople(model: AppModel, to url: URL) {
+    private static func renderVoicePeople(preferences: InMemorySettings, to url: URL) {
         var brice = VoicePerson(name: "Brice"); brice.enrollmentRequestedAt = Date(); brice.enrolledChannels = [.mic, .remote]
         var lea = VoicePerson(name: "Léa"); lea.enrollmentRequestedAt = Date(); lea.enrolledChannels = [.mic] // l10n:ignore
         var opposed = VoicePerson(name: "Jordan"); opposed.opposed = true
         let session = Recording(title: "Point produit", isDemo: true)
-        let previousPeople = model.people
-        model.people = [brice, lea, opposed]; model.sessionLibrary.show(model.recordings + [session])
+        let model = AppModel(environment: .preview(examples: DemoContent.recordings() + [session], preferences: preferences))
+        model.people = [brice, lea, opposed]
         model.voiceContributions[brice.id] = [
             .init(recordingID: session.id, channel: .mic, count: 1, addedAt: Date()),
             .init(recordingID: session.id, channel: .remote, count: 1, addedAt: Date()),
             .init(recordingID: nil, channel: .mic, count: 3, addedAt: nil)]
         render(VStack(spacing: 0) { VoicePersonRow(person: brice, expanded: true); VoicePersonRow(person: lea); VoicePersonRow(person: opposed) }
             .environmentObject(model).padding(24), size: .init(width: 720, height: 300), to: url)
-        model.people = previousPeople; model.sessionLibrary.show(model.recordings.filter { $0.id != session.id }); model.voiceContributions = [:]
     }
     private static func render<V: View>(_ view: V, size: CGSize, to url: URL) {
         let host = NSHostingView(rootView: view.frame(width: size.width, height: size.height).background(Studio.background))

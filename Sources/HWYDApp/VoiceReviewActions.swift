@@ -38,7 +38,7 @@ extension AppModel {
             try player.start(playlist: VoicePlaylist(spans: voice.spans), source: voice.speaker.source, chunks: item.audioChunks, store: store)
             playbackTime = player.position; isPlaying = true
             playback.voiceID = speakerID; playback.generation += 1
-            updatePlaybackFocus()
+            updatePlaybackFocus(); startPlaybackClock()
         } catch { notifier.notify(.error(String(localized: "Lecture impossible : \(error.localizedDescription)"))) }
     }
     /// Applies a correction to the voices of the selected session and offers to undo it.

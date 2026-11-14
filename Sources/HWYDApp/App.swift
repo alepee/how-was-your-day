@@ -3,14 +3,10 @@ import Combine
 import SwiftUI
 import HWYDCore
 
-@MainActor enum AppEnvironment {
-    static let model = AppModel(preview: CommandLine.arguments.contains("--asr-test") || CommandLine.arguments.contains("--snapshot") || CommandLine.arguments.contains("--self-test") || CommandLine.arguments.contains("--ui-test"))
-    static let updater = AppUpdater()
-}
 @main struct HWYDApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @StateObject private var model = AppEnvironment.model
-    @ObservedObject private var updater = AppEnvironment.updater
+    @StateObject private var model = AppRoot.model
+    @ObservedObject private var updater = AppRoot.updater
     var body: some Scene {
         MenuBarExtra {
             MenuContentView().environmentObject(model)
@@ -38,43 +34,37 @@ import HWYDCore
     private var mainWindow: NSWindow?
     private var notepad: NSPanel?
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let args = CommandLine.arguments
-        if let index = args.firstIndex(of: "--asr-test"), args.count > index + 1 {
+        func check(_ run: @escaping @MainActor () async throws -> Void) {
             Task {
-                do { try await InteractionChecks.runTranscription(directory: URL(fileURLWithPath: args[index + 1])); exit(0) }
+                do { try await run(); exit(0) }
                 catch { FileHandle.standardError.write(Data("\(error)\n".utf8)); exit(1) }
             }
-            return
         }
-        if let index = args.firstIndex(of: "--ui-test"), args.count > index + 1 {
-            Task {
-                do { try await InteractionChecks.run(directory: URL(fileURLWithPath: args[index + 1])); exit(0) }
-                catch { FileHandle.standardError.write(Data("\(error)\n".utf8)); exit(1) }
-            }
-            return
-        }
-        if let index = args.firstIndex(of: "--self-test"), args.count > index + 1 {
+        // The mode was read once, by the root. Synthetic modes return here and touch no user data.
+        switch AppRoot.mode {
+        case .asrTest(let directory): check { try await InteractionChecks.runTranscription(directory: directory) }; return
+        case .uiTest(let directory): check { try await InteractionChecks.run(directory: directory) }; return
+        case .selfTest(let directory, let seconds):
             do {
-                let seconds = args.count > index + 2 ? Double(args[index + 2]) ?? 2 : 2
                 guard seconds >= 2, seconds <= 14400 else { throw CaptureFailure(message: "Test duration must be between 2 and 14400 seconds") }
-                try CoreAudioCapture.verifySyntheticCapture(directory: URL(fileURLWithPath: args[index + 1]), seconds: seconds)
+                try CoreAudioCapture.verifySyntheticCapture(directory: directory, seconds: seconds)
                 FileHandle.standardOutput.write(Data("Synthetic two-track capture: PASS\n".utf8))
-                try CoreAudioCapture.verifySyntheticSplitCapture(directory: URL(fileURLWithPath: args[index + 1]))
+                try CoreAudioCapture.verifySyntheticSplitCapture(directory: directory)
                 FileHandle.standardOutput.write(Data("Synthetic split-clock capture: PASS\n".utf8))
                 exit(0)
             } catch { FileHandle.standardError.write(Data("\(error)\n".utf8)); exit(1) }
+        case .snapshot(let directory): Snapshotter.run(into: directory); NSApp.terminate(nil); return
+        case .preview, .app: break
         }
-        if let index = args.firstIndex(of: "--snapshot"), args.count > index + 1 {
-            Snapshotter.run(into: URL(fileURLWithPath: args[index + 1])); NSApp.terminate(nil); return
-        }
-        let model = AppEnvironment.model
-        if args.contains("--demo") { model.enterDemo() }
+        let model = AppRoot.model
         model.showWindow = { [weak self] in self?.openWindow() }
         model.openNotepad = { [weak self] in self?.openNotepad() }
-        // A demo instance must not take the shortcut from a real one running alongside.
-        if !args.contains("--demo") { model.enableRecordingShortcut() }
+        // Only the installed app on its own data takes the shortcut, follows the calendar and
+        // checks for updates: a `--demo` instance must not take them from a real one running alongside.
+        let ownsSystem = AppRoot.mode == .app(examples: false)
+        if ownsSystem { model.enableRecordingShortcut() }
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { _ in
-            Task { @MainActor in AppEnvironment.model.systemWillSleep() }
+            Task { @MainActor in AppRoot.model.systemWillSleep() }
         }
         model.calendar.onAction = { [weak model] event, join in
             Task { @MainActor in
@@ -84,19 +74,19 @@ import HWYDCore
                 if let event { model.joinMeeting(event, openLink: join) }
             }
         }
-        if !model.isDemoMode { model.calendar.start() }
-        // Synthetic modes returned above; a `--demo` instance makes no network request either.
-        if !args.contains("--demo") {
-            AppEnvironment.updater.start(isBusy: { [weak model] in model?.isBusy ?? false },
-                                         busyChanges: model.$isBusy.removeDuplicates().map { _ in () }.eraseToAnyPublisher())
+        if ownsSystem {
+            model.calendar.start()
+            AppRoot.updater.start(isBusy: { [weak model] in model?.isBusy ?? false },
+                                  busyChanges: model.$isBusy.removeDuplicates().map { _ in () }.eraseToAnyPublisher())
         }
         openWindow()
-        Task { if !model.isDemoMode { await model.load() } }
+        // Loads the user's store; the examples have nothing to load.
+        Task { await model.load() }
     }
     func openWindow() {
         NSApp.setActivationPolicy(.regular)
         if mainWindow == nil {
-            let host = NSHostingView(rootView: RootView().environmentObject(AppEnvironment.model))
+            let host = NSHostingView(rootView: RootView().environmentObject(AppRoot.model))
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 790), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
             window.title = "How Was Your Day"; window.titlebarAppearsTransparent = true
             window.backgroundColor = .windowBackgroundColor
@@ -113,22 +103,21 @@ import HWYDCore
             let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 500, height: 650), styleMask: [.titled, .closable, .resizable, .utilityWindow], backing: .buffered, defer: false)
             panel.title = String(localized: "Notes de session"); panel.isFloatingPanel = true; panel.level = .floating
             panel.isReleasedWhenClosed = false; panel.minSize = NSSize(width: 460, height: 500)
-            panel.contentView = NSHostingView(rootView: NotepadWindow().environmentObject(AppEnvironment.model))
+            panel.contentView = NSHostingView(rootView: NotepadWindow().environmentObject(AppRoot.model))
             panel.center(); notepad = panel
         }
         notepad?.makeKeyAndOrderFront(nil)
     }
     func application(_ application: NSApplication, open urls: [URL]) {
         // Snapshot and test modes never act on external links.
-        guard !CommandLine.arguments.contains(where: { ["--asr-test", "--snapshot", "--self-test", "--ui-test"].contains($0) }),
-              let link = urls.lazy.compactMap(SessionLink.init).first else { return }
+        guard !AppRoot.mode.isSynthetic, let link = urls.lazy.compactMap(SessionLink.init).first else { return }
         openWindow()
-        Task { await AppEnvironment.model.open(link) }
+        Task { await AppRoot.model.open(link) }
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        let model = AppEnvironment.model
-        if CommandLine.arguments.contains("--snapshot") { return .terminateNow }
+        let model = AppRoot.model
+        if case .snapshot = AppRoot.mode { return .terminateNow }
         // The capture ends first, so its transcription request is cancelled with the rest.
         let stopping = model.stopCapture()
         Task {

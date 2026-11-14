@@ -60,7 +60,7 @@ import HWYDCore
         _ = try chunk("mic1.caf", .mic, 0, 0.7)
         let changed = try await cachedReader.read(chunks: chunks, store: store, duration: 0.3, bins: 3)
         guard changed[.mic]?.peaks.first == 0.7 else { throw CaptureFailure(message: "Stale waveform cache after audio change") }
-        let model = AppModel(directory: directory, appliesAppearance: false)
+        let model = AppModel(environment: try .synthetic(directory: directory))
         guard model.isTrackAudible(.mic), model.isTrackAudible(.system) else { throw CaptureFailure(message: "Default mix failed") }
         model.toggleSolo(.mic)
         guard model.isTrackAudible(.mic), !model.isTrackAudible(.system) else { throw CaptureFailure(message: "Solo failed") }
