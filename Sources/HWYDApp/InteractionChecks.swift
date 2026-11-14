@@ -32,13 +32,14 @@ import HWYDCore
         for mode in [LaunchMode.snapshot(directory), .uiTest(directory), .asrTest(directory), .selfTest(directory, seconds: 2), .preview] {
             let environment = AppEnvironment.launch(mode)
             guard mode.isSynthetic, environment.preferences is InMemorySettings, !environment.usesSystem, environment.user.store == nil,
-                  environment.user.capture.isSimulated, environment.examples().capture.isSimulated,
+                  environment.secrets is InMemorySecretVault, environment.user.audio == nil, environment.user.capture.isSimulated, environment.examples().capture.isSimulated,
                   (try environment.user.capture.make()) is SimulatedCapture else {
                 throw CaptureFailure(message: "A synthetic mode reached the user's preferences, data or microphone: \(mode)")
             }
         }
         let checks = try AppEnvironment.synthetic(directory: directory)
         guard checks.preferences is InMemorySettings, !checks.usesSystem, !checks.user.capture.isSimulated,
+              checks.secrets is InMemorySecretVault, checks.helpers.secrets == .memory, checks.examples().audio == nil,
               (try? checks.user.capture.make()) == nil, checks.examples().transcription.refusal == .examples,
               checks.examples().summarizer(SummaryConfiguration()).refusal == .examples else {
             throw CaptureFailure(message: "The checks' environment can record or process the examples")
@@ -414,7 +415,7 @@ import HWYDCore
         await gate.release()
         try await idle()
         guard model.recordings.contains(where: { $0.id == recording.id }),
-              notices.messages.contains(String(localized: "Cette session est en cours de traitement. Annulez le traitement ou attendez sa fin pour la supprimer.")) else {
+              notices.messages.contains(WorkRefusal.sessionInUse.localizedDescription) else {
             throw CaptureFailure(message: "A session was deleted while a voice job ran on it")
         }
         guard await service.requests.count == 2, model.recordings.first(where: { $0.id == queued.id })?.segments.isEmpty == false, !model.work.isBusy, !model.isBusy else {

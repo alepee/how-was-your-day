@@ -61,10 +61,10 @@ final class IntegrationTests: XCTestCase, @unchecked Sendable {
         XCTAssertEqual(VoiceResolver.assign(scores: [[0.9, 0.85], [0.5, 0.4]]), [nil, nil])
         XCTAssertEqual(VoiceResolver.assign(scores: [[0.9, 0.2], [0.95, 0.1], [0.1, 0.88]]), [nil, 0, 1])
         XCTAssertEqual(VoiceResolver.assign(scores: [[0.8], [0.9]]), [nil, 0])
-        XCTAssertThrowsError(try VoiceKeychain.normalized([Float](repeating: 0, count: 256)))
-        XCTAssertThrowsError(try VoiceKeychain.normalized([1, 2]))
+        XCTAssertThrowsError(try VoicePrints.normalized([Float](repeating: 0, count: 256)))
+        XCTAssertThrowsError(try VoicePrints.normalized([1, 2]))
         var vector = [Float](repeating: 0, count: 256); vector[0] = 2
-        XCTAssertEqual(try VoiceKeychain.normalized(vector)[0], 1)
+        XCTAssertEqual(try VoicePrints.normalized(vector)[0], 1)
     }
     func testOppositionCannotBeOverwrittenOrDuplicated() async throws {
         let store = try SessionStore(directory: directory())

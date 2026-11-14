@@ -22,8 +22,9 @@ enum PipelineRunner {
         defer { try? output.close() }
         let child = Process(); child.executableURL = executable; child.arguments = arguments
         child.standardOutput = output; child.standardError = output; child.standardInput = FileHandle.nullDevice
-        // The helper answers in the app's language, whatever the system language.
-        child.environment = ProcessInfo.processInfo.environment.merging([HWYDLocalization.environmentKey: HWYDLocalization.current]) { $1 }
+        // The helper answers in the app's language, whatever the system language, and uses the vault it is given.
+        child.environment = ProcessInfo.processInfo.environment.merging(helpers.environment) { $1 }
+            .merging([HWYDLocalization.environmentKey: HWYDLocalization.current]) { $1 }
         try child.run()
         let deadline = ContinuousClock.now.advanced(by: .seconds(1800))
         while child.isRunning {
@@ -47,6 +48,7 @@ enum PipelineRunner {
         let executable = helpers.pipeline
         guard FileManager.default.isExecutableFile(atPath: executable.path) else { throw PipelineFailure(message: String(localized: "Le helper de transcription est absent.")) }
         let child = Process(); child.executableURL = executable; child.arguments = arguments
+        child.environment = ProcessInfo.processInfo.environment.merging(helpers.environment) { $1 }
         let pipe = Pipe(); child.standardOutput = pipe; child.standardError = FileHandle.nullDevice; child.standardInput = FileHandle.nullDevice
         try child.run()
         let reader = Task.detached { pipe.fileHandleForReading.readDataToEndOfFile() }

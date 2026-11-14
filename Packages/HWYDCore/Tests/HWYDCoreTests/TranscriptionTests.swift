@@ -28,27 +28,23 @@ final class TranscriptionTests: XCTestCase, @unchecked Sendable {
         XCTAssertNil(decoded.words)
     }
     func testPipelineMergesTracksBySessionTimeWithoutInventingSpeakers() async throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let store = try SessionStore(directory: directory)
+        let audio = try TemporaryAudioLocator()
         let request = TranscriptionRequest(recordingID: UUID(), chunks: [
             .init(source: .mic, relativePath: "mic.caf", start: 300, duration: 5),
             .init(source: .system, relativePath: "system.caf", start: 0, duration: 5)])
-        let result = try await TranscriptionPipeline.run(request, store: store, recognizer: FakeRecognizer())
+        let result = try await TranscriptionPipeline.run(request, audio: audio, recognizer: FakeRecognizer())
         XCTAssertEqual(result.segments.map(\.start), [1, 301])
         XCTAssertEqual(result.segments.map(\.source), [.system, .mic])
         XCTAssertTrue(result.segments.allSatisfy { $0.speakerID == nil })
     }
     private func detect(_ recognizer: LanguageFake, candidates: [String] = ["fr-FR", "en-US"], fallback: String = "fr-FR",
                         installable: [String] = ["es-ES", "de-DE"], system: Bool = false) async throws -> TranscriptionResult {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let store = try SessionStore(directory: directory)
+        let audio = try TemporaryAudioLocator()
         var chunks: [AudioChunk] = [.init(source: .mic, relativePath: "mic.caf", start: 0, duration: 5)]
         if system { chunks.append(.init(source: .system, relativePath: "system.caf", start: 0, duration: 5)) }
         let request = TranscriptionRequest(recordingID: UUID(), locale: SpeechLanguage.automatic, chunks: chunks,
                                            candidateLocales: candidates, fallbackLocale: fallback, installableLocales: installable)
-        return try await TranscriptionPipeline.run(request, store: store, recognizer: recognizer)
+        return try await TranscriptionPipeline.run(request, audio: audio, recognizer: recognizer)
     }
     func testDetectionSwitchesToEnglishWhenTextAndConfidenceAgree() async throws {
         let result = try await detect(LanguageFake(mic: "en"))
@@ -107,14 +103,12 @@ final class TranscriptionTests: XCTestCase, @unchecked Sendable {
         XCTAssertFalse(SpeechLanguage.matches("fr-FR", .simplifiedChinese))
     }
     func testSampleSpansShortFirstChunks() async throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let store = try SessionStore(directory: directory)
+        let audio = try TemporaryAudioLocator()
         let recognizer = ChunkedFake()
         let request = TranscriptionRequest(recordingID: UUID(), locale: SpeechLanguage.automatic, chunks: [
             .init(source: .mic, relativePath: "a.caf", start: 0, duration: 3),
             .init(source: .mic, relativePath: "b.caf", start: 3, duration: 300)], candidateLocales: ["fr-FR", "en-US"], fallbackLocale: "fr-FR")
-        let result = try await TranscriptionPipeline.run(request, store: store, recognizer: recognizer)
+        let result = try await TranscriptionPipeline.run(request, audio: audio, recognizer: recognizer)
         XCTAssertEqual(result.request.locale, "en-US")
         XCTAssertEqual(recognizer.requestedSeconds.value.prefix(2).map { $0 }, [3, 87])
     }

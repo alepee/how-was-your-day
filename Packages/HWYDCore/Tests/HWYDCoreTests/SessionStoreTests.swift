@@ -51,9 +51,11 @@ final class SessionStoreTests: XCTestCase, @unchecked Sendable {
         XCTAssertNil(item.summary)
         XCTAssertEqual(item.segments.filter { $0.speakerID == unknown.id }.map(\.id), segmentIDs)
     }
-    func testAudioPathCannotEscapeStore() throws {
-        let store = try SessionStore(directory: directory())
-        XCTAssertThrowsError(try store.audioURL(for: .init(source: .mic, relativePath: "../outside.caf", start: 0, duration: 1)))
+    func testStoreAudioStaysInItsDirectory() throws {
+        let path = try directory()
+        let store = try SessionStore(directory: path)
+        XCTAssertEqual(store.audio, DataDirectoryAudio(directory: path))
+        XCTAssertThrowsError(try store.audio.url(for: .init(source: .mic, relativePath: "../outside.caf", start: 0, duration: 1)))
     }
     func testExportPublishesMatchingFilesAndPreservesPreviousExport() throws {
         let path = try directory()

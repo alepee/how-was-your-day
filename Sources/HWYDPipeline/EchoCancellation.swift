@@ -12,15 +12,15 @@ struct EchoPreparation {
 
 enum EchoCancellation {
     static let engine = "speexdsp-1.2.1-mdf-residual-512ms-v2"
-    static func prepare(_ request: TranscriptionRequest, store: SessionStore, directory: URL) throws -> EchoPreparation {
+    static func prepare(_ request: TranscriptionRequest, audio: any AudioLocator, directory: URL) throws -> EchoPreparation {
         let mic = request.chunks.filter { $0.source == .mic }.sorted { $0.start < $1.start }
         let system = request.chunks.filter { $0.source == .system }.sorted { $0.start < $1.start }
         guard request.echoCancellation != false, !mic.isEmpty, !system.isEmpty else { return EchoPreparation() }
         let micURL = directory.appendingPathComponent("microphone-original.caf")
         let systemURL = directory.appendingPathComponent("reference.caf")
         let outputURL = directory.appendingPathComponent("microphone-clean.caf")
-        try DiarizationStage.assemble(mic, store: store, destination: micURL)
-        try DiarizationStage.assemble(system, store: store, destination: systemURL)
+        try DiarizationStage.assemble(mic, audio: audio, destination: micURL)
+        try DiarizationStage.assemble(system, audio: audio, destination: systemURL)
         try process(microphone: micURL, reference: systemURL, output: outputURL)
         let input = try AVAudioFile(forReading: outputURL)
         let buffer = AVAudioPCMBuffer(pcmFormat: input.processingFormat, frameCapacity: 8192)!

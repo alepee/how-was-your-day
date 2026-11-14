@@ -118,7 +118,7 @@ public actor SessionStore: RecordingRepository {
             try db.execute(sql: "UPDATE integration_sequence SET seq=seq+1")
             return item
         }
-        let files = SessionFiles(root: directory).remove(id: id, chunks: removed?.audioChunks ?? [], keeping: try all())
+        let files = SessionFiles(audio: audio).remove(id: id, chunks: removed?.audioChunks ?? [], keeping: try all())
         return RecordingRemoval(removed: removed, files: files)
     }
     /// Removes files left by sessions deleted earlier (before deletion removed files, or after a failed removal).
@@ -132,10 +132,10 @@ public actor SessionStore: RecordingRepository {
         guard flock(lock, LOCK_EX | LOCK_NB) == 0 else { return nil }
         defer { flock(lock, LOCK_UN) }
         let live = try await all()
-        return SessionFiles(root: directory).removeOrphans(keeping: live, now: now)
+        return SessionFiles(audio: audio).removeOrphans(keeping: live, now: now)
     }
     public func recoverInterrupted() throws -> Int {
-        let lock = open(directory.appendingPathComponent("capture.lock").path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
+        let lock = open(audio.captureLockFile.path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
         guard lock >= 0 else { throw StoreError.invalidPath }
         defer { close(lock) }
         // A second app must never recover files that the first app is still writing.
@@ -156,10 +156,6 @@ public actor SessionStore: RecordingRepository {
                 .map { try JSONDecoder().decode(Recording.self, from: $0) }
         }
     }
-    public nonisolated func audioURL(for chunk: AudioChunk) throws -> URL {
-        let root = directory.standardizedFileURL.resolvingSymlinksInPath()
-        let url = root.appendingPathComponent(chunk.relativePath).standardizedFileURL.resolvingSymlinksInPath()
-        guard url.path.hasPrefix(root.path + "/"), !chunk.relativePath.hasPrefix("/") else { throw StoreError.invalidPath }
-        return url
-    }
+    /// The audio under this store's directory, for code that only needs audio paths.
+    public nonisolated var audio: DataDirectoryAudio { DataDirectoryAudio(directory: directory) }
 }

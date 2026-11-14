@@ -27,7 +27,7 @@ extension AppModel {
     /// Plays only this voice's passages, on its own track. A second click stops.
     func toggleVoicePlayback(_ speakerID: UUID) {
         if playback.voiceID == speakerID { stopPlayback(); return }
-        guard let item = selected, let store, !item.audioChunks.isEmpty else {
+        guard let item = selected, let audio, !item.audioChunks.isEmpty else {
             notifier.notify(.info(String(localized: "Aucun fichier audio disponible pour cette session."))); return
         }
         guard let voice = item.voiceOverview.first(where: { $0.id == speakerID }), !voice.spans.isEmpty else {
@@ -35,7 +35,7 @@ extension AppModel {
         }
         stopPlayback()
         do {
-            try player.start(playlist: VoicePlaylist(spans: voice.spans), source: voice.speaker.source, chunks: item.audioChunks, store: store)
+            try player.start(playlist: VoicePlaylist(spans: voice.spans), source: voice.speaker.source, chunks: item.audioChunks, audio: audio)
             playbackTime = player.position; isPlaying = true
             playback.voiceID = speakerID; playback.generation += 1
             updatePlaybackFocus(); startPlaybackClock()

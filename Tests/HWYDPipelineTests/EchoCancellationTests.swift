@@ -7,7 +7,8 @@ final class EchoCancellationTests: XCTestCase {
     func testPreparationKeepsOriginalsAndChunkTiming() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try SessionStore(directory: root)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let audio = DataDirectoryAudio(directory: root)
         let url = root.appendingPathComponent("original.caf")
         try write((0..<1603).map { Float(sin(Double($0) * 0.1)) * 0.1 }, to: url)
         let original = try Data(contentsOf: url)
@@ -16,15 +17,15 @@ final class EchoCancellationTests: XCTestCase {
         var request = TranscriptionRequest(recordingID: UUID(), chunks: [mic, system])
         let work = root.appendingPathComponent("work")
         try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
-        let prepared = try EchoCancellation.prepare(request, store: store, directory: work)
+        let prepared = try EchoCancellation.prepare(request, audio: audio, directory: work)
         XCTAssertEqual(try AVAudioFile(forReading: XCTUnwrap(prepared.chunks[mic.id])).length, 1603)
         XCTAssertEqual(try AVAudioFile(forReading: XCTUnwrap(prepared.microphone)).length, 4803)
         XCTAssertNil(prepared.chunks[system.id])
         XCTAssertEqual(try Data(contentsOf: url), original)
         request.echoCancellation = false
-        XCTAssertNil(try EchoCancellation.prepare(request, store: store, directory: work).engine)
+        XCTAssertNil(try EchoCancellation.prepare(request, audio: audio, directory: work).engine)
         request.echoCancellation = nil; request.chunks = [mic]
-        XCTAssertNil(try EchoCancellation.prepare(request, store: store, directory: work).engine)
+        XCTAssertNil(try EchoCancellation.prepare(request, audio: audio, directory: work).engine)
     }
     func testDelayedReverberantEchoAndDoubleTalk() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

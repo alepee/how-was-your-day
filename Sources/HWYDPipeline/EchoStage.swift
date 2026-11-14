@@ -11,7 +11,7 @@ struct EchoReport: Codable {
 }
 
 enum EchoStage {
-    static func run(request: TranscriptionRequest, store: SessionStore, workingDirectory: URL) throws -> EchoReport {
+    static func run(request: TranscriptionRequest, audio: any AudioLocator, workingDirectory: URL) throws -> EchoReport {
         let folder = workingDirectory.appendingPathComponent("echo-\(UUID())")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -20,7 +20,7 @@ enum EchoStage {
             let chunks = request.chunks.filter { $0.source == source }.sorted { $0.start < $1.start }
             guard !chunks.isEmpty else { throw TranscriptionError.invalidAudio }
             let url = folder.appendingPathComponent("\(source.rawValue).caf")
-            try DiarizationStage.assemble(chunks, store: store, destination: url)
+            try DiarizationStage.assemble(chunks, audio: audio, destination: url)
             files.append(try AVAudioFile(forReading: url))
         }
         guard abs(files[0].length - files[1].length) <= 2 else { throw EchoError(message: String(localized: "Durées incompatibles : \(files[0].length), \(files[1].length).", bundle: .hwyd)) }

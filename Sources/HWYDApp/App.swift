@@ -47,9 +47,9 @@ import HWYDCore
         case .selfTest(let directory, let seconds):
             do {
                 guard seconds >= 2, seconds <= 14400 else { throw CaptureFailure(message: "Test duration must be between 2 and 14400 seconds") }
-                try CoreAudioCapture.verifySyntheticCapture(directory: directory, seconds: seconds)
+                try CoreAudioCapture.verifySyntheticCapture(audio: DataDirectoryAudio(directory: directory), seconds: seconds)
                 FileHandle.standardOutput.write(Data("Synthetic two-track capture: PASS\n".utf8))
-                try CoreAudioCapture.verifySyntheticSplitCapture(directory: directory)
+                try CoreAudioCapture.verifySyntheticSplitCapture(audio: DataDirectoryAudio(directory: directory))
                 FileHandle.standardOutput.write(Data("Synthetic split-clock capture: PASS\n".utf8))
                 exit(0)
             } catch { FileHandle.standardError.write(Data("\(error)\n".utf8)); exit(1) }

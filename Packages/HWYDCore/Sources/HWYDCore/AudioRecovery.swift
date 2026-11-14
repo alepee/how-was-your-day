@@ -4,7 +4,7 @@ import Foundation
 /// Called only while the store's capture lock is held. Original partial files remain untouched.
 public enum AudioRecovery {
     public static func recover(in root: URL, recordingID: UUID) throws -> [AudioChunk] {
-        let relative = "audio/\(recordingID.uuidString.lowercased())"
+        let relative = DataDirectoryAudio.relativeFolder(for: recordingID)
         let directory = root.appendingPathComponent(relative)
         guard FileManager.default.fileExists(atPath: directory.path) else { return [] }
         let resolvedRoot = root.resolvingSymlinksInPath().standardizedFileURL.path + "/"

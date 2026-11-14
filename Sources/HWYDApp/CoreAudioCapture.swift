@@ -20,7 +20,7 @@ actor CoreAudioCapture: AudioCapture {
     nonisolated let isSimulated = false
     nonisolated let events: AsyncStream<CaptureEvent>
     private let continuation: AsyncStream<CaptureEvent>.Continuation
-    private let directory: URL
+    private let audio: any AudioLocator
     private var tap: AudioObjectID = 0
     /// Microphone plus tap on one clock, or the tap alone when the microphone runs on its own clock.
     private var aggregate: AudioObjectID = 0
@@ -43,9 +43,9 @@ actor CoreAudioCapture: AudioCapture {
     /// A fault was reported: the session stops the capture, nothing else is checked.
     private var faulted = false
 
-    /// - Parameter directory: the store directory; audio goes to `audio/<session>` under it.
-    init(directory: URL) {
-        self.directory = directory
+    /// - Parameter audio: where each session's chunks go (`audio/<session>` under the store's directory).
+    init(audio: any AudioLocator) {
+        self.audio = audio
         (events, continuation) = AsyncStream.makeStream(of: CaptureEvent.self)
     }
     /// The fault that must stop the session, if any.
@@ -67,7 +67,7 @@ actor CoreAudioCapture: AudioCapture {
     func start(session id: UUID) async throws {
         let granted = await AVCaptureDevice.requestAccess(for: .audio)
         guard granted else { throw CaptureFailure(message: String(localized: "L’accès au micro est refusé. Autorisez HWYD dans Réglages Système > Confidentialité et sécurité > Microphone.")) }
-        lockFD = open(directory.appendingPathComponent("capture.lock").path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
+        lockFD = open(audio.captureLockFile.path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
         guard lockFD >= 0, flock(lockFD, LOCK_EX | LOCK_NB) == 0 else {
             if lockFD >= 0 { close(lockFD); lockFD = -1 }
             throw CaptureFailure(message: String(localized: "Une autre instance de HWYD enregistre déjà une session."))
@@ -138,7 +138,7 @@ actor CoreAudioCapture: AudioCapture {
                     CaptureInput(ring: systemRing, channels: 2, sampleRate: systemFormat.mSampleRate, layout: .system)
                 ]
             }
-            writer = try AudioWriter(inputs: inputs, id: id, directory: directory)
+            writer = try AudioWriter(inputs: inputs, folder: audio.sessionFolder(for: id))
             // Drain before the devices start: starting a tap aggregate can block for about a second.
             writer?.start()
             try check(AudioDeviceCreateIOProcID(aggregate, HWYDIOProc, UnsafeMutableRawPointer(ring), &ioProc), String(localized: "Préparation de la capture"))
@@ -356,8 +356,7 @@ private final class AudioWriter: @unchecked Sendable {
     private var state: (mic: Float, system: Float, error: String?, lastPackets: [Double?]) = (0, 0, nil, [nil, nil])
     private let inputs: [CaptureInput]
     private let split: Bool
-    private let directory: URL
-    private let relativeDirectory: String
+    private let folder: AudioFolder
     private let buffers: [UnsafeMutablePointer<Float>]
     private let outputFormat: AVAudioFormat
     private let inputFormats: [AVAudioFormat]
@@ -376,13 +375,12 @@ private final class AudioWriter: @unchecked Sendable {
     private var firstHostTime: UInt64?
     /// Measured in split mode: the largest correction applied to a track, in samples. Read by tests.
     private(set) var corrections: [Int64] = [0, 0]
-    init(inputs: [CaptureInput], id: UUID, directory: URL, chunkSeconds: Double = 300) throws {
+    /// - Parameter folder: the session's audio folder, created by the locator.
+    init(inputs: [CaptureInput], folder: AudioFolder, chunkSeconds: Double = 300) {
         chunkLimit = Int64(chunkSeconds * Self.outputRate)
         self.inputs = inputs
         split = inputs.count == 2
-        relativeDirectory = "audio/\(id.uuidString.lowercased())"
-        self.directory = directory.appendingPathComponent(relativeDirectory)
-        try FileManager.default.createDirectory(at: self.directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        self.folder = folder
         buffers = inputs.map { .allocate(capacity: 4096 * $0.channels) }
         outputFormat = AVAudioFormat(standardFormatWithSampleRate: Self.outputRate, channels: 1)!
         // Track 0 is the microphone, track 1 system audio, whatever input carries them.
@@ -546,9 +544,9 @@ private final class AudioWriter: @unchecked Sendable {
     }
     private func openFiles() throws {
         let descriptor: [String: String] = ["sample_rate": "16000", "channels": "1", "start_frames": "\(outputFrames)", "host_time": "\(firstHostTime ?? 0)", "sequence": "\(sequence)"]
-        try JSONEncoder().encode(descriptor).write(to: directory.appendingPathComponent(String(format: "%06d.json", sequence)), options: .atomic)
+        try JSONEncoder().encode(descriptor).write(to: folder.url.appendingPathComponent(String(format: "%06d.json", sequence)), options: .atomic)
         files = try ["mic", "system"].map { source in
-            try AVAudioFile(forWriting: directory.appendingPathComponent(String(format: "%@-%06d.partial.caf", source, sequence)), settings: outputFormat.settings)
+            try AVAudioFile(forWriting: folder.url.appendingPathComponent(String(format: "%@-%06d.partial.caf", source, sequence)), settings: outputFormat.settings)
         }
     }
     private func seal() throws {
@@ -556,23 +554,23 @@ private final class AudioWriter: @unchecked Sendable {
         files.removeAll()
         for source in [AudioSource.mic, .system] {
             let name = String(format: "%@-%06d.caf", source.rawValue, sequence)
-            let temporary = directory.appendingPathComponent(String(format: "%@-%06d.partial.caf", source.rawValue, sequence))
+            let temporary = folder.url.appendingPathComponent(String(format: "%@-%06d.partial.caf", source.rawValue, sequence))
             let handle = try FileHandle(forWritingTo: temporary); try handle.synchronize(); try handle.close()
-            try FileManager.default.moveItem(at: temporary, to: directory.appendingPathComponent(name))
-            chunks.append(.init(source: source, relativePath: relativeDirectory + "/" + name, start: Double(outputFrames - chunkFrames) / Self.outputRate, duration: Double(chunkFrames) / Self.outputRate))
+            try FileManager.default.moveItem(at: temporary, to: folder.url.appendingPathComponent(name))
+            chunks.append(.init(source: source, relativePath: folder.chunkPath(name), start: Double(outputFrames - chunkFrames) / Self.outputRate, duration: Double(chunkFrames) / Self.outputRate))
         }
-        try JSONEncoder().encode(chunks).write(to: directory.appendingPathComponent("manifest.json"), options: .atomic)
+        try JSONEncoder().encode(chunks).write(to: folder.url.appendingPathComponent("manifest.json"), options: .atomic)
         chunkFrames = 0
     }
 }
 
 
 extension CoreAudioCapture {
-    static func verifySyntheticCapture(directory: URL, seconds: Double = 2) throws {
+    static func verifySyntheticCapture(audio: any AudioLocator, seconds: Double = 2) throws {
         let id = UUID()
         guard let ring = HWYDRingCreate(3) else { throw CaptureFailure(message: "Ring allocation") }
         defer { HWYDRingDestroy(ring) }
-        let writer = try AudioWriter(inputs: [CaptureInput(ring: ring, channels: 3, sampleRate: 48000, layout: .combined(micChannels: 1))], id: id, directory: directory, chunkSeconds: seconds > 10 ? 300 : 0.5)
+        let writer = try AudioWriter(inputs: [CaptureInput(ring: ring, channels: 3, sampleRate: 48000, layout: .combined(micChannels: 1))], folder: audio.sessionFolder(for: id), chunkSeconds: seconds > 10 ? 300 : 0.5)
         let samples = UnsafeMutablePointer<Float>.allocate(capacity: 480 * 3)
         defer { samples.deallocate() }
         for i in 0..<480 { samples[i * 3] = 0.2; samples[i * 3 + 1] = 0.6; samples[i * 3 + 2] = 0.6 }
@@ -594,7 +592,7 @@ extension CoreAudioCapture {
             let track = chunks.filter { $0.source == source }
             guard track.reduce(0, { $0 + $1.duration }) > seconds - 0.1 else { throw CaptureFailure(message: "Synthetic duration") }
             for chunk in track {
-                let file = try AVAudioFile(forReading: directory.appendingPathComponent(chunk.relativePath))
+                let file = try AVAudioFile(forReading: audio.url(for: chunk))
                 guard file.processingFormat.sampleRate == 16000, file.processingFormat.channelCount == 1, file.length > 0 else { throw CaptureFailure(message: "Invalid CAF format") }
                 let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: 64)!
                 file.framePosition = file.length / 2
@@ -608,13 +606,13 @@ extension CoreAudioCapture {
 
     /// Split mode: a 16 kHz microphone and a 48 kHz tap on two clocks, the tap starting 250 ms later and drifting
     /// by 1000 ppm. A click played on both at the same host time must land on the same output sample, within 3 ms.
-    static func verifySyntheticSplitCapture(directory: URL, seconds: Double = 30) throws {
+    static func verifySyntheticSplitCapture(audio: any AudioLocator, seconds: Double = 30) throws {
         guard let micRing = HWYDRingCreate(1), let systemRing = HWYDRingCreate(2) else { throw CaptureFailure(message: "Ring allocation") }
         defer { HWYDRingDestroy(micRing); HWYDRingDestroy(systemRing) }
         let writer = try AudioWriter(inputs: [
             CaptureInput(ring: micRing, channels: 1, sampleRate: 16000, layout: .mic),
             CaptureInput(ring: systemRing, channels: 2, sampleRate: 48000, layout: .system)
-        ], id: UUID(), directory: directory, chunkSeconds: 300)
+        ], folder: audio.sessionFolder(for: UUID()), chunkSeconds: 300)
         var timebase = mach_timebase_info_data_t(); mach_timebase_info(&timebase)
         let ticks = 1e9 * Double(timebase.denom) / Double(timebase.numer)
         let micFrames = 320, systemFrames = 512, skew = 1000e-6, systemStart = 0.25, click = seconds * 2 / 3
@@ -654,7 +652,7 @@ extension CoreAudioCapture {
         for source in [AudioSource.mic, .system] {
             let track = chunks.filter { $0.source == source }
             guard track.count == 1 else { throw CaptureFailure(message: "Split capture: \(track.count) chunks for \(source)") }
-            let file = try AVAudioFile(forReading: directory.appendingPathComponent(track[0].relativePath))
+            let file = try AVAudioFile(forReading: audio.url(for: track[0]))
             let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length))!
             try file.read(into: buffer)
             let data = UnsafeBufferPointer(start: buffer.floatChannelData![0], count: Int(buffer.frameLength))
