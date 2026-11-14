@@ -43,6 +43,8 @@ Retour retrouve la session ou la bibliothèque précédente. La capture reste ac
 
 Toutes les sessions utilisent une structure commune inspirée des notes Google Meet : Résumé et points clés, Décisions, Étapes suivantes, Détails par thème, puis Contexte quand un agent en apporte. Les sections sans contenu sont masquées. Les anciennes synthèses restent affichées jusqu'à leur régénération.
 
+Above the summary, informational lines in copper, without a call to action, say what the reader should know: some kept voices are not identified yet (the voice tiles just above are where to name them), shown under the Generate button before a first summary; and the transcript changed since the summary (the Generate button, then named « Régénérer », is the way to refresh it). No status message waits for voices.
+
 The summary reads as a document, not a block of text:
 
 - The reading column is limited to 640 pt. When the pane is wide enough, an outline sits beside it, lists sections and topics, highlights the one on screen and jumps to any entry.

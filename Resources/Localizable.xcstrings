@@ -2173,22 +2173,6 @@
         }
       }
     },
-    "Chaque synthèse est lancée manuellement depuis la session. Les étapes validées sont conservées pour reprendre après une interruption.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Each summary is started manually from the session. Completed steps are kept so it can resume after an interruption."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chaque synthèse est lancée manuellement depuis la session. Les étapes validées sont conservées pour reprendre après une interruption."
-          }
-        }
-      }
-    },
     "Choisir la langue": {
       "localizations": {
         "en": {
@@ -2697,6 +2681,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dernière recherche : %@"
+          }
+        }
+      }
+    },
+    "Des voix ne sont pas encore identifiées : la synthèse les désigne de façon générique.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some voices are not identified yet: the summary refers to them generically."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Des voix ne sont pas encore identifiées : la synthèse les désigne de façon générique."
           }
         }
       }
@@ -3273,6 +3273,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Empreintes de %@ supprimées. Opposition enregistrée."
+          }
+        }
+      }
+    },
+    "En attente…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En attente…"
           }
         }
       }
@@ -3933,6 +3949,22 @@
         }
       }
     },
+    "Générer automatiquement": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generate automatically"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Générer automatiquement"
+          }
+        }
+      }
+    },
     "Générer une synthèse": {
       "localizations": {
         "en": {
@@ -4557,6 +4589,22 @@
         }
       }
     },
+    "La synthèse démarre seule 10 secondes après que la session est prête : transcript terminé et chaque voix nommée, confirmée ou ignorée. Une tentative par version du transcript, jusqu’à obtenir une synthèse ; ensuite, la régénérer reste votre choix. Les sessions terminées avant l’activation ne sont pas traitées. Avec un fournisseur en ligne, le transcript lui est envoyé sans autre action.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The summary starts on its own 10 seconds after the session is ready: transcript complete and every voice named, confirmed or ignored. One attempt per transcript version, until a summary exists; after that, regenerating it is your choice. Sessions that ended before you turned this on are not processed. With a hosted provider, the transcript is sent to it without any further action."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La synthèse démarre seule 10 secondes après que la session est prête : transcript terminé et chaque voix nommée, confirmée ou ignorée. Une tentative par version du transcript, jusqu’à obtenir une synthèse ; ensuite, la régénérer reste votre choix. Les sessions terminées avant l’activation ne sont pas traitées. Avec un fournisseur en ligne, le transcript lui est envoyé sans autre action."
+          }
+        }
+      }
+    },
     "La synthèse est facultative": {
       "localizations": {
         "en": {
@@ -5049,6 +5097,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Le traitement a été interrompu. Vous pouvez le relancer."
+          }
+        }
+      }
+    },
+    "Le transcript a changé depuis cette synthèse.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The transcript has changed since this summary."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le transcript a changé depuis cette synthèse."
           }
         }
       }
@@ -8061,6 +8125,22 @@
         }
       }
     },
+    "Synthèse automatique lancée : %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatic summary started: %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Synthèse automatique lancée : %@"
+          }
+        }
+      }
+    },
     "Synthèse exportée.": {
       "localizations": {
         "en": {
@@ -8905,6 +8985,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Une synthèse est en cours."
+          }
+        }
+      }
+    },
+    "Une synthèse se lance depuis la session, ou seule quand la session est prête si la génération automatique est activée. Les étapes validées sont conservées pour reprendre après une interruption.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A summary starts from the session, or on its own once the session is ready if automatic generation is on. Completed steps are kept so it can resume after an interruption."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une synthèse se lance depuis la session, ou seule quand la session est prête si la génération automatique est activée. Les étapes validées sont conservées pour reprendre après une interruption."
           }
         }
       }

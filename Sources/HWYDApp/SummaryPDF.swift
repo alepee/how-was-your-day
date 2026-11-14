@@ -180,6 +180,9 @@ import SwiftUI
                         .background(Ink.copper.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
                     if let provenance { Text(provenance).font(.system(size: Size.small)).foregroundStyle(Ink.muted) }
                 }.padding(.top, 2)
+                if item.summaryIsStale {
+                    Text(verbatim: SummaryExport.staleNotice).font(.system(size: Size.small)).foregroundStyle(Ink.copper)
+                }
                 Rectangle().fill(Ink.line).frame(height: 0.5).padding(.top, 8)
             }
         }

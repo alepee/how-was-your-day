@@ -2,7 +2,7 @@ import XCTest
 @testable import HWYDCore
 
 final class TranscriptionTests: XCTestCase, @unchecked Sendable {
-    func testResultsPreserveLatestNotesAndInvalidateSummary() throws {
+    func testResultsPreserveLatestNotesAndKeepSummary() throws {
         var recording = Recording(title: "Test", notes: "Notes pendant le traitement", summary: "Ancienne synthèse")
         recording.audioChunks = [.init(source: .mic, relativePath: "mic.caf", start: 300, duration: 5)]
         let request = TranscriptionRequest(recordingID: recording.id, chunks: recording.audioChunks)
@@ -11,7 +11,7 @@ final class TranscriptionTests: XCTestCase, @unchecked Sendable {
         XCTAssertEqual(recording.notes, "Notes pendant le traitement")
         XCTAssertEqual(recording.transcriptVersion, 1)
         XCTAssertEqual(recording.transcriptState, .ready)
-        XCTAssertNil(recording.summary)
+        XCTAssertEqual(recording.summary, "Ancienne synthèse")
         XCTAssertTrue(recording.speakers.isEmpty)
         XCTAssertNil(recording.segments.first?.speakerID)
     }

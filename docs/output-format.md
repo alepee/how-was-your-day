@@ -95,7 +95,7 @@ exported_at: "2026-10-23T08:31:00Z"
 | `consent_announced` | Déclaration utilisateur d'annonce ; ne signifie pas consentement à l'empreinte |
 | `locale` | Locale effective du moteur pour la piste micro (ou la seule piste), ou `multilingual` pour un moteur le déclarant |
 | `track_locales` | Locale de chaque piste présente (`mic`, `system`) depuis 0.11.0, la langue étant détectée par piste ; null sans transcript |
-| `summary.status` | disabled/pending/ready/failed/stale ; autres champs null si absent |
+| `summary.status` | disabled/pending/ready/failed/stale ; autres champs null si absent. `stale` : la synthèse est conservée avec ses champs, mais produite à partir d'une version antérieure du transcript (`summary.transcript_version` diffère de `transcript_version`) ; ses références peuvent viser des segments disparus. Les exports Markdown et PDF de la synthèse le signalent par une ligne |
 | `audio.state` | available/purging/purged/missing ; aucun chemin audio public |
 | `audio.encryption` | volume_only/application/none ; reflète le mode réel, pas une intention |
 

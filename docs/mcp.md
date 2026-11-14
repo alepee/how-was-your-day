@@ -815,7 +815,9 @@ Les pages respectent les frontières des segments et, pour les notes et synthès
 
 `confidence: null` signifie que la confiance n’est pas mesurée. `echo_suspect` vaut `true`, `false` ou `null` selon le résultat disponible. Une suspicion est un signal de contrôle, pas une preuve d’écho. `recording.echo_cancellation_engine` indique le prétraitement audio appliqué ; cela ne garantit pas l’absence d’écho résiduel. `echo_assessed_segments` compte les segments évalués après transcription et `echo_suspect_segments` les segments suspects dans la session entière.
 
-Une synthèse absente retourne `status: unavailable` et `reason: not_generated_or_invalidated`, ou `invalidated_after_edit` si une provenance antérieure est conservée. Le store actuel ne permet pas de distinguer toutes les causes historiques. Le serveur ne prétend donc pas que la synthèse est désactivée, en cours ou échouée. La génération reste une action de l’app.
+Les corrections conservent la synthèse. Une synthèse produite à partir d’une version antérieure du transcript est retournée avec `status: stale`, son `markdown`, sa `version` et `reason: null` ; la ressource `summary.md` la retourne aussi. Ses références à des passages peuvent viser des segments qui n’existent plus. La régénérer reste une décision de l’utilisateur dans l’app.
+
+Une synthèse absente retourne `status: unavailable` et `reason: not_generated_or_invalidated` : elle n’a jamais été générée, ou une version antérieure de l’app l’a retirée après une correction. `invalidated_after_edit` n’est plus retourné. Le store actuel ne permet pas de distinguer toutes les causes historiques. Le serveur ne prétend donc pas que la synthèse est désactivée, en cours ou échouée. La génération reste une action de l’app.
 
 ## 5. Ressources
 

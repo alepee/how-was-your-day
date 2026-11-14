@@ -31,7 +31,6 @@ extension Recording {
         right.words = rightWords
         segments.replaceSubrange(position...position, with: [left, right])
         transcriptVersion += 1
-        summary = nil
     }
 }
 

@@ -65,8 +65,12 @@ extension AppModel {
         }
         update(id) { item in
             item.speakers = before.speakers; item.absorbedSpeakers = before.absorbedSpeakers
-            item.segments = before.segments; item.summary = before.summary
+            item.segments = before.segments
             item.transcriptVersion = version + 1
+            // The transcript is back to what it was: a summary that was current then is current again.
+            if item.summary == before.summary, before.summary != nil, !before.summaryIsStale {
+                item.summaryProvenance?.transcriptVersion = item.transcriptVersion
+            }
         }
         if let voice = playback.voiceID, !before.speakers.contains(where: { $0.id == voice }) { stopPlayback() }
         notifier.notify(.info(String(localized: "Modification annulée.")))

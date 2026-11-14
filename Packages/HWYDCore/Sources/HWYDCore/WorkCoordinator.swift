@@ -61,7 +61,8 @@ public enum WorkJob: Hashable, Sendable {
     }
 
     /// A transcription asked while other work runs waits its turn: the end of a capture must not
-    /// lose it. Other jobs are started by the user, who sees the refusal and its reason.
+    /// lose it. Other jobs are started by the user, who sees the refusal and its reason; a request
+    /// that nobody watches (an automatic summary) asks to wait with `request(_:waits:run:)`.
     public var waitsWhenBusy: Bool { kind == .transcription }
 }
 
@@ -172,17 +173,18 @@ public actor WorkCoordinator {
         WorkSnapshot(running: running?.job, queued: queue.map(\.job), revision: revision)
     }
 
-    /// Starts `run` now if nothing else runs, queues it if its kind waits, or refuses it. A
-    /// cancelled job sees `Task.isCancelled`; it still runs to its end, cleanup included, before
-    /// the next one starts.
+    /// Starts `run` now if nothing else runs, queues it if it waits, or refuses it. A job waits
+    /// when its kind does (`WorkJob.waitsWhenBusy`), unless `waits` says otherwise: an automatic
+    /// summary waits its turn, one the user asks for is refused with the reason. A cancelled job
+    /// sees `Task.isCancelled`; it still runs to its end, cleanup included, before the next one starts.
     @discardableResult
-    public func request(_ job: WorkJob, run: @escaping @Sendable () async -> Void) -> WorkDecision {
+    public func request(_ job: WorkJob, waits: Bool? = nil, run: @escaping @Sendable () async -> Void) -> WorkDecision {
         if running?.job == job || queue.contains(where: { $0.job == job }) { return .refused(.alreadyRequested(job)) }
         guard let current = running?.job else {
             start(Entry(job: job, run: run)); changed()
             return .accepted
         }
-        guard job.waitsWhenBusy else { return .refused(.busy(WorkBusy(job: current))) }
+        guard waits ?? job.waitsWhenBusy else { return .refused(.busy(WorkBusy(job: current))) }
         queue.append(Entry(job: job, run: run)); changed()
         return .queued(behind: WorkBusy(job: current))
     }
@@ -196,6 +198,13 @@ public actor WorkCoordinator {
     }
 
     public func cancel(_ job: WorkJob) { cancel { $0 == job } }
+
+    /// Drops the waiting jobs that match; the running one goes on.
+    public func dropQueued(where matches: @Sendable (WorkJob) -> Bool) {
+        let before = queue.count
+        queue.removeAll { matches($0.job) }
+        if queue.count != before { changed() }
+    }
     public func cancelAll() { cancel { _ in true } }
 
     /// Returns once nothing runs or waits. Returns early if the calling task is cancelled.

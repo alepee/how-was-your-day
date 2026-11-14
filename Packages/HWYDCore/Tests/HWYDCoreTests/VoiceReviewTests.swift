@@ -35,7 +35,7 @@ final class VoiceReviewTests: XCTestCase {
         XCTAssertEqual(item.segments.map(\.speakerID), [duplicate.id, duplicate.id, other.id])
         XCTAssertEqual(item.segments.map(\.text), ["a", "b", "c"])
         XCTAssertEqual(item.transcriptVersion, 2)
-        XCTAssertNil(item.summary)
+        XCTAssertEqual(item.summary, "old")
     }
 
     func testCrossTrackMergeSharesNameWithoutMovingSegments() throws {
@@ -100,7 +100,7 @@ final class VoiceReviewTests: XCTestCase {
         XCTAssertEqual(item.heardSegments.map(\.text), ["bonjour", "sans voix"])
         XCTAssertEqual(item.voiceOverview.map(\.state), [.confirmed, .ignored])
         XCTAssertEqual(item.transcriptVersion, version + 1)
-        XCTAssertNil(item.summary)
+        XCTAssertEqual(item.summary, "old")
         XCTAssertFalse(item.participantNames.contains("à nommer"))
         XCTAssertFalse(SessionExporter.artifact(item, "transcript").contains("écho"))
         XCTAssertFalse(item.searchableText.contains("écho"))
@@ -140,7 +140,7 @@ final class VoiceReviewTests: XCTestCase {
         XCTAssertEqual(item.segments[1].originalSpeakerID, nil)
         XCTAssertEqual(item.separableVoices(of: brice.id).map(\.id), [voice4.id])
         XCTAssertEqual(item.transcriptVersion, version + 1)
-        XCTAssertNil(item.summary)
+        XCTAssertEqual(item.summary, "old")
         XCTAssertThrowsError(try item.separateSpeaker(voice3.id, from: brice.id))
         // The merge history survives a save and is reset by a new transcription.
         let roundtrip = try JSONDecoder().decode(Recording.self, from: JSONEncoder().encode(item))

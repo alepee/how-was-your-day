@@ -82,6 +82,8 @@ struct CaptureSource {
     /// The installed app: preferences, network checks of summary keys, calendar. Off for previews and checks.
     var usesSystem = false
     var appliesAppearance = false
+    /// How long a ready session stays unchanged before its automatic summary is requested.
+    var automaticSummaryDelay: Duration = .seconds(10)
     /// Monotonic time of the capture clock, in seconds.
     var clock: @MainActor () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
     /// The user's sessions, or what stands for them.
@@ -153,7 +155,7 @@ struct CaptureSource {
                           transcription: (any TranscriptionService)? = nil, voiceMemory: (any VoiceMemory)? = nil,
                           speechModels: (any SpeechModelCatalog)? = nil,
                           summarizer: (@MainActor (SummaryConfiguration) -> any Summarizer)? = nil,
-                          coordinator: WorkCoordinator = WorkCoordinator()) throws -> AppEnvironment {
+                          coordinator: WorkCoordinator = WorkCoordinator(), automaticSummaryDelay: Duration = .seconds(10)) throws -> AppEnvironment {
         let helpers = HelperLocator(helpersDirectory: HelperLocator.app.helpersDirectory, secrets: .memory), secrets = InMemorySecretVault()
         let store = try SessionStore(directory: directory)
         // A check sweeps the folder it was given, never the user's data folder.
@@ -166,7 +168,7 @@ struct CaptureSource {
                              summarizer: summarizer ?? summarizers(directory: directory, helpers: helpers, secrets: secrets),
                              settings: preferences)
         return AppEnvironment(dataDirectory: directory, preferences: preferences, helpers: helpers, notifier: notifier,
-                              coordinator: coordinator, secrets: secrets, user: user)
+                              coordinator: coordinator, secrets: secrets, automaticSummaryDelay: automaticSummaryDelay, user: user)
     }
 
     /// `sweepsFiles`: whether each load removes the files of sessions deleted earlier from the store's folder.

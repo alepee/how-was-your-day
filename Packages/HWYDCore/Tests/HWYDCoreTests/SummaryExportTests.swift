@@ -31,6 +31,14 @@ final class SummaryExportTests: XCTestCase {
         XCTAssertNil(SummaryExport.markdown(recording(summary: "## Contexte\n\nNote privée.")))
     }
 
+    func testAStaleSummarySaysTheTranscriptChanged() throws {
+        var item = DemoContent.recordings()[0]; item.isDemo = false
+        XCTAssertFalse(try XCTUnwrap(SummaryExport.markdown(item)).contains(SummaryExport.staleNotice))
+        try item.renameSpeaker(item.speakers.first { !$0.confirmed }!.id, to: "Léa")
+        XCTAssertTrue(item.summaryIsStale)
+        XCTAssertTrue(try XCTUnwrap(SummaryExport.markdown(item)).contains("_Le transcript a changé depuis cette synthèse._"))
+    }
+
     func testFileNameDropsPathSeparators() {
         var item = recording(summary: "x"); item.title = "Q3/Q4: bilan"
         XCTAssertEqual(SummaryExport.fileName(item), "Q3-Q4- bilan - synthèse")

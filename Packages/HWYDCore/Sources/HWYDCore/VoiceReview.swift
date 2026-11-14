@@ -105,7 +105,6 @@ extension Recording {
             adoptIdentity(of: identity, at: t)
         }
         transcriptVersion += 1
-        summary = nil
     }
 
     /// Voices once merged into this one whose passages it still holds.
@@ -132,7 +131,6 @@ extension Recording {
         }
         speakers.append(voice)
         transcriptVersion += 1
-        summary = nil
     }
 
     /// Shows the person voice memory proposes for each voice nobody confirmed or ignored. The
@@ -160,7 +158,6 @@ extension Recording {
         speakers[index].label = name; speakers[index].personID = person.id
         speakers[index].confirmed = true; speakers[index].proposedIdentity = nil
         transcriptVersion += 1
-        summary = nil
     }
 
     private mutating func adoptIdentity(of identity: Speaker, at index: Int) {
@@ -175,7 +172,6 @@ extension Recording {
         guard speakers[index].ignored != ignored else { return }
         speakers[index].ignored = ignored
         transcriptVersion += 1
-        summary = nil
     }
 
     /// Segments heard at `time`, on any track.

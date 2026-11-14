@@ -14,8 +14,12 @@ public enum SummaryExport {
         } else {
             header += "\n\n_Synthèse générée par un modèle, à relire._" // l10n:ignore
         }
+        if item.summaryIsStale { header += "\n\n_" + staleNotice + "_" }
         return header + "\n\n" + summary + "\n"
     }
+
+    /// Said with a summary made from an earlier transcript, like the `stale` status of JSON and MCP.
+    public static let staleNotice = "Le transcript a changé depuis cette synthèse." // l10n:ignore
 
     /// The summary Markdown without its "## Contexte" section, up to the next level-2 heading.
     public static func withoutContext(_ markdown: String) -> String {

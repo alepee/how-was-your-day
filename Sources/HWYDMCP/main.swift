@@ -108,8 +108,10 @@ actor MCPService {
             for name in names {
                 let available = name != "summary" || r.summary != nil
                 let version = name == "transcript" ? r.transcriptVersion : name == "notes" ? r.notesVersion : r.summaryVersion
-                let missingSummaryReason = r.summaryProvenance == nil ? "not_generated_or_invalidated" : "invalidated_after_edit"
-                let status = name == "transcript" ? r.transcriptState.rawValue : available ? "ready" : "unavailable"
+                // A summary is kept after a correction: `stale` says the transcript changed since it was made.
+                // A missing one was never made, or was removed by an earlier version of the app.
+                let missingSummaryReason = "not_generated_or_invalidated"
+                let status = name == "transcript" ? r.transcriptState.rawValue : !available ? "unavailable" : name == "summary" && r.summaryIsStale ? "stale" : "ready"
                 let content = page.filter { $0.artifact == name }
                 artifacts[name] = ["status": status, "reason": name == "summary" && !available ? missingSummaryReason as Any : NSNull(),
                     "version": available && (version ?? 0) > 0 ? nullable(version) : NSNull(),

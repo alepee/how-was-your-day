@@ -5,9 +5,14 @@ binary, directory = sys.argv[1:]
 root = pathlib.Path(directory).resolve()
 assert 'test' in root.name and root.name != 'HWYD'
 db = sqlite3.connect(root / 'hwyd.sqlite')
-row = db.execute('select payload from ui_recordings limit 1').fetchone()
+row = db.execute('select id, payload from ui_recordings limit 1').fetchone()
 assert row
-recording = json.loads(row[0]); rid = recording['id']; revision = recording['revision']
+recording = json.loads(row[1]); rid = recording['id']; revision = recording['revision']
+# A summary made from an earlier transcript: corrections keep it, MCP says it is stale.
+recording['summary'] = '## Résumé\n\nSynthèse périmée.'
+recording['summaryProvenance'] = {'provider':'fixture','model':'fixture','promptVersion':'fixture','promptHash':'fixture','generatedAt':0,
+    'transcriptVersion':recording['transcriptVersion'] + 1,'inputHash':'fixture','structured':{'overview':'Synthèse périmée.','decisions':[],'action_items':[]}}
+db.execute('update ui_recordings set payload=? where id=?', (json.dumps(recording), row[0]))
 db.execute("insert or replace into integration_settings values ('mcp_writes_enabled','true')"); db.commit()
 
 class Client:
@@ -38,6 +43,13 @@ try:
     result, listing = c.tool('list_recordings', {}); assert not result.get('isError'); assert listing['items'][0]['id']==rid
     _, item = c.tool('get_recording', {'id':rid}); assert item['recording']['revision']==revision
     assert 'Note enregistrée' in item['artifacts']['notes']['markdown']
+    summary = item['artifacts']['summary']; assert summary['status']=='stale' and 'Synthèse périmée' in summary['markdown'] and summary['reason'] is None, summary
+    resource = c.rpc('resources/read', {'uri':f'hwyd://recording/{rid}/summary.md'}); assert 'Synthèse périmée' in resource['result']['contents'][0]['text']
+    # A missing summary is never reported as removed by an edit, even with a provenance left behind.
+    db.execute('update ui_recordings set payload=? where id=?', (json.dumps(dict(recording, summary=None)), row[0])); db.commit()
+    _, item = c.tool('get_recording', {'id':rid, 'include':'summary'})
+    summary = item['artifacts']['summary']; assert summary['status']=='unavailable' and summary['reason']=='not_generated_or_invalidated', summary
+    db.execute('update ui_recordings set payload=? where id=?', (json.dumps(recording), row[0])); db.commit()
     _, search = c.tool('search', {'query':'enregistrée'}); assert search['items']
     resource = c.rpc('resources/read', {'uri':f'hwyd://recording/{rid}/notes.md'}); assert 'Note enregistrée' in resource['result']['contents'][0]['text']
     assert len(c.rpc('resources/templates/list', {})['result']['resourceTemplates'])==3
@@ -56,4 +68,4 @@ try:
     args['expected_revision']=receipt['revision']
     result,error=c.tool('set_notes',args); assert error['code']=='WRITE_DISABLED'
 finally: c.close(); db.close()
-print('MCP stdio, resources, FTS, read-only, CAS, idempotency, revocation: PASS')
+print('MCP stdio, resources, stale summary, FTS, read-only, CAS, idempotency, revocation: PASS')

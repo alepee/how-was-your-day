@@ -138,7 +138,7 @@ La propagation dans une session affecte tous les segments du cluster sélectionn
 
 Les notes sont indépendantes du transcript. Les timestamps du notepad sont enregistrés avec la même horloge session. `set_notes` remplace le Markdown libre et conserve les entrées horodatées structurées déjà présentes ; l'édition de ces entrées est faite par l'app. Une suppression explicite d'entrée crée une nouvelle version. Le renderer présente entrées puis Markdown libre sans parser des timestamps depuis du texte arbitraire.
 
-Un summary référence exactement le transcript et les notes utilisés. Changement de ces entrées : statut `stale`, pas de nouvelle requête LLM sans politique opt-in. Un résultat tardif ne devient pas courant si ses entrées ont changé.
+Un summary référence exactement le transcript et les notes utilisés. Changement de ces entrées : statut `stale`, pas de nouvelle requête LLM sans politique opt-in. Dans l'implémentation actuelle, les corrections conservent le summary ; `Recording.summaryIsStale` compare la version du transcript enregistrée dans sa provenance à la version courante. Ses références à des segments peuvent alors viser des passages qui n'existent plus. La synthèse automatique ne se relance plus une fois qu'un summary existe. Un résultat tardif ne devient pas courant si ses entrées ont changé.
 
 ## 6. Rétention audio et effacement
 

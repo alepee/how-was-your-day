@@ -18,7 +18,7 @@ Dual-track transcription now applies an adaptive acoustic echo canceller before 
 
 Assembly fills timeline gaps with silence. Filter state survives CAF boundaries. The residual suppressor adds 256 samples of latency; processing discards the first frame and flushes the tail to compensate it. Processed chunks have the same start and sample count as the originals. Diarization uses the complete processed microphone file. Temporary audio is removed when the job exits normally. Abrupt process termination can leave the job directory for later cleanup, like other pipeline work files.
 
-This is an amendment to the diagnostic-only correlation step in `architecture.md`. A correlation gate alone cannot separate local speech from simultaneous playback. An adaptive filter estimates the acoustic path and subtracts the reference contribution. This does not guarantee perfect separation, particularly with nonlinear loudspeakers, clipped inputs, changing devices or delays beyond the filter tail. Existing transcripts are not rewritten on upgrade. Reprocessing creates a new transcript version and invalidates the previous summary.
+This is an amendment to the diagnostic-only correlation step in `architecture.md`. A correlation gate alone cannot separate local speech from simultaneous playback. An adaptive filter estimates the acoustic path and subtracts the reference contribution. This does not guarantee perfect separation, particularly with nonlinear loudspeakers, clipped inputs, changing devices or delays beyond the filter tail. Existing transcripts are not rewritten on upgrade. Reprocessing creates a new transcript version; the previous summary is kept and marked stale.
 
 ## Third-party source
 

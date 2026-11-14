@@ -24,7 +24,7 @@ final class TranscriptEditingTests: XCTestCase, @unchecked Sendable {
         XCTAssertEqual(recording.segments[2], other)
         XCTAssertEqual(recording.notes, "Notes")
         XCTAssertEqual(recording.transcriptVersion, 2)
-        XCTAssertNil(recording.summary)
+        XCTAssertEqual(recording.summary, "Synthèse")
     }
     func testInvalidOrIncompleteTimingCannotInventBoundary() throws {
         var segment = passage()

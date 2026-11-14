@@ -34,6 +34,10 @@ extension Data: SettingValue {
     public init?(storedValue: Any) { guard let value = storedValue as? Data else { return nil }; self = value }
     public var storedValue: Any? { self }
 }
+extension Date: SettingValue {
+    public init?(storedValue: Any) { guard let value = storedValue as? Date else { return nil }; self = value }
+    public var storedValue: Any? { self }
+}
 extension Array: SettingValue where Element == String {
     public init?(storedValue: Any) { guard let value = storedValue as? [String] else { return nil }; self = value }
     public var storedValue: Any? { self }
@@ -109,6 +113,10 @@ extension SettingKey where Value == String? {
     /// Model chosen for a hosted provider, one per provider. Nil until chosen.
     public static func summaryHostedModel(_ service: SummaryService) -> Self { .init("summary.model." + service.rawValue, default: nil) }
 }
+extension SettingKey where Value == Date? {
+    /// When the automatic summary was turned on: sessions recorded before are never summarized on their own.
+    public static var summaryAutomaticSince: Self { .init("summary.automatic.since", default: nil) }
+}
 extension SettingKey where Value == SessionKind {
     public static var newSessionKind: Self { .init("newSession.kind", default: .adHoc) }
 }
@@ -120,6 +128,8 @@ extension SettingKey where Value == Bool {
     public static var diarizationEnabled: Self { .init("diarizationEnabled", default: false) }
     public static var summaryEnabled: Self { .init("summary.enabled", default: false) }
     public static var summaryReasoningDisabled: Self { .init("summary.reasoningDisabled", default: false) }
+    /// Starts the summary on its own once a session is ready.
+    public static var summaryAutomatic: Self { .init("summary.automatic", default: false) }
     public static var calendarEnabled: Self { .init("calendar.enabled", default: false) }
     public static var calendarReminders: Self { .init("calendar.reminders", default: false) }
 }
