@@ -24,24 +24,54 @@ import HWYDCore
         guard fallback.appearancePreference == .system else { throw CaptureFailure(message: "Invalid preference must follow system") }
         print("Appearance persistence, system fallback and demo/test isolation: PASS")
     }
+    /// Stands in for a provider: records what it was given, then fails or waits to be cancelled.
+    private struct FixtureSummarizer: Summarizer {
+        struct Failure: LocalizedError { var errorDescription: String? { "fixture provider" } } // l10n:ignore
+        let run: @Sendable (Recording) async throws -> Void
+        var availability: SummaryAvailability { .ready }
+        func summarize(_ recording: Recording, progress: @escaping @Sendable (SummaryProgress) async -> Void) async throws -> SummaryProvenance {
+            try await run(recording); throw Failure()
+        }
+    }
+    private actor Probe { var given: String?; var stored: String?; func record(_ given: String, _ stored: String?) { self.given = given; self.stored = stored } }
+    private static func waitForSummary(_ model: AppModel) async throws {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+        while model.summaryID != nil, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+    }
     private static func checkSummaryLifecycle(directory: URL) async throws {
         let model = AppModel(directory: directory, appliesAppearance: false)
         await model.load()
         let recording = Recording(title: "Summary lifecycle fixture", notes: "Before")
         model.recordings = [recording]; model.selectedID = recording.id
-        model.update(recording.id) { $0.notes = "Pending edit" }
+        // The summarizer owns its conditions: off, then a non-loopback server, are refused before any run.
+        model.summaryEnabled = false
+        guard model.summaryAvailability == .unavailable(.disabled) else { throw CaptureFailure(message: "Disabled summary must be unavailable") }
         model.summaryEnabled = true
-        // An invalid remote endpoint guarantees this test performs no inference or network call.
-        model.summaryEndpoint = "https://example.com/v1"; model.summaryModel = "fixture"
+        model.selectSummaryService(.local); model.summaryEndpoint = "https://example.com/v1"; model.summaryModel = "fixture"
+        guard model.summaryAvailability == .unavailable(.localServerNotConfigured) else {
+            throw CaptureFailure(message: "A non-loopback summary server must be unavailable")
+        }
         model.generateSummary()
-        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
-        while model.summaryID != nil, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
-        guard model.summaryID == nil, !model.hasUnsavedChanges, model.errorMessage != nil,
+        guard model.summaryID == nil, model.errorMessage != nil else { throw CaptureFailure(message: "Unavailable summary did not explain why") }
+        model.errorMessage = nil
+        // Pending edits reach the store before the provider runs.
+        let probe = Probe()
+        let store = model.store
+        model.summarizerOverride = FixtureSummarizer { given in
+            let stored = try await store?.recording(given.id).notes
+            await probe.record(given.notes, stored)
+        }
+        model.update(recording.id) { $0.notes = "Pending edit" }
+        model.generateSummary()
+        try await waitForSummary(model)
+        let given = await probe.given, stored = await probe.stored
+        guard model.summaryID == nil, !model.hasUnsavedChanges, model.errorMessage != nil, given == "Pending edit", stored == "Pending edit",
               let persisted = try await model.store?.recording(recording.id), persisted.notes == "Pending edit",
               persisted.revision == model.recordings.first?.revision else {
-            throw CaptureFailure(message: "Summary did not flush pending edits before provider setup")
+            throw CaptureFailure(message: "Summary did not flush pending edits before the provider ran")
         }
         model.errorMessage = nil; model.notice = nil
+        model.summarizerOverride = FixtureSummarizer { _ in try await Task.sleep(for: .seconds(30)) }
         model.generateSummary()
         model.enterDemo()
         guard !model.isDemoMode, model.recordings.first?.id == recording.id else {
@@ -49,12 +79,11 @@ import HWYDCore
             throw CaptureFailure(message: "Demo replaced recordings during summary generation")
         }
         model.cancelSummary()
-        let cancelDeadline = ContinuousClock.now.advanced(by: .seconds(3))
-        while model.summaryID != nil, ContinuousClock.now < cancelDeadline { try await Task.sleep(for: .milliseconds(10)) }
+        try await waitForSummary(model)
         guard model.summaryID == nil, model.errorMessage == nil, model.notice == String(localized: "Synthèse annulée.") else {
             throw CaptureFailure(message: "Cancelled summary surfaced as a provider error")
         }
-        print("Summary pending-edit flush, demo exclusion and cancellation: PASS")
+        print("Summary availability, pending-edit flush, demo exclusion and cancellation: PASS")
     }
     /// Synthetic placeholder files stand in for audio and derived files; no microphone.
     private static func checkSessionDeletion(directory: URL) async throws {
