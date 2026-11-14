@@ -96,6 +96,8 @@ public enum WorkRefusal: LocalizedError, Equatable, Sendable {
     case sessionNotFound
     /// The local store could not be opened.
     case storeUnavailable
+    /// Work runs or waits on the session, so it cannot be deleted.
+    case sessionInUse
 
     public var errorDescription: String? {
         switch self {
@@ -106,6 +108,7 @@ public enum WorkRefusal: LocalizedError, Equatable, Sendable {
         case .noAudio: String(localized: "Aucun fichier audio disponible pour cette session.", bundle: .hwyd)
         case .sessionNotFound: String(localized: "Session introuvable sur ce Mac.", bundle: .hwyd)
         case .storeUnavailable: String(localized: "Le store local n’est pas disponible.", bundle: .hwyd)
+        case .sessionInUse: String(localized: "Cette session est en cours de traitement. Annulez le traitement ou attendez sa fin pour la supprimer.", bundle: .hwyd)
         }
     }
 }

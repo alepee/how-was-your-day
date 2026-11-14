@@ -860,10 +860,7 @@ final class AppModel: ObservableObject {
     }
     /// Work running or waiting on the session blocks its deletion: a transcription, a summary or a voice job.
     private func delete(_ item: Recording) async {
-        guard await coordinator.snapshot.jobs(for: item.id).isEmpty else {
-            notifier.notify(.info(String(localized: "Cette session est en cours de traitement. Annulez le traitement ou attendez sa fin pour la supprimer.")))
-            return
-        }
+        guard await coordinator.snapshot.jobs(for: item.id).isEmpty else { notifier.notify(.refusal(.sessionInUse)); return }
         do {
             let removal = try await sessionLibrary.remove(item.id)
             if selectedID == item.id { selectedID = nil }

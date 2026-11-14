@@ -415,7 +415,7 @@ import HWYDCore
         await gate.release()
         try await idle()
         guard model.recordings.contains(where: { $0.id == recording.id }),
-              notices.messages.contains(String(localized: "Cette session est en cours de traitement. Annulez le traitement ou attendez sa fin pour la supprimer.")) else {
+              notices.messages.contains(WorkRefusal.sessionInUse.localizedDescription) else {
             throw CaptureFailure(message: "A session was deleted while a voice job ran on it")
         }
         guard await service.requests.count == 2, model.recordings.first(where: { $0.id == queued.id })?.segments.isEmpty == false, !model.work.isBusy, !model.isBusy else {
