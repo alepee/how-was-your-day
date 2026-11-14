@@ -216,7 +216,7 @@ Two stores hold settings, each behind typed accessors; no caller spells a key.
 
 `HelperLocator` (HWYDCore) is the only place that knows where `hwyd-pipeline` and `hwyd-mcp` live. The app builds it once from its bundle (`HelperLocator.app`) and hands it to the pipeline adapters (below) and the summarizer environment.
 
-Known gap, for later steps: the keychain is reached through static enums.
+Summary API keys go through the `SecretVault` the composition root gives (§ Audio paths and secrets).
 
 ### Pipeline ports
 
@@ -228,7 +228,7 @@ The app reaches `hwyd-pipeline` through three ports declared in HWYDCore, each w
 | `VoiceMemory` (`VoiceMemory.swift`) | `enroll`, `identify`, `forget(person)`, `forget(person, source)`, `sources(person)` | `HelperVoiceMemory` | `InMemoryVoiceMemory` |
 | `SpeechModelCatalog` (`SpeechModelCatalog.swift`) | `locales()`, `install(locale)`, `diarizerReady()`, `installDiarizer()` | `HelperSpeechModelCatalog` | `InMemorySpeechModelCatalog` |
 
-The adapters (`Sources/HWYDApp/HelperPipeline.swift`) are the only code that knows the helper's commands, the job folders under `<store>/jobs`, `request.json` and `result.json`; `PipelineRunner` starts the process for them and nothing else calls it. Cancelling the calling task stops the helper. The transcription job folder is removed once its result is read and kept after a failure, with its log. No voice vector crosses `VoiceMemory`: the helper alone reads the keychain, and its results carry matches and contributions only.
+The adapters (`Sources/HWYDApp/HelperPipeline.swift`) are the only code that knows the helper's commands, the job folders under `<store>/jobs`, `request.json` and `result.json`; `PipelineRunner` starts the process for them and nothing else calls it. Cancelling the calling task stops the helper. The transcription job folder is removed once its result is read and kept after a failure, with its log. No voice vector crosses `VoiceMemory`: the helper alone reads voice prints (`VoicePrints` over its `SecretVault`), and its results carry matches and contributions only.
 
 - **Requests.** `TranscriptionRequest(session:language:diarize:locales:)` builds a session's request: the language chosen for this run, else the session's, else French for sessions recorded before the choice existed; with automatic detection, the candidates, fallback and installable languages come from the catalog's `locales()`, as the helper resolves them.
 - **Readiness.** `diarizerReady()` reads the models on disk (`hwyd-pipeline diarizer-status <store>` checks every file the offline diarizer loads). The app no longer infers it from a preference or the transcript history.
@@ -249,7 +249,7 @@ Known gap, for later steps: `PipelineRunner` polls the helper process every 200 
 
 - **Queue and restarts.** The waiting order lives in memory on purpose. Quitting cancels running and waiting work (the termination handler asks for it): a running transcription stops and is marked failed, with its retry (after a crash, the next launch marks it failed). A waiting one simply never started: its session keeps its audio and its « Transcrire » button. Persisting the queue would mean resuming heavy work unasked at launch, a new behavior, so it is not done.
 
-Refusals are typed: `WorkRefusal` also names `examples`, `noAudio`, `sessionNotFound` and `storeUnavailable`, and the presentation maps any refusal to a notice (`UserNotice.refusal`). A service that refuses every request in the current mode says so through its port's `refusal` (§ Composition root); `AppModel` asks it before queuing the job.
+Refusals are typed: `WorkRefusal` also names `examples`, `noAudio`, `sessionNotFound`, `storeUnavailable` and `sessionInUse` (a deletion while work runs or waits on the session), and the presentation maps any refusal to a notice (`UserNotice.refusal`). A service that refuses every request in the current mode says so through its port's `refusal` (§ Composition root); `AppModel` asks it before queuing the job.
 
 ### Sessions and persistence
 
@@ -307,22 +307,70 @@ Flows tell the user what happened through the `UserNotifier` port (`Packages/HWY
 
 `AppRoot` (`Sources/HWYDApp/AppEnvironment.swift`) is the only code that reads the command line: `LaunchMode(arguments:)` (HWYDCore, tested) parses it once into `app(examples:)` (`--demo`), `snapshot`, `selfTest`, `uiTest`, `asrTest`, or `preview` (a synthetic flag without its folder). `App.swift` switches on it; links, the shortcut, the calendar and the updater follow it (only `app(examples: false)` takes the shortcut, follows the calendar and checks for updates; synthetic modes act on no link).
 
-`AppEnvironment` is every adapter one `AppModel` uses: data directory, preferences, helper locator, toasts and notifier, `WorkCoordinator`, `AgentDiscovery`, keychain and calendar use (`usesSystem`), appearance, capture clock, and the user's `Workspace`. A `Workspace` is one set of sessions with what serves it: `SessionLibrary`, `SessionStore` (people, integration settings, audio), `CaptureSource`, the three pipeline ports, a summarizer factory, the settings preference changes go to, and `isExamples` for presentation (banner, « Simulation »).
+`AppEnvironment` is every adapter one `AppModel` uses: data directory, preferences, helper locator, toasts and notifier, `WorkCoordinator`, `AgentDiscovery`, the `SecretVault` for summary keys, calendar and network use (`usesSystem`), appearance, capture clock, and the user's `Workspace`. A `Workspace` is one set of sessions with what serves it: `SessionLibrary`, `SessionStore` (people, integration settings), its `AudioLocator` (playback, waveforms), `CaptureSource`, the three pipeline ports, a summarizer factory, the settings preference changes go to, and `isExamples` for presentation (banner, « Simulation »).
 
-| Environment | Preferences | Sessions | Capture | Pipeline, voices, summary | Keychain, calendar, agents |
+| Environment | Preferences | Sessions | Capture | Pipeline, voices, summary | Secrets; calendar, agents |
 |---|---|---|---|---|---|
-| `installed(examples:)` | `UserDefaultsSettings` | GRDB store in Application Support | `CoreAudioCapture` (refused when the store cannot open) | helper adapters, keys from the keychain | yes |
-| examples (`environment.examples()`) | `VolatileSettings` over the user's | `DemoContent`, volatile | `SimulatedCapture` | `ExamplePipeline`, `RefusingSummarizer` (refuse with `WorkRefusal.examples`; the summary tab still shows the configured summarizer) | no |
-| `preview(...)` (snapshots, synthetic modes' window) | in memory, seeded by the snapshot | examples, or given sessions shown as the user's | simulated (a snapshot holds its own) | `ExamplePipeline`, no key | no |
-| `synthetic(directory:...)` (`--ui-test`, `--asr-test`) | in memory, or one the check gives | GRDB store in the check's folder | refused | helper on that folder, or doubles the check gives; no key | no |
+| `installed(examples:)` | `UserDefaultsSettings` | GRDB store in Application Support | `CoreAudioCapture` (refused when the store cannot open) | helper adapters | `KeychainVault`, helper on the keychain; yes |
+| examples (`environment.examples()`) | `VolatileSettings` over the user's | `DemoContent`, volatile | `SimulatedCapture` | `ExamplePipeline`, `RefusingSummarizer` (refuse with `WorkRefusal.examples`; the summary tab still shows the configured summarizer) | the user's vault, only to show whether a key is stored; no |
+| `preview(...)` (snapshots, synthetic modes' window) | in memory, seeded by the snapshot | examples, or given sessions shown as the user's | simulated (a snapshot holds its own) | `ExamplePipeline` | `InMemorySecretVault`; no |
+| `synthetic(directory:...)` (`--ui-test`, `--asr-test`) | in memory, or one the check gives | GRDB store in the check's folder | refused | helper on that folder, or doubles the check gives | `InMemorySecretVault`, helper on memory (`HelperSecrets.memory`); no |
 
-Demo stays a mode the user enters and leaves: `enterDemo()` shows `environment.examples()`, `leaveDemo()` the user's workspace again (a simulated capture is discarded, the store loads, the calendar resumes). `AppModel` holds no mode flag: refusals come from the adapters (`refusal` on `TranscriptionService`, `VoiceMemory`, `SpeechModelCatalog`, `Summarizer`), persistence from the settings store, the microphone from the capture source. `isDemoMode` remains as a read-only presentation property, and switching workspaces sets `SummarySettings.isDemo` (no save, keychain or network while the examples show). The recording shortcut is system-wide and saved to the user's preferences even while the examples show, as before.
+Demo stays a mode the user enters and leaves: `enterDemo()` shows `environment.examples()`, `leaveDemo()` the user's workspace again (a simulated capture is discarded, the store loads, the calendar resumes). `AppModel` holds no mode flag: refusals come from the adapters (`refusal` on `TranscriptionService`, `VoiceMemory`, `SpeechModelCatalog`, `Summarizer`), persistence from the settings store, the microphone from the capture source. `isDemoMode` remains as a read-only presentation property, and switching workspaces sets `SummarySettings.isDemo` (no save, key change or network while the examples show). The recording shortcut is system-wide and saved to the user's preferences even while the examples show, as before.
 
 The root also decides which library sweeps the files of deleted sessions at load (`sweepsFiles`): the installed app's own library, and a synthetic check's library on its own folder, never on the user's data folder. Volatile libraries (examples, previews, snapshots) hold no files.
 
 Tests and snapshots inject doubles through the environment instead of setting model state: a summarizer factory, a `RecordingNotifier`, a coordinator they hold jobs on, a capture and a clock. The former seams are gone: `summarizerOverride`, the port-double initializer parameters, writable `work`, `SessionLibrary.show(_:)`, writable capture state, `ToastCenter.dismissAll()`.
 
-Known gaps, for later steps: `CoreAudioCapture` takes a directory; `SessionPlayback`, `WaveformReader` and `TranscriptionPipeline` take a concrete `SessionStore`; `VoiceKeychain` and `SummaryKeychain` are static enums (step 8: `AudioLocator`, `SecretVault`).
+Known gap: `SummarySettings.isDemo` is still a flag the model sets on a workspace switch, not a capability of the workspace.
+
+### Audio paths and secrets
+
+Two more ports keep adapters from depending on the store, a data directory or the keychain.
+
+| Port | Operations | Adapter | Double |
+|---|---|---|---|
+| `AudioLocator` (`AudioLocator.swift`) | `url(for: chunk)`, `sessionFolder(for: session)`, `waveformCache`, `captureLockFile` | `DataDirectoryAudio` (`SessionStore.audio`) | `TemporaryAudioLocator` |
+| `SecretVault` (`SecretVault.swift`) | `read`, `contains`, `write`, `remove` of a `SecretItem` (service, account) | `KeychainVault` | `InMemorySecretVault` |
+
+- **Audio.** `CoreAudioCapture(audio:)`, `SessionPlayback`, `WaveformReader`, `TranscriptionPipeline.run(_:audio:recognizer:)` and the helper's assembly, echo and diarization stages take an `AudioLocator`, not a store or a folder. The layout is unchanged (`audio/<session>/<chunk>.caf`, `cache/waveforms`, `capture.lock`), so the store, `hwyd-pipeline`, `hwyd-mcp` and recovery keep reading the same files. The path rule moved with it: a chunk whose relative path leaves the data directory (`..`, an absolute path, a symbolic link to an existing file outside) is refused with `StoreError.invalidPath`. The examples and previews have no locator: they hold no audio.
+- **Secrets.** `SummaryKeys` (API keys, service `dev.lepee.hwyd.summary-api-key`, one account per provider) and `VoicePrints` (voice exemplars, service `dev.lepee.hwyd.voice.we-speaker-v1`, account `<person>.<channel>`, former `near` and `room` folded into `mic`) replace the static `SummaryKeychain` and `VoiceKeychain`. `KeychainVault` writes generic passwords with the attributes every version used (not synchronized, `WhenUnlockedThisDeviceOnly`), so existing keys and prints still resolve; a vault failure keeps each caller's message.
+- **Who gets the keychain.** `AppEnvironment.installed` gives `KeychainVault` to `SummarySettings` and the summarizer factory; every other environment gives an `InMemorySecretVault`. `hwyd-pipeline` picks its vault from `HWYD_SECRET_VAULT`, which `PipelineRunner` sets from `HelperLocator.secrets`: `keychain` for the installed app (and the default for a helper started by hand, as `scripts/test-voice-memory.sh` does on purpose), `memory` for the synthetic checks' helper. `--ui-test` checks every synthetic environment's vault. Voice prints never leave the vault: no export, SQLite row, job file or log carries one.
+
+### Ports after the refactor
+
+| Concern | Port (HWYDCore) | Production adapter | Double | Step |
+|---|---|---|---|---|
+| Summary | `Summarizer`, `LLMProvider` | `LocalSummarizer`, `HostedSummarizer`, `AgentSummarizer`; `LocalLLMProvider`, `RemoteLLMProvider` | fixture summarizers, `UnavailableSummarizer`, `RefusingSummarizer` | 0 |
+| Preferences | `SettingsStore` | `UserDefaultsSettings` | `InMemorySettings`, `VolatileSettings` | 1 |
+| Agent detection | `AgentDiscovery` | `LoginShellAgentDiscovery` (app) | `FixedAgentDiscovery` | 1 |
+| Notices | `UserNotifier` | `ToastCenter` (app) | `RecordingNotifier` | 2 |
+| Pipeline | `TranscriptionService`, `VoiceMemory`, `SpeechModelCatalog` | `Helper…` adapters (app) | `InMemory…`, `ExamplePipeline` | 3 |
+| Voice people | `VoicePeople` | `SessionStore` | `InMemoryVoicePeople` | 3 |
+| Heavy work | none (service: `WorkCoordinator`) | | | 4 |
+| Sessions | `RecordingRepository`, `ExportPublisher` | `SessionStore`, `FolderExportPublisher` | `InMemoryRecordingRepository`, `InMemoryExportPublisher` | 5 |
+| Capture | `AudioCapture` | `CoreAudioCapture` (app) | `SimulatedCapture` | 6 |
+| Composition | none (`AppRoot`, `AppEnvironment`, `Workspace`, `LaunchMode`) | | | 7 |
+| Audio paths | `AudioLocator` | `DataDirectoryAudio` | `TemporaryAudioLocator` | 8 |
+| Secrets | `SecretVault` | `KeychainVault` | `InMemorySecretVault` | 8 |
+| Helper internals | `SpeechRecognizing`, `OfflineDiarizing` | `AppleSpeechRecognizer`, `FluidDiarizer` (helper) | test fakes | before |
+
+### Later: splitting HWYDCore
+
+HWYDCore stays one target. Its imports show what a later split would separate (state after step 8):
+
+| Framework | Files |
+|---|---|
+| GRDB | `SessionStore.swift`, `IntegrationStore.swift` |
+| Security | `SecretVault.swift` (only `KeychainVault`) |
+| Speech, AVFoundation | `Transcription.swift` (`AppleSpeechRecognizer` next to `TranscriptionPipeline`) |
+| AVFoundation | `AudioRecovery.swift` |
+| `Process` | `AgentSummary.swift` (`ACPSummaryAgent` starts the agent) |
+| URLSession | `RemoteLLMProvider.swift`, local provider in `Summary.swift` |
+
+- **`HWYDDomain`** (Foundation, CryptoKit, NaturalLanguage, Combine/Observation): the model (`Recording`, transcript editing, voice review, `RecordingMerge`), the rules (`EnrollVoice`, `VoiceResolver`, `SpeakerAlignment`, `SpeechLanguage`, echo guard, export rendering), the application services (`SessionLibrary`, `WorkCoordinator`, `CaptureSession`, `VoiceRequests`, `SummarySettings`, `SummaryPipeline`, `TranscriptionPipeline`), every port of the table above with its in-memory double, `LaunchMode`, `HelperLocator`, `SummaryKeys` and `VoicePrints` over the vault.
+- **`HWYDAdapters`**: `SessionStore` and `IntegrationStore` (GRDB), `KeychainVault` (Security), `DataDirectoryAudio` and `AudioRecovery` (files, AVFoundation), `AppleSpeechRecognizer` (Speech), `ACPSummaryAgent` (`Process`), the HTTP providers, `FolderExportPublisher`.
+- **Evidence for the split.** `hwyd-mcp` only reads and writes sessions and drains the export outbox, yet it links Speech, AVFAudio, NaturalLanguage and Security (`otool -L`) and embeds `AppleSpeechRecognizer` and `ACPSummaryAgent`, because it imports the whole of HWYDCore. With the split, it would depend on `HWYDDomain` and the GRDB store only.
 
 ## 12. Traitements LLM (synthèse, action items)
 
@@ -347,7 +395,7 @@ The app asks for a summary through one interface, `Summarizer` (`Packages/HWYDCo
 | `AgentSummarizer` | an agent command | `ACPSummaryAgent` with the bundled `hwyd-mcp` |
 | `UnavailableSummarizer` | never (null object, summary turned off) | nothing |
 
-Resumable checkpoints (`cache/summaries/<id>`) and cache reuse stay inside the pipeline implementations. `SummarizerFactory.make(configuration, environment:)` is the only place that maps the settings (`SummaryConfiguration`, one `Equatable` value) to an implementation; `SummarizerEnvironment` carries the data directory, the `hwyd-mcp` path and key access. The composition root builds the factory for each workspace: only the installed app's reads keys from the keychain, and the examples wrap it in a `RefusingSummarizer`. Callers (the Generate button today) keep only app policy: the summarizer's `refusal`, flush before the run, stale check, persistence and toasts; one job at a time is the `WorkCoordinator`'s (§ 11). They read `availability`, combined with the coordinator's `busy`, to disable the button and explain why, and never check the summarizer's conditions themselves.
+Resumable checkpoints (`cache/summaries/<id>`) and cache reuse stay inside the pipeline implementations. `SummarizerFactory.make(configuration, environment:)` is the only place that maps the settings (`SummaryConfiguration`, one `Equatable` value) to an implementation; `SummarizerEnvironment` carries the data directory, the `hwyd-mcp` path and key access. The composition root builds the factory for each workspace over the environment's `SecretVault` (`SummaryKeys`): only the installed app's is the keychain, and the examples wrap it in a `RefusingSummarizer`. Callers (the Generate button today) keep only app policy: the summarizer's `refusal`, flush before the run, stale check, persistence and toasts; one job at a time is the `WorkCoordinator`'s (§ 11). They read `availability`, combined with the coordinator's `busy`, to disable the button and explain why, and never check the summarizer's conditions themselves.
 
 Each implementation also states, through `disclosure` (`SummaryDisclosure`), where its draft is written and what leaves the Mac: the line under the summary controls and the explanation shown before a first summary. The local server says the draft is local; a hosted provider names itself, since the transcript is sent to it; an agent says the draft comes from the user's agent; a summary turned off claims no location and says how to turn it on. The summary tab only displays these texts.
 
