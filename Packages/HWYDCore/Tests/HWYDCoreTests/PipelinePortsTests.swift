@@ -173,7 +173,7 @@ final class SpeakerConfirmationTests: XCTestCase {
         XCTAssertEqual(renamed.speakers[0].label, "Léa")
         XCTAssertEqual(renamed.speakers[0].personID, lea.id)
         XCTAssertTrue(renamed.speakers[0].confirmed)
-        XCTAssertNil(renamed.summary)
+        XCTAssertEqual(renamed.summary, "old")
         // A correction is not consent: the person's enrollment state is untouched.
         let after = try await store.people().first { $0.id == lea.id }
         XCTAssertNil(after?.enrollmentRequestedAt)

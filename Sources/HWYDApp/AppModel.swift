@@ -75,6 +75,12 @@ final class AppModel: ObservableObject {
     /// Provider, model, key and agent settings of the summary. Its changes are republished by this model.
     let summarySettings: SummarySettings
     private var summarySettingsChanges: AnyCancellable?
+    /// Requests a session's summary once it is ready, when the user turned it on. Only for the
+    /// stored library: previews, demo mode and snapshots have none.
+    private(set) var automaticSummary: AutomaticSummaryTrigger?
+    private var automaticSummarySetting: AnyCancellable?
+    /// Sessions whose automatic summary waits or runs.
+    private var automaticSummaryJobs: Set<UUID> = []
     @Published var summaryProgress: SummaryProgress?
     @Published var diarizationEnabled = false {
         didSet { workspace.settings.set(diarizationEnabled, for: .diarizationEnabled) }
@@ -228,6 +234,23 @@ final class AppModel: ObservableObject {
             MainActor.assumeIsolated { self?.objectWillChange.send() }
         }
         let coordinator = coordinator
+        if environment.user.store != nil {
+            // Only the user's own sessions, never the examples. The delay keeps the « Annuler »
+            // offered after a voice correction usable.
+            let library = environment.user.library
+            let trigger = AutomaticSummaryTrigger(delay: environment.automaticSummaryDelay, enabledSince: summarySettings.automaticSince,
+                                                  sessions: { [weak library] in library?.recordings ?? [] },
+                                                  request: { [weak self] id in self?.enqueue { [weak self] in await self?.requestSummary(id, automatic: true) } })
+            automaticSummary = trigger
+            automaticSummarySetting = summarySettings.$automaticSince.sink { [weak self] since in
+                MainActor.assumeIsolated {
+                    // Only on a change: the publisher also sends the current value when subscribed.
+                    let turnedOff = since == nil && trigger.enabledSince != nil
+                    trigger.enabledSince = since
+                    if turnedOff { self?.dropQueuedAutomaticSummaries() }
+                }
+            }
+        }
         Task { [weak self] in
             for await snapshot in await coordinator.snapshots() { self?.show(snapshot) }
         }
@@ -248,6 +271,10 @@ final class AppModel: ObservableObject {
     }
     /// Tells the user what the library could not do on its own.
     private func report(_ change: LibraryChange) {
+        switch change {
+        case .saved, .external, .rebased: automaticSummary?.sessionsChanged()
+        default: break
+        }
         switch change {
         case .saveFailed(let reason):
             notifier.notify(.error(String(localized: "Les dernières modifications ne sont pas enregistrées : \(reason)"),
@@ -278,6 +305,7 @@ final class AppModel: ObservableObject {
                 update(item.id) { $0.transcriptState = .failed }
             }
             if count > 0 { notifier.notify(.info(String(localized: "\(count) session(s) interrompue(s) retrouvée(s). Vos notes sont conservées."))) }
+            automaticSummary?.adoptCurrentSessions()
         } catch { notifier.notify(.error(error.localizedDescription)) }
     }
     var selected: Recording? { recordings.first { $0.id == selectedID } }
@@ -514,10 +542,12 @@ final class AppModel: ObservableObject {
     }
     /// Hands a job to the coordinator and tells the user why it was refused.
     @discardableResult
-    private func request(_ job: WorkJob, _ run: @escaping @MainActor @Sendable () async -> Void) async -> WorkDecision {
-        let decision = await coordinator.request(job) { await run() }
+    /// `automatic` requests wait their turn and are refused silently: nobody asked for them, and
+    /// the controls they would have used already say why they cannot run.
+    private func request(_ job: WorkJob, automatic: Bool = false, _ run: @escaping @MainActor @Sendable () async -> Void) async -> WorkDecision {
+        let decision = await coordinator.request(job, waits: automatic ? true : nil) { await run() }
         show(await coordinator.snapshot)
-        if case .refused(let refusal) = decision { notifier.notify(.refusal(refusal)) }
+        if case .refused(let refusal) = decision, !automatic { notifier.notify(.refusal(refusal)) }
         return decision
     }
     /// A request the session or the service cannot serve, said to the user.
@@ -753,6 +783,7 @@ final class AppModel: ObservableObject {
         }
     }
     func cancelSummary() { enqueue { [coordinator] in await coordinator.cancel { $0.kind == .summary } } }
+    func cancelSummary(of id: UUID) { enqueue { [coordinator] in await coordinator.cancel(.summary(session: id)) } }
     /// The summarizer for the current settings, from the workspace: it owns whether a summary can
     /// run and why not. Only the installed app's reads keys from the keychain.
     var summarizer: any Summarizer { workspace.summarizer(summarySettings.configuration) }
@@ -769,20 +800,43 @@ final class AppModel: ObservableObject {
         guard let id = selected?.id else { return }
         enqueue { [weak self] in await self?.requestSummary(id) }
     }
+    /// Asks for a summary. An `automatic` request comes from `AutomaticSummaryTrigger`: it waits
+    /// behind other work, and a refusal (summary turned off, provider not configured) says nothing,
+    /// since the summary tab already explains why under its Generate button.
     @discardableResult
-    func requestSummary(_ recordingID: UUID) async -> WorkDecision {
+    func requestSummary(_ recordingID: UUID, automatic: Bool = false) async -> WorkDecision {
         let summarizer = summarizer, library = sessionLibrary
-        if let refusal = summarizer.refusal { return refuse(refusal) }
-        guard store != nil, library.recording(recordingID) != nil else { return refuse(.sessionNotFound) }
+        // An automatic request is refused silently: nobody asked for it.
+        if let refusal = summarizer.refusal { return automatic ? .refused(refusal) : refuse(refusal) }
+        guard store != nil, library.recording(recordingID) != nil else { return automatic ? .refused(.sessionNotFound) : refuse(.sessionNotFound) }
         if case .unavailable(let reason) = summarizer.availability {
-            notifier.notify(.error(String(localized: "Synthèse : \(reason.localizedDescription)"), actions: [
-                .navigate(String(localized: "Réglages"), to: .summarySettings)]))
+            if !automatic {
+                notifier.notify(.error(String(localized: "Synthèse : \(reason.localizedDescription)"), actions: [
+                    .navigate(String(localized: "Réglages"), to: .summarySettings)]))
+            }
             return .refused(.unavailable(reason.localizedDescription))
         }
-        return await request(.summary(session: recordingID)) { [weak self] in await self?.runSummary(recordingID, with: summarizer, in: library) }
+        if automatic { automaticSummaryJobs.insert(recordingID) }
+        let decision = await request(.summary(session: recordingID), automatic: automatic) { [weak self] in
+            await self?.runSummary(recordingID, with: summarizer, in: library, automatic: automatic)
+        }
+        if automatic, case .refused = decision { automaticSummaryJobs.remove(recordingID) }
+        return decision
     }
-    private func runSummary(_ recordingID: UUID, with summarizer: any Summarizer, in library: SessionLibrary) async {
-        defer { summaryProgress = nil }
+    /// Turning the automatic summary off drops the automatic runs still waiting; one already
+    /// running goes on. Ordered after the requests in flight, so none is queued after the drop.
+    private func dropQueuedAutomaticSummaries() {
+        enqueue { [weak self] in
+            guard let self else { return }
+            let sessions = automaticSummaryJobs
+            await coordinator.dropQueued { job in
+                if case .summary(let id) = job { sessions.contains(id) } else { false }
+            }
+            show(await coordinator.snapshot)
+        }
+    }
+    private func runSummary(_ recordingID: UUID, with summarizer: any Summarizer, in library: SessionLibrary, automatic: Bool) async {
+        defer { summaryProgress = nil; if automatic { automaticSummaryJobs.remove(recordingID) } }
         do {
             // Capture the revision only after pending UI edits have reached the store.
             // Otherwise the normal autosave can make our own snapshot look stale.
@@ -790,6 +844,14 @@ final class AppModel: ObservableObject {
             try Task.checkCancellation()
             guard !library.hasUnsavedChanges else { return } // flush already exposes the save error.
             guard let item = library.recording(recordingID) else { throw SummaryFailure.stale }
+            if automatic {
+                // Queued behind other work: the setting may have been turned off, the session may
+                // have changed or got its summary meanwhile.
+                guard summarySettings.automatic, item.isReadyForSummary else { return }
+                notifier.notify(UserNotice(style: .info, message: String(localized: "Synthèse automatique lancée : \(item.title)"),
+                                           actions: [.perform(String(localized: "Annuler")) { [weak self] in self?.cancelSummary(of: recordingID) }],
+                                           optional: true))
+            }
             let result = try await summarizer.summarize(item) { value in
                 await MainActor.run { self.summaryProgress = value }
             }
@@ -808,6 +870,9 @@ final class AppModel: ObservableObject {
         } catch {
             if error is CancellationError || Task.isCancelled || (error as? URLError)?.code == .cancelled {
                 notifier.notify(.info(String(localized: "Synthèse annulée.")))
+            } else if automatic, case SummaryFailure.stale = error {
+                // The session changed while the run read it: requested again once ready and quiet.
+                automaticSummary?.runWasStale(recordingID)
             } else {
                 notifier.notify(.error(String(localized: "Synthèse : \(error.localizedDescription)"), actions: [
                     .perform(String(localized: "Réessayer")) { [weak self] in self?.retrySummary(recordingID) },

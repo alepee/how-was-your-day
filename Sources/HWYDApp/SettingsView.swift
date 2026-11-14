@@ -63,6 +63,7 @@ struct SettingsView: View {
             }.id(model.settingsCategory)
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .onChange(of: model.summarySettings.enabled) { _, _ in model.summarySettings.save() }
+            .onChange(of: model.summarySettings.automatic) { _, _ in model.summarySettings.save() }
             .onChange(of: model.summarySettings.endpoint) { _, _ in model.summarySettings.save() }
             .onChange(of: model.summarySettings.localModel) { _, _ in model.summarySettings.save() }
             .onChange(of: model.summarySettings.contextTokens) { _, _ in model.summarySettings.save() }
@@ -153,8 +154,10 @@ struct SettingsView: View {
                 ForEach(model.people) { person in VoicePersonRow(person: person) }
             }.disabled(model.isDemoMode)
         case .summary:
-            section(String(localized: "Synthèse"), symbol: "sparkles", help: String(localized: "Chaque synthèse est lancée manuellement depuis la session. Les étapes validées sont conservées pour reprendre après une interruption.")) {
+            section(String(localized: "Synthèse"), symbol: "sparkles", help: String(localized: "Une synthèse se lance depuis la session, ou seule quand la session est prête si la génération automatique est activée. Les étapes validées sont conservées pour reprendre après une interruption.")) {
                 toggleRow(String(localized: "Activer la synthèse"), isOn: summaryBindings.enabled)
+                toggleRow(String(localized: "Générer automatiquement"), help: String(localized: "La synthèse démarre seule 10 secondes après que la session est prête : transcript terminé et chaque voix nommée, confirmée ou ignorée. Une tentative par version du transcript, jusqu’à obtenir une synthèse ; ensuite, la régénérer reste votre choix. Les sessions terminées avant l’activation ne sont pas traitées. Avec un fournisseur en ligne, le transcript lui est envoyé sans autre action."), isOn: summaryBindings.automatic)
+                    .disabled(!model.summarySettings.enabled)
                 row(String(localized: "Fournisseur"), help: String(localized: "Le serveur local garde le transcript sur ce Mac. Un agent ACP (Claude Code, Codex…) rédige avec votre propre contexte. Avec Mistral, OpenAI, Anthropic ou Google Gemini, le transcript est envoyé au fournisseur à chaque synthèse, une fois sa clé API enregistrée.")) {
                     Picker("Fournisseur", selection: Binding(get: { model.summarySettings.service }, set: { model.summarySettings.select($0) })) {
                         ForEach(SummaryService.allCases) { service in Text(service.displayName).tag(service) }

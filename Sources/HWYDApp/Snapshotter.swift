@@ -120,6 +120,18 @@ import HWYDCore
         // The summary button explains why it is unavailable: a hosted provider without a key. Preview models never read the keychain.
         transcribed.summarySettings.enabled = true; transcribed.summarySettings.select(.anthropic); transcribed.activeTab = .summary
         render(RootView().environmentObject(transcribed), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-summary-unavailable.png"))
+        // Summary tab of the user's own session with a voice left unidentified: before a summary,
+        // then above an existing one; then a summary the transcript outgrew after a correction.
+        var reviewed = DemoContent.recordings()[0]; reviewed.isDemo = false; reviewed.state = .sealed
+        var unsummarized = reviewed; unsummarized.summary = nil; unsummarized.summaryProvenance = nil
+        var corrected = reviewed
+        if let unknown = corrected.speakers.first(where: { !$0.confirmed }) { try? corrected.renameSpeaker(unknown.id, to: "Léa") } // l10n:ignore
+        for (item, name) in [(unsummarized, "studio-summary-voices-pending"), (reviewed, "studio-summary-voices"), (corrected, "studio-summary-stale")] {
+            let summary = AppModel(environment: .preview(recordings: [item], preferences: preferences))
+            summary.summarySettings.enabled = true; summary.summarySettings.localModel = "fixture" // l10n:ignore
+            summary.selectedID = item.id; summary.activeTab = .summary
+            render(RootView().environmentObject(summary), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent(name + ".png"))
+        }
         let empty = AppModel(environment: .preview(recordings: [], preferences: preferences))
         render(RootView().environmentObject(empty), size: .init(width: 900, height: 700), to: directory.appendingPathComponent("studio-empty.png"))
         print("Snapshots: \(directory.path)")

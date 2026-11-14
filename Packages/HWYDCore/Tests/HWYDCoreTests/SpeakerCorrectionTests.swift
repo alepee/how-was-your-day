@@ -15,7 +15,7 @@ final class SpeakerCorrectionTests: XCTestCase, @unchecked Sendable {
         XCTAssertEqual(item.segments[1], other)
         XCTAssertEqual(item.speakers, [first, second])
         XCTAssertEqual(item.notes, "Notes conservées")
-        XCTAssertNil(item.summary)
+        XCTAssertEqual(item.summary, "Ancienne synthèse")
         try item.assignSpeaker(second.id, to: segment.id)
         XCTAssertEqual(item.transcriptVersion, 2)
         try item.assignSpeaker(nil, to: segment.id)

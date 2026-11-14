@@ -56,6 +56,19 @@ final class WorkCoordinatorTests: XCTestCase {
         await coordinator.idle()
     }
 
+    func testASummaryAskedToWaitIsQueuedBehindTheRunningJob() async {
+        let coordinator = WorkCoordinator(), gate = Gate()
+        await coordinator.request(.transcription(session: first)) { await gate.record("transcription"); await gate.wait() }
+        let decision = await coordinator.request(.summary(session: second), waits: true) { await gate.record("summary") }
+        XCTAssertEqual(decision, .queued(behind: WorkBusy(job: .transcription(session: first))))
+        let again = await coordinator.request(.summary(session: second)) {}
+        XCTAssertEqual(again, .refused(.alreadyRequested(.summary(session: second))))
+        await gate.release()
+        await coordinator.idle()
+        let log = await gate.log
+        XCTAssertEqual(log, ["transcription", "summary"])
+    }
+
     func testCancellingStopsTheRunningJobAndDropsWaitingOnes() async {
         let coordinator = WorkCoordinator(), gate = Gate()
         await coordinator.request(.transcription(session: first)) {
@@ -70,6 +83,20 @@ final class WorkCoordinatorTests: XCTestCase {
         await coordinator.idle()
         let log = await gate.log
         XCTAssertEqual(log, ["cancelled"])
+    }
+
+    func testDroppingQueuedJobsLeavesTheRunningOne() async {
+        let coordinator = WorkCoordinator(), gate = Gate()
+        await coordinator.request(.summary(session: first)) { await gate.wait(); await gate.record("first") }
+        await coordinator.request(.summary(session: second), waits: true) { await gate.record("second") }
+        await coordinator.dropQueued { $0.kind == .summary }
+        let snapshot = await coordinator.snapshot
+        XCTAssertEqual(snapshot.running, .summary(session: first))
+        XCTAssertTrue(snapshot.queued.isEmpty)
+        await gate.release()
+        await coordinator.idle()
+        let log = await gate.log
+        XCTAssertEqual(log, ["first"])
     }
 
     func testAJobQueuedByARunningJobRunsNext() async {

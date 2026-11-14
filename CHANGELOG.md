@@ -9,8 +9,13 @@ Entries describe what a user observes. The detailed release notes published on G
 
 ## [Unreleased]
 
+### Added
+- « Générer automatiquement » in Settings › Summary (off by default) starts a session's summary on its own, 10 seconds after the session is ready: transcript complete and every voice named, confirmed or ignored. A message announces each automatic summary and lets you cancel it. It makes one attempt per transcript version until the session has a summary, waits for other processing to end, and never processes sessions that ended before you turned it on. Turning it off drops the automatic summaries still waiting. When the summary cannot run (provider not configured), nothing is sent and the line under the Generate button says why. Known limits: a refused attempt is not retried until the transcript changes, and a session that was ready when you quit HWYD during its 10 seconds is not picked up at the next launch.
+- The summary tab says when some voices are not identified yet, since the summary then refers to them generically.
+
 ### Changed
 - The window no longer freezes for about a second when a meeting app takes the microphone during a capture: the capture now runs off the interface.
+- Correcting voices or the transcript, or transcribing again, no longer deletes the summary. The summary tab says the transcript has changed since the summary; Regenerate refreshes it. Exports and MCP keep the summary and mark it stale, and its source references may point to passages that no longer exist.
 - When a capture ends while other processing runs (a summary, a voice job, a model install), its transcription now waits its turn and starts on its own, instead of having to be started by hand. The transcript says it is waiting and can be cancelled.
 - A processing request that cannot start now (another one runs, the session has no audio, the examples are open) says why in a message instead of doing nothing.
 - A session being processed, voice recognition included, cannot be deleted until the processing ends or is cancelled; a message says so.

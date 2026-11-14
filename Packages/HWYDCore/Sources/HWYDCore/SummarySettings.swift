@@ -10,6 +10,13 @@ import Foundation
     @Published public var localModel: String
     @Published public var contextTokens: Int
     @Published public var reasoningDisabled: Bool
+    /// Starts the summary on its own once a session is ready. Off by default. Turning it on dates
+    /// it, so the sessions already recorded are never sent to a provider without a click.
+    @Published public var automatic: Bool {
+        didSet { if automatic != oldValue { automaticSince = automatic ? Date() : nil } }
+    }
+    /// When `automatic` was turned on; nil while it is off.
+    @Published public private(set) var automaticSince: Date?
     /// Choosing a hosted provider and storing its key is the opt-in: nothing is sent before both.
     @Published public private(set) var service: SummaryService
     /// Model of the hosted provider selected by `service`; empty for the others.
@@ -47,6 +54,9 @@ import Foundation
         let tokens = store.value(.summaryContextTokens)
         contextTokens = tokens == 0 ? SettingKey<Int>.summaryContextTokens.defaultValue : tokens
         reasoningDisabled = store.value(.summaryReasoningDisabled)
+        let automatic = store.value(.summaryAutomatic)
+        self.automatic = automatic
+        automaticSince = automatic ? store.value(.summaryAutomaticSince) ?? Date() : nil
         service = store.value(.summaryService)
         agentCommand = store.value(.summaryAgentCommand)
         agentDirectory = store.value(.summaryAgentDirectory)
@@ -67,6 +77,8 @@ import Foundation
         store.set(localModel, for: .summaryLocalModel)
         store.set(contextTokens, for: .summaryContextTokens)
         store.set(reasoningDisabled, for: .summaryReasoningDisabled)
+        store.set(automatic, for: .summaryAutomatic)
+        store.set(automaticSince, for: .summaryAutomaticSince)
         store.set(service, for: .summaryService)
         store.set(agentCommand, for: .summaryAgentCommand)
         store.set(agentDirectory, for: .summaryAgentDirectory)

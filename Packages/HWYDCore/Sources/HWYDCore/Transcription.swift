@@ -369,6 +369,6 @@ extension Recording {
     public mutating func applyTranscription(_ result: TranscriptionResult) throws {
         guard id == result.request.recordingID, audioChunks == result.request.chunks, state != .recording else { throw TranscriptionError.staleResult }
         transcription = .init(engine: result.engine, diarizationEngine: result.diarizationEngine, echoCancellationEngine: result.echoCancellationEngine, locale: result.request.locale, createdAt: result.createdAt, languageDetection: result.languageDetection)
-        segments = result.segments; speakers = result.speakers ?? []; absorbedSpeakers = nil; transcriptVersion += 1; transcriptState = .ready; summary = nil
+        segments = result.segments; speakers = result.speakers ?? []; absorbedSpeakers = nil; transcriptVersion += 1; transcriptState = .ready
     }
 }

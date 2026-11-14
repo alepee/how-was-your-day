@@ -103,10 +103,11 @@ struct DetailView: View {
     /// Generation controls above the summary, or the empty state when there is none yet.
     @ViewBuilder private var summaryControls: some View {
         if !recording.isDemo {
+            let queued = model.work.isQueued(.summary(session: recording.id))
             HStack {
-                Button(model.summaryID == recording.id ? "Génération…" : recording.summary == nil ? "Générer une synthèse" : "Régénérer") { model.generateSummary() }
+                Button(model.summaryID == recording.id ? "Génération…" : queued ? "En attente…" : recording.summary == nil ? "Générer une synthèse" : "Régénérer") { model.generateSummary() }
                     .buttonStyle(StudioButtonStyle(primary: true)).disabled(!model.summaryAvailability.isReady || recording.segments.isEmpty)
-                if model.summaryID == recording.id { Button("Annuler") { model.cancelSummary() }.buttonStyle(StudioButtonStyle()) }
+                if model.summaryID == recording.id || queued { Button("Annuler") { model.cancelSummary(of: recording.id) }.buttonStyle(StudioButtonStyle()) }
                 if recording.summary != nil {
                     Menu {
                         Button("PDF…") { model.exportSummary(.pdf) }
@@ -118,6 +119,7 @@ struct DetailView: View {
                 Spacer()
                 Button("Réglages du modèle") { model.settingsCategory = .summary; model.showSettings = true }.buttonStyle(StudioButtonStyle())
             }
+            if recording.summary == nil { unidentifiedVoicesNotice }
             if model.summaryID == recording.id, let progress = model.summaryProgress {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
@@ -129,10 +131,26 @@ struct DetailView: View {
             }
             Label(model.summaryDisclosure.label, systemImage: "info.circle").font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted)
                 .help(summaryHint)
+            if recording.summary != nil {
+                unidentifiedVoicesNotice
+                if recording.summaryIsStale {
+                    // Corrections keep the summary; regenerating it, with the button above, is the user's decision.
+                    Label("Le transcript a changé depuis cette synthèse.", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.copper)
+                }
+            }
         }
         if recording.summary == nil {
             EmptyPanel(symbol: "sparkles", title: model.summaryAvailability != .unavailable(.disabled) ? String(localized: "Pas encore de synthèse") : String(localized: "La synthèse est facultative"), detail: model.summaryDisclosure.detail)
             Button("Voir les réglages") { model.settingsCategory = .summary; model.showSettings = true }.buttonStyle(StudioButtonStyle())
+        }
+    }
+    /// Voices the user has not named, confirmed or ignored yet: a summary calls them generically.
+    /// Information only; the voice tiles above are where they are named.
+    @ViewBuilder private var unidentifiedVoicesNotice: some View {
+        if !recording.segments.isEmpty, !recording.voicesResolved {
+            Label("Des voix ne sont pas encore identifiées : la synthèse les désigne de façon générique.", systemImage: "person.crop.circle.badge.questionmark")
+                .font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.copper)
         }
     }
     private var summaryHint: String {

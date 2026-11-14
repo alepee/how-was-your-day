@@ -41,14 +41,14 @@ final class SessionStoreTests: XCTestCase, @unchecked Sendable {
         XCTAssertEqual(items.first?.state, .interrupted)
         XCTAssertEqual(items.first?.notes, "À garder")
     }
-    func testSpeakerCorrectionKeepsSegmentClusterAndInvalidatesSummary() throws {
+    func testSpeakerCorrectionKeepsSegmentClusterAndKeepsSummaryMarkedStale() throws {
         var item = DemoContent.recordings()[0]
         let unknown = try XCTUnwrap(item.speakers.first { !$0.confirmed })
         let segmentIDs = item.segments.filter { $0.speakerID == unknown.id }.map(\.id)
         try item.renameSpeaker(unknown.id, to: " Léa ")
         XCTAssertEqual(item.speakers.first { $0.id == unknown.id }?.label, "Léa")
         XCTAssertEqual(item.transcriptVersion, 2)
-        XCTAssertNil(item.summary)
+        XCTAssertNotNil(item.summary); XCTAssertTrue(item.summaryIsStale)
         XCTAssertEqual(item.segments.filter { $0.speakerID == unknown.id }.map(\.id), segmentIDs)
     }
     func testStoreAudioStaysInItsDirectory() throws {

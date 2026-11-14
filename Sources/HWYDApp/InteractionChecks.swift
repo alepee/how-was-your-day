@@ -156,6 +156,86 @@ import HWYDCore
         }
         print("Summary availability, pending-edit flush, demo exclusion and cancellation: PASS")
     }
+    private actor Counter { var value = 0; func add() { value += 1 } }
+    /// Automatic summaries: a fixture summarizer stands in for the provider, so no model, network or
+    /// microphone is used. The setting lives in this model's in-memory preferences.
+    private static func checkAutomaticSummary(directory: URL) async throws {
+        let slot = SummarizerSlot(), notices = RecordingNotifier()
+        let keyless = SummarizerEnvironment(dataDirectory: directory, mcpExecutable: HelperLocator.app.mcp) { _ in nil }
+        let model = AppModel(environment: try .synthetic(directory: directory, notifier: notices,
+                                                         summarizer: { slot.fixture ?? SummarizerFactory.make($0, environment: keyless) },
+                                                         automaticSummaryDelay: .milliseconds(50)))
+        await model.load()
+        guard model.automaticSummary != nil, !model.summarySettings.automatic else { throw CaptureFailure(message: "Automatic summary must be off by default") }
+        let runs = Counter()
+        slot.fixture = FixtureSummarizer { _ in await runs.add() }
+        // Waits past the trigger's delay and the library's save, then for the requests and work.
+        func settle() async throws {
+            try await Task.sleep(for: .milliseconds(600))
+            try await waitIdle(model, seconds: 3, "Automatic summary did not finish")
+        }
+        func session(_ title: String, startedAt: Date = Date(), voice: Speaker) -> Recording {
+            Recording(title: title, startedAt: startedAt, speakers: [voice], segments: [.init(start: 0, end: 1, speakerID: voice.id, source: .mic, text: "Bonjour")]) // l10n:ignore
+        }
+        model.summarySettings.enabled = true
+        let early = Speaker(label: "Alice", confirmed: true) // l10n:ignore
+        model.sessionLibrary.insert(session("Before the setting", startedAt: Date().addingTimeInterval(-60), voice: early))
+        try await settle()
+        model.summarySettings.automatic = true
+        let voice = Speaker(label: "Voix 1") // l10n:ignore
+        let item = session("Automatic summary fixture", voice: voice)
+        model.sessionLibrary.insert(item)
+        try await settle()
+        guard await runs.value == 0 else { throw CaptureFailure(message: "Automatic summary ran before every voice was resolved, or for a session recorded before the setting") }
+        model.update(item.id) { try? $0.renameSpeaker(voice.id, to: "Alice") } // l10n:ignore
+        try await settle()
+        guard await runs.value == 1,
+              notices.notices.contains(where: { $0.message == String(localized: "Synthèse automatique lancée : \(item.title)") && $0.actions.first?.title == String(localized: "Annuler") }) else {
+            throw CaptureFailure(message: "Automatic summary did not start, or was not announced with a cancel action, once the session was ready")
+        }
+        notices.clear()
+        model.update(item.id) { $0.notes = "Edit after a failed run" }
+        try await settle()
+        guard await runs.value == 1 else { throw CaptureFailure(message: "Automatic summary retried an unchanged transcript") }
+        // Busy: the request waits its turn behind other work instead of being refused.
+        let gate = Gate()
+        await model.coordinator.request(.voice(session: nil)) { await gate.wait() }
+        model.update(item.id) { try? $0.renameSpeaker(voice.id, to: "Alice B.") } // l10n:ignore
+        try await Task.sleep(for: .milliseconds(600))
+        guard model.work.isQueued(.summary(session: item.id)) else { await gate.release(); throw CaptureFailure(message: "Automatic summary was not queued behind running work") }
+        await gate.release()
+        try await settle()
+        guard await runs.value == 2 else { throw CaptureFailure(message: "Queued automatic summary did not run") }
+        notices.clear()
+        // Unavailable: the summarizer refuses, and the automatic request says nothing.
+        slot.fixture = nil
+        model.summarySettings.select(.local); model.summarySettings.endpoint = "https://example.com/v1"; model.summarySettings.localModel = "fixture"
+        model.update(item.id) { try? $0.renameSpeaker(voice.id, to: "Alice C.") } // l10n:ignore
+        try await settle()
+        guard notices.notices.isEmpty, model.summaryID == nil else { throw CaptureFailure(message: "A refused automatic summary was reported") }
+        // Turned off while queued: the waiting run is dropped.
+        slot.fixture = FixtureSummarizer { _ in await runs.add() }
+        let busy = Gate()
+        await model.coordinator.request(.voice(session: nil)) { await busy.wait() }
+        model.update(item.id) { try? $0.renameSpeaker(voice.id, to: "Alice D.") } // l10n:ignore
+        try await Task.sleep(for: .milliseconds(600))
+        guard model.work.isQueued(.summary(session: item.id)) else { await busy.release(); throw CaptureFailure(message: "Automatic summary was not queued before the setting was turned off") }
+        model.summarySettings.automatic = false
+        let dropDeadline = ContinuousClock.now.advanced(by: .seconds(2))
+        while model.work.isQueued(.summary(session: item.id)), ContinuousClock.now < dropDeadline { try await Task.sleep(for: .milliseconds(10)) }
+        guard !model.work.isQueued(.summary(session: item.id)) else { await busy.release(); throw CaptureFailure(message: "Turning the setting off kept the queued automatic summary") }
+        // A request already handed over when the setting went off checks it again when it runs.
+        await model.requestSummary(item.id, automatic: true)
+        guard model.work.isQueued(.summary(session: item.id)) else { await busy.release(); throw CaptureFailure(message: "Automatic request was not queued behind running work") }
+        await busy.release()
+        try await settle()
+        guard await runs.value == 2, notices.notices.isEmpty else { throw CaptureFailure(message: "Automatic summary ran after the setting was turned off") }
+        // Off: nothing starts.
+        model.update(item.id) { try? $0.renameSpeaker(voice.id, to: "Alice E.") } // l10n:ignore
+        try await settle()
+        guard await runs.value == 2 else { throw CaptureFailure(message: "Automatic summary ran while the setting was off") }
+        print("Automatic summary: off by default, resolved voices, once per transcript, queued when busy, silent when unavailable, dropped when turned off: PASS")
+    }
     /// Synthetic placeholder files stand in for audio and derived files; no microphone.
     private static func checkSessionDeletion(directory: URL) async throws {
         let notices = RecordingNotifier()
@@ -428,6 +508,7 @@ import HWYDCore
         try await PlaybackChecks.run(directory: directory.appendingPathComponent("playback"))
         try checkAppearancePreferences(directory: directory.appendingPathComponent("appearance-test"))
         try await checkSummaryLifecycle(directory: directory.appendingPathComponent("summary-lifecycle-test"))
+        try await checkAutomaticSummary(directory: directory.appendingPathComponent("automatic-summary-test"))
         try await checkAgentSummary(directory: directory.appendingPathComponent("agent-summary-test"))
         try await checkSessionDeletion(directory: directory.appendingPathComponent("deletion-test"))
         try await checkNewSessionAndToasts()
@@ -461,7 +542,7 @@ import HWYDCore
         model.enterDemo()
         guard let example = model.recordings.first, let unknown = example.speakers.first(where: { !$0.confirmed }) else { throw CaptureFailure(message: "Missing demo") }
         model.select(example); model.beginSpeakerEdit(unknown); model.speakerName = "Léa"; model.confirmSpeaker() // l10n:ignore
-        guard model.selected?.speakers.first(where: { $0.id == unknown.id })?.label == "Léa", model.selected?.summary == nil else { throw CaptureFailure(message: "UI rename failed") } // l10n:ignore
+        guard model.selected?.speakers.first(where: { $0.id == unknown.id })?.label == "Léa", model.selected?.summary != nil, model.selected?.summaryIsStale == true else { throw CaptureFailure(message: "UI rename failed or removed the summary") } // l10n:ignore
         guard let beforeCorrection = model.selected,
               let passage = beforeCorrection.segments.first(where: { $0.speakerID != nil }) else {
             throw CaptureFailure(message: "Missing correction fixture")
@@ -496,6 +577,19 @@ import HWYDCore
         perform(undo.actions[0])
         guard let restored = model.selected, restored.segments == beforeMerge.segments, restored.speakers == beforeMerge.speakers,
               restored.transcriptVersion == merged.transcriptVersion + 1 else { throw CaptureFailure(message: "Merge undo failed") }
+        // A correction marks a current summary stale; undoing it makes the summary current again.
+        model.update(restored.id) { $0.summaryProvenance?.transcriptVersion = $0.transcriptVersion }
+        guard model.selected?.summaryIsStale == false else { throw CaptureFailure(message: "Summary fixture is not current") }
+        notices.clear()
+        model.mergeSpeaker(unknown.id, into: camille.id)
+        guard model.selected?.summaryIsStale == true,
+              let undoCurrent = notices.notices.last(where: { $0.actions.first?.title == String(localized: "Annuler") }) else {
+            throw CaptureFailure(message: "A voice correction did not mark the summary stale")
+        }
+        perform(undoCurrent.actions[0])
+        guard let back = model.selected, back.segments == beforeMerge.segments, !back.summaryIsStale else {
+            throw CaptureFailure(message: "Undoing a voice correction left the summary stale")
+        }
         model.mergeSpeaker(unknown.id, into: camille.id)
         model.separateSpeaker(unknown.id, from: camille.id)
         guard let separated = model.selected, separated.segments == beforeMerge.segments,
