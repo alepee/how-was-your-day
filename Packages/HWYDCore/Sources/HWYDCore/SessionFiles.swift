@@ -45,31 +45,38 @@ public struct SessionFiles: Sendable {
         return report
     }
 
+    /// How long an entry must stay untouched before the sweep may treat it as an orphan.
+    public static let orphanQuietPeriod: TimeInterval = 3600
+
     /// Removes files that belong to no session of `live`: audio and summary folders of unknown sessions, waveforms of unknown chunks,
     /// jobs whose request names an unknown session, and voice scratch audio. Anything it cannot attribute stays.
-    /// Call only while neither a capture nor the helper can write, and never with an empty library: a missing or replaced
-    /// database is not evidence that its sessions were deleted.
-    public func removeOrphans(keeping live: [Recording]) -> Report {
+    /// An entry modified less than `quietPeriod` before `now`, itself or anything inside it, stays too: a capture that is
+    /// starting writes its folder before its row reaches SQLite, so `live` cannot vouch for it. The sweep takes no capture lock.
+    /// Call only while the helper cannot write, and never with an empty library: a missing or replaced database is not evidence
+    /// that its sessions were deleted.
+    public func removeOrphans(keeping live: [Recording], now: Date = .now, quietPeriod: TimeInterval = orphanQuietPeriod) -> Report {
         var report = Report()
         guard !live.isEmpty else { return report }
+        let settled = { (relative: String) in isSettled(relative, before: now.addingTimeInterval(-quietPeriod)) }
         let liveIDs = Set(live.map(\.id))
         let livePaths = live.flatMap(\.audioChunks).map(\.relativePath)
         let liveChunkIDs = Set(live.flatMap(\.audioChunks).map(\.id))
         for name in entries("audio") {
-            guard let id = UUID(uuidString: name), !liveIDs.contains(id), !livePaths.contains(where: { $0.hasPrefix("audio/\(name)/") }) else { continue }
+            guard let id = UUID(uuidString: name), !liveIDs.contains(id), !livePaths.contains(where: { $0.hasPrefix("audio/\(name)/") }),
+                  settled("audio/" + name) else { continue }
             remove("audio/" + name, into: &report)
         }
         for name in entries("cache/summaries") {
-            guard let id = UUID(uuidString: name), !liveIDs.contains(id) else { continue }
+            guard let id = UUID(uuidString: name), !liveIDs.contains(id), settled("cache/summaries/" + name) else { continue }
             remove("cache/summaries/" + name, into: &report)
         }
         for name in entries("cache/waveforms") {
-            guard let chunk = waveformChunk(name), !liveChunkIDs.contains(chunk) else { continue }
+            guard let chunk = waveformChunk(name), !liveChunkIDs.contains(chunk), settled("cache/waveforms/" + name) else { continue }
             remove("cache/waveforms/" + name, into: &report)
         }
         for name in entries("jobs") {
             let scratch = name.hasPrefix("voice-audio-") && UUID(uuidString: String(name.dropFirst("voice-audio-".count))) != nil
-            guard scratch || jobOwner(name).map({ !liveIDs.contains($0) }) == true else { continue }
+            guard scratch || jobOwner(name).map({ !liveIDs.contains($0) }) == true, settled("jobs/" + name) else { continue }
             remove("jobs/" + name, into: &report)
         }
         return report
@@ -96,6 +103,16 @@ public struct SessionFiles: Sendable {
         guard (try? FileManager.default.attributesOfItem(atPath: url.path)) != nil else { return }
         do { try FileManager.default.removeItem(at: url); report.removed.append(relative) }
         catch { report.failures.append(.init(path: relative, reason: error.localizedDescription)) }
+    }
+
+    /// True when the entry and everything inside it were last modified before `limit`. Links are not followed.
+    private func isSettled(_ relative: String, before limit: Date) -> Bool {
+        guard let url = contained(relative) else { return false }
+        func modified(_ path: String) -> Date? { (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date }
+        guard let own = modified(url.path), own < limit else { return false }
+        guard let names = FileManager.default.subpaths(atPath: url.path) else { return true }
+        // subpaths does not descend into symbolic links.
+        return names.allSatisfy { modified(url.appendingPathComponent($0).path).map { $0 < limit } ?? false }
     }
 
     private func entries(_ relative: String) -> [String] {

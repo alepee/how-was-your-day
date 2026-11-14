@@ -17,6 +17,14 @@ final class SessionFilesTests: XCTestCase, @unchecked Sendable {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(text.utf8).write(to: url)
     }
+    /// Backdates an entry and everything inside it, as if nothing had written it for two hours.
+    private func age(_ relative: String, in root: URL) throws {
+        let url = root.appendingPathComponent(relative), old = Date.now.addingTimeInterval(-7200)
+        for name in FileManager.default.subpaths(atPath: url.path) ?? [] {
+            try FileManager.default.setAttributes([.modificationDate: old], ofItemAtPath: url.appendingPathComponent(name).path)
+        }
+        try FileManager.default.setAttributes([.modificationDate: old], ofItemAtPath: url.path)
+    }
     private func exists(_ relative: String, in root: URL) -> Bool {
         (try? FileManager.default.attributesOfItem(atPath: root.appendingPathComponent(relative).path)) != nil
     }
@@ -121,7 +129,7 @@ final class SessionFilesTests: XCTestCase, @unchecked Sendable {
         XCTAssertTrue(report.failures.contains { $0.path == "audio/" + item.id.uuidString.lowercased() })
         let remaining = try await store.all()
         XCTAssertFalse(remaining.contains { $0.id == item.id }, "No session row survives without its files")
-        let sweep = try await store.removeOrphanFiles()
+        let sweep = try await store.removeOrphanFiles(now: .now.addingTimeInterval(7200))
         XCTAssertEqual(sweep?.isComplete, true)
         XCTAssertFalse(exists("audio/" + item.id.uuidString.lowercased(), in: root))
     }
@@ -139,30 +147,64 @@ final class SessionFilesTests: XCTestCase, @unchecked Sendable {
         let unattributed = ["audio/notes-perso/readme.txt", "cache/summaries/brouillon/x.json", "jobs/install-model.log",
                             "jobs/\(UUID().uuidString)/pipeline.log", "cache/waveforms/empty-800.json", "models/diarization/model.bin"]
         for path in unattributed { try write(path, in: root) }
-        let report = try await store.removeOrphanFiles()
+        let report = try await store.removeOrphanFiles(now: .now.addingTimeInterval(7200))
         XCTAssertEqual(report?.isComplete, true)
         XCTAssertEqual(report?.removed.count, 5)
         for path in orphans { XCTAssertFalse(exists(path, in: root), path) }
         for path in liveFiles + unattributed { XCTAssertTrue(exists(path, in: root), path) }
     }
 
-    func testLaunchSweepWaitsForCaptureAndHelperAndForALibrary() async throws {
+    func testLaunchSweepWaitsForHelperAndForALibrary() async throws {
         let root = try directory(), store = try SessionStore(directory: root)
-        let orphan = "audio/\(UUID().uuidString.lowercased())/mic-000000.caf"
-        try write(orphan, in: root)
+        let orphan = "audio/\(UUID().uuidString.lowercased())"
+        try write(orphan + "/mic-000000.caf", in: root); try age(orphan, in: root)
         let empty = try await store.removeOrphanFiles()
         XCTAssertEqual(empty, SessionFiles.Report(), "An empty library is no evidence of deletion")
         XCTAssertTrue(exists(orphan, in: root))
         _ = try await store.save(Recording(title: "Vivante", state: .sealed))
-        for name in ["capture.lock", "pipeline.lock"] {
-            let lock = open(root.appendingPathComponent(name).path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
-            XCTAssertEqual(flock(lock, LOCK_EX | LOCK_NB), 0)
-            let skipped = try await store.removeOrphanFiles()
-            XCTAssertNil(skipped, name)
-            XCTAssertTrue(exists(orphan, in: root))
-            flock(lock, LOCK_UN); close(lock)
-        }
+        let lock = open(root.appendingPathComponent("pipeline.lock").path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
+        XCTAssertEqual(flock(lock, LOCK_EX | LOCK_NB), 0)
+        let skipped = try await store.removeOrphanFiles()
+        XCTAssertNil(skipped)
+        XCTAssertTrue(exists(orphan, in: root))
+        flock(lock, LOCK_UN); close(lock)
         let swept = try await store.removeOrphanFiles()
-        XCTAssertEqual(swept?.removed, ["audio/" + orphan.split(separator: "/")[1]])
+        XCTAssertEqual(swept?.removed, [orphan])
+    }
+
+    /// m10: a capture holds `capture.lock` for its whole duration. The sweep must neither need it nor take it.
+    func testLaunchSweepRunsWhileACaptureHoldsItsLockAndLeavesTheLockFree() async throws {
+        let root = try directory(), store = try SessionStore(directory: root)
+        _ = try await store.save(Recording(title: "Vivante", state: .sealed))
+        let orphan = "audio/\(UUID().uuidString.lowercased())"
+        try write(orphan + "/mic-000000.caf", in: root); try age(orphan, in: root)
+        let capture = open(root.appendingPathComponent("capture.lock").path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
+        XCTAssertEqual(flock(capture, LOCK_EX | LOCK_NB), 0)
+        let swept = try await store.removeOrphanFiles()
+        XCTAssertEqual(swept?.removed, [orphan])
+        flock(capture, LOCK_UN); close(capture)
+        let probe = open(root.appendingPathComponent("capture.lock").path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
+        defer { close(probe) }
+        XCTAssertEqual(flock(probe, LOCK_EX | LOCK_NB), 0, "The sweep left capture.lock free for the next capture")
+    }
+
+    /// A starting capture writes `audio/<id>/` before its row reaches SQLite: a recent folder is never an orphan.
+    func testLaunchSweepKeepsTheFolderOfACaptureNotYetInTheDatabase() async throws {
+        let root = try directory(), store = try SessionStore(directory: root)
+        _ = try await store.save(Recording(title: "Vivante", state: .sealed))
+        let starting = "audio/\(UUID().uuidString.lowercased())"
+        try FileManager.default.createDirectory(at: root.appendingPathComponent(starting), withIntermediateDirectories: true)
+        let resumed = "audio/\(UUID().uuidString.lowercased())"
+        try write(resumed + "/mic-000000.caf", in: root); try age(resumed, in: root)
+        try write(resumed + "/mic-000001.partial.caf", in: root)
+        try FileManager.default.setAttributes([.modificationDate: Date.now.addingTimeInterval(-7200)], ofItemAtPath: root.appendingPathComponent(resumed).path)
+        let orphan = "audio/\(UUID().uuidString.lowercased())"
+        try write(orphan + "/mic-000000.caf", in: root); try age(orphan, in: root)
+        let swept = try await store.removeOrphanFiles()
+        XCTAssertEqual(swept?.removed, [orphan])
+        XCTAssertTrue(exists(starting, in: root), "Empty folder just created by a starting capture")
+        XCTAssertTrue(exists(resumed + "/mic-000000.caf", in: root), "Old folder with a chunk still being written")
+        let later = try await store.removeOrphanFiles(now: .now.addingTimeInterval(SessionFiles.orphanQuietPeriod + 60))
+        XCTAssertEqual(Set(later?.removed ?? []), [starting, resumed], "Once quiet and still unknown, they are orphans")
     }
 }

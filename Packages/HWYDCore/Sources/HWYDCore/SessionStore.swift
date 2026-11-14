@@ -120,17 +120,17 @@ public actor SessionStore {
         return SessionFiles(root: directory).remove(id: id, chunks: removed?.audioChunks ?? [], keeping: try all())
     }
     /// Removes files left by sessions deleted earlier (before deletion removed files, or after a failed removal).
-    /// Returns nil without touching anything while a capture or a helper job holds its lock.
-    public func removeOrphanFiles() throws -> SessionFiles.Report? {
-        var locks: [Int32] = []
-        defer { for lock in locks { flock(lock, LOCK_UN); close(lock) } }
-        for name in ["capture.lock", "pipeline.lock"] {
-            let lock = open(directory.appendingPathComponent(name).path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
-            guard lock >= 0 else { throw StoreError.invalidPath }
-            guard flock(lock, LOCK_EX | LOCK_NB) == 0 else { close(lock); return nil }
-            locks.append(lock)
-        }
-        return SessionFiles(root: directory).removeOrphans(keeping: try all())
+    /// Returns nil without touching anything while a helper job holds `pipeline.lock`. It never takes `capture.lock`, so a
+    /// capture can start at any time: `SessionFiles.removeOrphans` keeps recently written folders instead. The file work runs
+    /// off the actor, so store calls are not held up while it deletes.
+    @concurrent public nonisolated func removeOrphanFiles(now: Date = .now) async throws -> SessionFiles.Report? {
+        let lock = open(directory.appendingPathComponent("pipeline.lock").path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
+        guard lock >= 0 else { throw StoreError.invalidPath }
+        defer { close(lock) }
+        guard flock(lock, LOCK_EX | LOCK_NB) == 0 else { return nil }
+        defer { flock(lock, LOCK_UN) }
+        let live = try await all()
+        return SessionFiles(root: directory).removeOrphans(keeping: live, now: now)
     }
     public func recoverInterrupted() throws -> Int {
         let lock = open(directory.appendingPathComponent("capture.lock").path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)

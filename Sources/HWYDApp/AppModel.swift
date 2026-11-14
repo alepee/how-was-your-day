@@ -230,7 +230,6 @@ final class AppModel: ObservableObject {
         refreshSpeechLanguages()
         do {
             let count = try await store.recoverInterrupted()
-            if let files = try await store.removeOrphanFiles(), !files.isComplete { reportLeftoverFiles(files) }
             recordings = try await store.all()
             people = try await store.people()
             mcpWritesEnabled = try await store.setting("mcp_writes_enabled") == "true"
@@ -243,6 +242,11 @@ final class AppModel: ObservableObject {
         } catch { errorMessage = error.localizedDescription }
         isLoading = false
         startTicker()
+        // After the library shows: the sweep never holds the capture lock, so a capture may start meanwhile.
+        Task {
+            do { if let files = try await store.removeOrphanFiles(), !files.isComplete { reportLeftoverFiles(files) } }
+            catch { errorMessage = error.localizedDescription }
+        }
     }
     var selected: Recording? { recordings.first { $0.id == selectedID } }
     var activeCapture: Recording? { recordings.first { $0.id == activeCaptureID } }
