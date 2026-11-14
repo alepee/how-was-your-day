@@ -78,8 +78,11 @@ actor MCPService {
         if ["set_notes", "rename_speaker"].contains(method) {
             guard writes else { throw IntegrationError("WRITE_DISABLED") }
             let receipt = try await store.mutate(id: UUID(uuidString: input["id"] as! String)!, expectedRevision: input["expected_revision"] as! Int, requestID: UUID(uuidString: input["request_id"] as! String)!, notes: input["markdown"] as? String, speaker: (input["speaker"] as? String).flatMap(UUID.init(uuidString:)), personID: (input["person"] as? String).flatMap(UUID.init(uuidString:)))
-            // The receipt remains durable even if publishing must be retried by the app.
-            try? await store.publishPending()
+            // Published now when a folder is set; the app publishes what is left as soon as it sees the commit.
+            // The receipt remains durable either way.
+            if let directory = try? await store.exportDirectory() {
+                try? await ExportOutbox.drain(store, to: FolderExportPublisher(directory: directory))
+            }
             return String(decoding: try JSONEncoder().encode(receipt), as: UTF8.self)
         }
         let seq = try await store.sequence()

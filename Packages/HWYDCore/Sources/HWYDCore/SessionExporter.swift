@@ -9,20 +9,9 @@ public enum SessionExporter {
     }
     static func micros(_ seconds: Double) -> Int64 { Int64((max(0, min(seconds.isFinite ? seconds : 0, 1e10)) * 1e6).rounded()) }
     static func nullable<T>(_ value: T?) -> Any { value.map { $0 as Any } ?? NSNull() }
-    public static func artifact(_ item: Recording, _ name: String) -> String {
-        switch name {
-        case "notes": return item.noteEntries.sorted { $0.offset < $1.offset }.map { "- [\(timeLabel($0.offset, hours: true))] \($0.text)" }.joined(separator: "\n") + "\n\n" + item.notes
-        case "summary": return item.summary ?? ""
-        default:
-            return item.heardSegments.sorted { $0.start == $1.start ? $0.id.uuidString < $1.id.uuidString : $0.start < $1.start }.map { segment in
-                let label = item.speakers.first { $0.id == segment.speakerID }?.label ?? "Voix inconnue"
-                return "**[\(timeLabel(segment.start, hours: true)) - \(timeLabel(segment.end, hours: true))] \(escape(label)) (\(segment.source == .mic ? "micro" : "système"))** : \(segment.text)"
-            }.joined(separator: "\n\n")
-        }
-    }
-    static func escape(_ text: String) -> String {
-        text.replacingOccurrences(of: "\n", with: " ").replacingOccurrences(of: "*", with: "\\*").replacingOccurrences(of: "[", with: "\\[").replacingOccurrences(of: "]", with: "\\]")
-    }
+    /// The text of an artifact, as exported and indexed. See `RecordingText.artifact`.
+    public static func artifact(_ item: Recording, _ name: String) -> String { RecordingText.artifact(item, name) }
+    static func escape(_ text: String) -> String { RecordingText.escape(text) }
     public static func document(_ item: Recording, exportedAt: Date = Date()) throws -> [String: Any] {
         let id = item.id.uuidString.lowercased()
         func track(_ source: AudioSource) -> String { uuid(id + source.rawValue) }

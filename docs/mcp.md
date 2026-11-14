@@ -20,7 +20,7 @@ Par défaut : lecture seule. `--allow-write` est nécessaire mais insuffisant. I
 | Schéma incompatible | `SCHEMA_MISMATCH`, jamais de migration depuis MCP |
 | Trousseau | Pas d'accès biométrique ; aucune ressource vecteur ou audio |
 
-`list_recordings`, `search`, `get_recording` utilisent des snapshots de lecture courts. Une opération d'écriture committe dans SQLite et inscrit l'outbox. Après commit, le serveur tente l'export via HWYDExport ; un échec retourne `export_state: pending`, sans annuler la modification. Un lancement ultérieur app/pipeline/MCP en mode écriture reprend cette outbox. MCP en lecture seule ne fait pas de maintenance mutante.
+`list_recordings`, `search`, `get_recording` utilisent des snapshots de lecture courts. Une opération d'écriture committe dans SQLite et inscrit l'outbox. Après commit, le serveur tente l'export via HWYDExport ; un échec retourne `export_state: pending`, sans annuler la modification. Un lancement ultérieur app/pipeline/MCP en mode écriture reprend cette outbox. Current state: `hwyd-mcp` drains the outbox after its own write when a publication folder is set, and a running app publishes what is left as soon as it sees the commit (within about 2 seconds). MCP en lecture seule ne fait pas de maintenance mutante.
 
 ## 2. Schémas JSON
 

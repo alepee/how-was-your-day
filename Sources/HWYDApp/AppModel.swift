@@ -6,7 +6,14 @@ import HWYDCore
 
 @MainActor
 final class AppModel: ObservableObject {
-    @Published var recordings: [Recording] = []
+    /// The sessions shown: the stored library, or a volatile one for previews and demo mode.
+    /// Its edits, saves, merges with other writers and stale checks are its own.
+    @Published private(set) var sessionLibrary = SessionLibrary(volatile: [])
+    /// The library over the store, kept while demo mode shows the volatile one. Nil for previews
+    /// and when the store cannot be opened.
+    private var storedLibrary: SessionLibrary?
+    /// What the library shows, pending edits included.
+    var recordings: [Recording] { sessionLibrary.recordings }
     @Published var selectedID: UUID?
     @Published var search = ""
     @Published var kindFilter: SessionKind?
@@ -24,7 +31,8 @@ final class AppModel: ObservableObject {
     }
     @Published var newSessionTitle = ""
     @Published var isDemoMode = false { didSet { summarySettings.isDemo = isDemoMode } }
-    @Published var isLoading = true
+    /// The library has not finished its first load.
+    var isLoading: Bool { !sessionLibrary.isReady }
     @Published var activeCaptureID: UUID? { didSet { updateBusy() } }
     @Published var elapsed: Double = 0
     /// The active capture is paused: no audio is captured and the clock is frozen.
@@ -47,8 +55,6 @@ final class AppModel: ObservableObject {
     @Published var deleteCandidate: Recording?
     @Published var mcpWritesEnabled = false
     @Published var exportDirectory = ""
-    private var refreshTask: Task<Void, Never>?
-    private var lastRefresh = Date.distantPast
     @Published var people: [VoicePerson] = []
     /// Confirmed voice waiting for the user to confirm its enrollment.
     @Published var enrollmentCandidateID: UUID?
@@ -73,8 +79,8 @@ final class AppModel: ObservableObject {
     /// The coordinator's latest state, as the views show it. Snapshots and synthetic checks set it
     /// directly to render or test a state.
     @Published var work = WorkSnapshot()
-    /// A capture or some heavy work is in progress: the updater waits and the library is not
-    /// reloaded from disk. Changes only when that answer flips.
+    /// A capture or some heavy work is in progress: the updater waits. Changes only when that
+    /// answer flips.
     @Published private(set) var isBusy = false
     private var workBusy = false { didSet { updateBusy() } }
     /// Triggers run their request in the order they were made: a cancel never overtakes the
@@ -160,8 +166,8 @@ final class AppModel: ObservableObject {
     /// Language installing right now, shown next to its row.
     var installingSpeechLocale: String? { if case .speechModel(let locale)? = work.running { locale } else { nil } }
     var isInstallingDiarizer: Bool { work.running == .diarizer }
-    @Published var savedAt: Date?
-    @Published var hasUnsavedChanges = false
+    /// Some edit has not reached the store yet, or its save failed.
+    var hasUnsavedChanges: Bool { sessionLibrary.hasUnsavedChanges }
     @Published var appearancePreference: AppearancePreference = .system {
         didSet {
             if persistPreferences && !isDemoMode { settings.set(appearancePreference.rawValue, for: .appearance) }
@@ -179,9 +185,6 @@ final class AppModel: ObservableObject {
     var store: SessionStore?
     var showWindow: (() -> Void)?
     var openNotepad: (() -> Void)?
-    private var dirtyIDs: Set<UUID> = []
-    private var activeFlush: Task<Void, Never>?
-    private var saveTask: Task<Void, Never>?
     private var timer: Timer?
     private var captureStart: ContinuousClock.Instant?
     let player = SessionPlayback()
@@ -219,11 +222,19 @@ final class AppModel: ObservableObject {
         self.coordinator = coordinator
         if appliesAppearance { NSApp.appearance = appearancePreference.appearance }
         if preview {
-            recordings = DemoContent.recordings(); isDemoMode = true; isLoading = false
+            sessionLibrary = SessionLibrary(volatile: DemoContent.recordings()); isDemoMode = true
             installedSpeechLocales = ["fr-FR", "en-US"]; supportedSpeechLocales = ["de-DE", "en-US", "es-ES", "fr-FR"]
         } else {
-            do { store = try SessionStore(directory: dataDirectory) }
-            catch { notifier.notify(.error(String(localized: "Impossible d’ouvrir les données locales : \(error.localizedDescription)"))); isLoading = false }
+            do {
+                let store = try SessionStore(directory: dataDirectory)
+                self.store = store
+                // Asked at each publication, so a folder chosen later applies at once.
+                let library = SessionLibrary(repository: store) { try await store.exportDirectory().map(FolderExportPublisher.init) }
+                storedLibrary = library; sessionLibrary = library
+            } catch {
+                sessionLibrary = SessionLibrary(volatile: [])
+                notifier.notify(.error(String(localized: "Impossible d’ouvrir les données locales : \(error.localizedDescription)")))
+            }
         }
         summarySettings.isDemo = isDemoMode
         toastCenter.navigate = { [weak self] intent in self?.navigate(to: intent) }
@@ -236,29 +247,45 @@ final class AppModel: ObservableObject {
         Task { [weak self] in
             for await busy in await coordinator.busyChanges() { self?.workBusy = busy }
         }
+        if let changes = storedLibrary?.changes {
+            Task { [weak self] in
+                for await change in changes { self?.report(change) }
+            }
+        }
+    }
+    /// Tells the user what the library could not do on its own.
+    private func report(_ change: LibraryChange) {
+        switch change {
+        case .saveFailed(let reason):
+            notifier.notify(.error(String(localized: "Les dernières modifications ne sont pas enregistrées : \(reason)"),
+                                   actions: [.perform(String(localized: "Réessayer")) { [weak self] in self?.retrySave() }]))
+        case .exportDeferred(let reason): notifier.notify(.info(String(localized: "Export différé : \(reason)")))
+        case .filesLeft(let files): reportLeftoverFiles(files)
+        case .fileSweepFailed(let reason): notifier.notify(.error(reason))
+        case .rebased(let id, let conflicts) where !conflicts.isEmpty:
+            let title = recordings.first { $0.id == id }?.title ?? ""
+            notifier.notify(.info(String(localized: "« \(title) » a aussi été modifiée par un autre outil. Vos modifications ont été gardées.")))
+        case .removedElsewhere(_, let title):
+            notifier.notify(.info(String(localized: "« \(title) » a été supprimée par un autre outil. Vos modifications en attente sont abandonnées.")))
+        case .saved, .external, .rebased: break
+        }
     }
     func load() async {
-        guard let store else { return }
+        guard let store, let storedLibrary else { return }
+        if sessionLibrary !== storedLibrary { sessionLibrary = storedLibrary }
         refreshSpeechLanguages()
         do {
-            let count = try await store.recoverInterrupted()
-            recordings = try await store.all()
+            let count = try await storedLibrary.load()
             people = try await store.people()
             mcpWritesEnabled = try await store.mcpWritesEnabled()
             exportDirectory = try await store.exportDirectory()?.path ?? ""
-            try await store.publishPending()
+            // A transcription the app quit during cannot resume.
             for item in recordings where item.transcriptState == .pending {
                 update(item.id) { $0.transcriptState = .failed }
             }
             if count > 0 { notifier.notify(.info(String(localized: "\(count) session(s) interrompue(s) retrouvée(s). Vos notes sont conservées."))) }
         } catch { notifier.notify(.error(error.localizedDescription)) }
-        isLoading = false
         startTicker()
-        // After the library shows: the sweep never holds the capture lock, so a capture may start meanwhile.
-        Task {
-            do { if let files = try await store.removeOrphanFiles(), !files.isComplete { reportLeftoverFiles(files) } }
-            catch { notifier.notify(.error(error.localizedDescription)) }
-        }
     }
     var selected: Recording? { recordings.first { $0.id == selectedID } }
     var activeCapture: Recording? { recordings.first { $0.id == activeCaptureID } }
@@ -274,53 +301,17 @@ final class AppModel: ObservableObject {
     func enterDemo() {
         guard activeCaptureID == nil, !work.isBusy, pendingRequests == 0, !hasUnsavedChanges else { return }
         calendar.suspend()
-        stopPlayback(); isDemoMode = true; selectedID = nil; recordings = DemoContent.recordings(); startTicker()
+        stopPlayback(); isDemoMode = true; selectedID = nil; sessionLibrary = SessionLibrary(volatile: DemoContent.recordings()); startTicker()
     }
     func leaveDemo() {
         stopPlayback(); activeCaptureID = nil; captureStart = nil; isDemoMode = false; selectedID = nil
         Task { await load(); calendar.start() }
     }
-    func update(_ id: UUID, _ edit: (inout Recording) -> Void) {
-        guard let index = recordings.firstIndex(where: { $0.id == id }) else { return }
-        edit(&recordings[index])
-        if !isDemoMode { dirtyIDs.insert(id); hasUnsavedChanges = true; scheduleSave() }
-    }
-    private func scheduleSave() {
-        guard saveTask == nil else { return }
-        saveTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(300))
-            guard let self else { return }
-            await self.flush()
-            self.saveTask = nil
-        }
-    }
-    func flush() async {
-        if let activeFlush { await activeFlush.value; return }
-        let task = Task { await self.drainChanges() }
-        activeFlush = task
-        await task.value
-        activeFlush = nil
-    }
-    private func drainChanges() async {
-        guard let store, !isDemoMode else { return }
-        while let id = dirtyIDs.first {
-            dirtyIDs.remove(id)
-            guard let item = recordings.first(where: { $0.id == id }) else { continue }
-            do {
-                let saved = try await store.save(item)
-                if let index = recordings.firstIndex(where: { $0.id == id }) { recordings[index].revision = saved.revision; recordings[index].notesVersion = saved.notesVersion; recordings[index].summaryVersion = saved.summaryVersion }
-                savedAt = Date()
-            } catch {
-                dirtyIDs.insert(id)
-                notifier.notify(.error(String(localized: "Les dernières modifications ne sont pas enregistrées : \(error.localizedDescription)"),
-                                       actions: [.perform(String(localized: "Réessayer")) { [weak self] in self?.retrySave() }]))
-                hasUnsavedChanges = true; return
-            }
-        }
-        hasUnsavedChanges = false
-        do { try await store.publishPending() } catch { notifier.notify(.info(String(localized: "Export différé : \(error.localizedDescription)"))) }
-    }
-    func retrySave() { scheduleSave() }
+    /// Edits the session now; the library saves it shortly after.
+    func update(_ id: UUID, _ edit: (inout Recording) -> Void) { sessionLibrary.edit(id, edit) }
+    /// Saves pending edits now.
+    func flush() async { await sessionLibrary.flush() }
+    func retrySave() { Task { await sessionLibrary.flush() } }
     func addTimestamp() {
         guard let id = activeCaptureID else { return }
         update(id) { $0.noteEntries.append(.init(offset: elapsed)) }
@@ -462,7 +453,7 @@ final class AppModel: ObservableObject {
             let id = UUID()
             if isDemoMode {
                 let item = Recording(id: id, title: sessionTitle, kind: kind, state: .recording, isDemo: true)
-                recordings.insert(item, at: 0); activeCaptureID = id; selectedID = id
+                sessionLibrary.insert(item); activeCaptureID = id; selectedID = id
                 elapsed = 0; captureStart = .now; if reveal { showWindow?() }; return
             }
             guard store != nil else { notifier.notify(.error(String(localized: "Le store local n’est pas disponible."))); return }
@@ -472,8 +463,8 @@ final class AppModel: ObservableObject {
                 capture = controller
                 var item = Recording(id: id, title: sessionTitle, kind: kind, state: .recording)
                 item.calendarContext = meeting; item.speechLanguage = language
-                recordings.insert(item, at: 0); activeCaptureID = id; selectedID = id
-                elapsed = 0; captureStart = .now; dirtyIDs.insert(id)
+                sessionLibrary.insert(item); activeCaptureID = id; selectedID = id
+                elapsed = 0; captureStart = .now
                 await flush(); if reveal { showWindow?() }
             } catch { notifier.notify(.error(error.localizedDescription)); if !reveal { showWindow?() } }
         }
@@ -608,11 +599,13 @@ final class AppModel: ObservableObject {
             showSpeechLocales(locales)
             let request = TranscriptionRequest(session: item, language: language, diarize: diarizationEnabled, locales: locales)
             let result = try await transcription.transcribe(request)
-            guard var latest = recordings.first(where: { $0.id == id }), latest.transcriptVersion == originalVersion else { throw TranscriptionError.staleResult }
-            try latest.applyTranscription(result)
-            if let language { latest.speechLanguage = language }
-            update(id) { $0 = latest }
-            await flush()
+            do {
+                try await sessionLibrary.apply(id, ifStillAt: originalVersion) { latest in
+                    try latest.applyTranscription(result)
+                    if let language { latest.speechLanguage = language }
+                }
+            } catch is StaleResult { throw TranscriptionError.staleResult }
+            catch is UnsavedResult { return } // The transcript stays pending; the save failure is shown.
             notifier.notify(.info(result.segments.isEmpty ? String(localized: "Traitement terminé : aucune parole reconnue.") : (result.diarizationEngine == nil ? String(localized: "Transcript disponible. Les voix ne sont pas séparées.") : String(localized: "Transcript disponible. Les voix détectées peuvent être nommées dans cette session."))))
             if let warning = result.identityWarning { notifier.notify(.info(String(localized: "Transcript disponible.") + " " + warning)) }
             if let detections = result.languageDetection { reportLanguageFindings(detections, id: id) }
@@ -633,15 +626,6 @@ final class AppModel: ObservableObject {
         self.timer = timer
     }
     private func tick() {
-        if Date().timeIntervalSince(lastRefresh) > 3, refreshTask == nil, !isDemoMode, !hasUnsavedChanges, !isBusy, let store {
-            lastRefresh = Date()
-            refreshTask = Task {
-                defer { refreshTask = nil }
-                if let revisions = try? await store.recordingRevisions(),
-                   revisions != Dictionary(uniqueKeysWithValues: recordings.map { ($0.id, $0.revision) }),
-                   let latest = try? await store.all(), !hasUnsavedChanges, !isBusy { recordings = latest }
-            }
-        }
         if let captureStart {
             let parts = captureStart.duration(to: .now).components
             elapsed = Double(parts.seconds) + Double(parts.attoseconds) / 1e18
@@ -737,13 +721,14 @@ final class AppModel: ObservableObject {
             let outcome = try await EnrollVoice(people: store, memory: voiceMemory)(person, speakerID: speakerID, in: item)
             people = outcome.people
             let name = outcome.person.name
-            // A transcript edited meanwhile keeps the user's version.
-            guard recordings.first(where: { $0.id == item.id })?.transcriptVersion == item.transcriptVersion else {
-                notifier.notify(.info(String(localized: "Voix de \(name) mémorisée."))); return
-            }
             var proposed = 0
-            update(item.id) { current in proposed = (try? current.applyEnrollment(outcome, speakerID: speakerID)) ?? 0 }
-            await flush()
+            // A transcript edited meanwhile, here or elsewhere, keeps the user's version.
+            do {
+                try await sessionLibrary.apply(item.id, ifStillAt: item.transcriptVersion) { current in
+                    proposed = (try? current.applyEnrollment(outcome, speakerID: speakerID)) ?? 0
+                }
+            } catch is StaleResult { notifier.notify(.info(String(localized: "Voix de \(name) mémorisée."))); return }
+            catch is UnsavedResult {} // The proposals stay pending; the save failure is shown.
             let found = proposed == 0 ? nil : proposed == 1 ? String(localized: "Une autre voix ressemble à une personne connue, à confirmer.")
                 : String(localized: "\(proposed) autres voix ressemblent à des personnes connues, à confirmer.")
             notifier.notify(.info([String(localized: "Voix de \(name) mémorisée."), found].compactMap { $0 }.joined(separator: " ")))
@@ -756,12 +741,13 @@ final class AppModel: ObservableObject {
             guard let self else { return }
             let matches = try await voiceMemory.identify(in: item)
             people = try await store.people()
-            guard recordings.first(where: { $0.id == item.id })?.transcriptVersion == item.transcriptVersion else {
-                notifier.notify(.info(String(localized: "La session a changé pendant la reconnaissance. Aucune proposition appliquée."))); return
-            }
             var proposed = 0
-            update(item.id) { proposed = $0.proposeIdentities(matches, people: self.people) }
-            await flush()
+            let people = people
+            do {
+                try await sessionLibrary.apply(item.id, ifStillAt: item.transcriptVersion) { proposed = $0.proposeIdentities(matches, people: people) }
+            } catch is StaleResult {
+                notifier.notify(.info(String(localized: "La session a changé pendant la reconnaissance. Aucune proposition appliquée."))); return
+            } catch is UnsavedResult {} // The proposals stay pending; the save failure is shown.
             notifier.notify(.info(String(localized: "\(proposed) correspondance(s) proposée(s), à confirmer.")))
         }
     }
@@ -852,16 +838,16 @@ final class AppModel: ObservableObject {
     @discardableResult
     func requestSummary(_ recordingID: UUID) async -> WorkDecision {
         guard !isDemoMode else { return demoRefusal }
-        guard let store, recordings.contains(where: { $0.id == recordingID }) else { return refuse(String(localized: "Session introuvable sur ce Mac.")) }
+        guard store != nil, recordings.contains(where: { $0.id == recordingID }) else { return refuse(String(localized: "Session introuvable sur ce Mac.")) }
         let summarizer = summarizer
         if case .unavailable(let reason) = summarizer.availability {
             notifier.notify(.error(String(localized: "Synthèse : \(reason.localizedDescription)"), actions: [
                 .navigate(String(localized: "Réglages"), to: .summarySettings)]))
             return .refused(.unavailable(reason.localizedDescription))
         }
-        return await request(.summary(session: recordingID)) { [weak self] in await self?.runSummary(recordingID, with: summarizer, store: store) }
+        return await request(.summary(session: recordingID)) { [weak self] in await self?.runSummary(recordingID, with: summarizer) }
     }
-    private func runSummary(_ recordingID: UUID, with summarizer: any Summarizer, store: SessionStore) async {
+    private func runSummary(_ recordingID: UUID, with summarizer: any Summarizer) async {
         defer { summaryProgress = nil }
         do {
             // Capture the revision only after pending UI edits have reached the store.
@@ -874,12 +860,13 @@ final class AppModel: ObservableObject {
                 await MainActor.run { self.summaryProgress = value }
             }
             try Task.checkCancellation()
-            guard let latest = recordings.first(where: { $0.id == item.id }), latest.transcriptVersion == item.transcriptVersion,
-                try SummaryPipeline.inputHash(latest) == result.inputHash else { throw SummaryFailure.stale }
-            let persisted = try await store.recording(item.id)
-            guard persisted.revision == item.revision else { throw SummaryFailure.stale }
-            update(item.id) { $0.summary = result.structured.markdown; $0.summaryProvenance = result }
-            await flush()
+            // Stale once the transcript or anything the summary read changed, here or in another process.
+            do {
+                try await sessionLibrary.apply(item.id, ifStillAt: item.transcriptVersion, where: { try SummaryPipeline.inputHash($0) == result.inputHash }) {
+                    $0.summary = result.structured.markdown; $0.summaryProvenance = result
+                }
+            } catch is StaleResult { throw SummaryFailure.stale }
+            catch is UnsavedResult { return } // The summary stays pending; the save failure is shown.
             // A long run (agents take minutes) may finish while another screen is open.
             let showsSummary = selectedID == item.id && activeTab == .summary && !showSettings
             notifier.notify(.success(String(localized: "Synthèse prête : \(item.title)"),
@@ -910,7 +897,7 @@ final class AppModel: ObservableObject {
                 do {
                     try await store.setExportDirectory(url); exportDirectory = url.path
                     await flush()
-                    try await store.publishPending()
+                    try await sessionLibrary.publishExports()
                     notifier.notify(.info(String(localized: "Dossier de publication configuré.")))
                 } catch { notifier.notify(.error(String(localized: "Export différé : \(error.localizedDescription)"))) }
             }
@@ -926,7 +913,7 @@ final class AppModel: ObservableObject {
                 guard !hasUnsavedChanges else { return }
                 do {
                     let current = recordings.first { $0.id == item.id } ?? item
-                    try SessionExporter.export(current, to: url); notifier.notify(.info(String(localized: "Session exportée en Markdown et JSON."))); NSWorkspace.shared.open(url)
+                    try await FolderExportPublisher(directory: url).publish(current); notifier.notify(.info(String(localized: "Session exportée en Markdown et JSON."))); NSWorkspace.shared.open(url)
                 } catch { notifier.notify(.error(String(localized: "Export impossible : \(error.localizedDescription)"))) }
             }
         }
@@ -944,12 +931,9 @@ final class AppModel: ObservableObject {
             return
         }
         do {
-            await flush()
-            let files = isDemoMode ? nil : try await store?.remove(item.id)
-            recordings.removeAll { $0.id == item.id }; dirtyIDs.remove(item.id)
+            let removal = try await sessionLibrary.remove(item.id)
             if selectedID == item.id { selectedID = nil }
-            if let files, !files.isComplete { reportLeftoverFiles(files) }
-            if !isDemoMode { try await store?.publishPending() }
+            if let files = removal.files, !files.isComplete { reportLeftoverFiles(files) }
         } catch { notifier.notify(.error(error.localizedDescription)) }
     }
     /// The session is gone; its remaining files are retried on next launch.

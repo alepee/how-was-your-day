@@ -118,22 +118,22 @@ import HWYDCore
         model.activeCaptureID = nil; model.isDemoMode = false
         var pending = Recording(title: "Préparer le prototype") // l10n:ignore
         pending.transcriptState = .pending
-        model.recordings = [pending]; model.selectedID = pending.id; model.work = WorkSnapshot(running: .transcription(session: pending.id)); model.activeTab = .transcript
+        model.sessionLibrary.show([pending]); model.selectedID = pending.id; model.work = WorkSnapshot(running: .transcription(session: pending.id)); model.activeTab = .transcript
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-processing.png"))
         // A transcription requested while other work runs says it waits its turn.
         var waiting = pending; waiting.transcriptState = .unavailable
-        model.recordings = [waiting]; model.work = WorkSnapshot(running: .summary(session: UUID()), queued: [.transcription(session: pending.id)])
+        model.sessionLibrary.show([waiting]); model.work = WorkSnapshot(running: .summary(session: UUID()), queued: [.transcription(session: pending.id)])
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-processing-queued.png"))
         pending.transcriptState = .ready
         pending.segments = [.init(start: 0.12, end: 6.17, speakerID: nil, source: .mic, text: "Bonjour Antoine, la réunion commence à 9h. Nous devons préparer le prototype pour vendredi.")] // l10n:ignore
         pending.transcriptVersion = 1
-        model.work = WorkSnapshot(); model.recordings = [pending]
+        model.work = WorkSnapshot(); model.sessionLibrary.show([pending])
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-asr.png"))
         // The summary button explains why it is unavailable: a hosted provider without a key. Preview models never read the keychain.
         model.summarySettings.enabled = true; model.summarySettings.select(.anthropic); model.activeTab = .summary
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-summary-unavailable.png"))
         model.summarySettings.enabled = false; model.summarySettings.select(.local); model.activeTab = .transcript
-        model.recordings = []; model.activeCaptureID = nil; model.selectedID = nil; model.isDemoMode = false
+        model.sessionLibrary.show([]); model.activeCaptureID = nil; model.selectedID = nil; model.isDemoMode = false
         render(RootView().environmentObject(model), size: .init(width: 900, height: 700), to: directory.appendingPathComponent("studio-empty.png"))
         print("Snapshots: \(directory.path)")
     }
@@ -151,9 +151,9 @@ import HWYDCore
             .init(start: 141, end: 150, speakerID: duplicate.id, source: .mic, text: "d")])
         example.audioChunks = [.init(source: .mic, relativePath: "preview-mic.caf", start: 0, duration: 150)]
         let previousPeople = model.people, previousSelection = model.selectedID
-        model.people = [lea]; model.recordings.append(example); model.selectedID = example.id; model.playback.voiceID = room.id
+        model.people = [lea]; model.sessionLibrary.show(model.recordings + [example]); model.selectedID = example.id; model.playback.voiceID = room.id
         render(VoiceTilesView(recording: example).environmentObject(model).padding(16), size: .init(width: 1040, height: 110), to: url)
-        model.playback.voiceID = nil; model.people = previousPeople; model.recordings.removeAll { $0.id == example.id }; model.selectedID = previousSelection
+        model.playback.voiceID = nil; model.people = previousPeople; model.sessionLibrary.show(model.recordings.filter { $0.id != example.id }); model.selectedID = previousSelection
     }
     /// Remembered people with their samples per session. Synthetic: the keychain is never read.
     private static func renderVoicePeople(model: AppModel, to url: URL) {
@@ -162,14 +162,14 @@ import HWYDCore
         var opposed = VoicePerson(name: "Jordan"); opposed.opposed = true
         let session = Recording(title: "Point produit", isDemo: true)
         let previousPeople = model.people
-        model.people = [brice, lea, opposed]; model.recordings.append(session)
+        model.people = [brice, lea, opposed]; model.sessionLibrary.show(model.recordings + [session])
         model.voiceContributions[brice.id] = [
             .init(recordingID: session.id, channel: .mic, count: 1, addedAt: Date()),
             .init(recordingID: session.id, channel: .remote, count: 1, addedAt: Date()),
             .init(recordingID: nil, channel: .mic, count: 3, addedAt: nil)]
         render(VStack(spacing: 0) { VoicePersonRow(person: brice, expanded: true); VoicePersonRow(person: lea); VoicePersonRow(person: opposed) }
             .environmentObject(model).padding(24), size: .init(width: 720, height: 300), to: url)
-        model.people = previousPeople; model.recordings.removeAll { $0.id == session.id }; model.voiceContributions = [:]
+        model.people = previousPeople; model.sessionLibrary.show(model.recordings.filter { $0.id != session.id }); model.voiceContributions = [:]
     }
     private static func render<V: View>(_ view: V, size: CGSize, to url: URL) {
         let host = NSHostingView(rootView: view.frame(width: size.width, height: size.height).background(Studio.background))

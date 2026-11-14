@@ -16,7 +16,9 @@ Version interne SQLite : migrations nommées, indépendante de `hwyd_schema: 1`.
 | Vecteurs | Jamais en SQLite, même temporaires ; références opaques vers le trousseau |
 | Suppression | Foreign keys ON ; cascades explicites uniquement pour données appartenant à une session |
 
-Dossier interne privé, permissions 0700 ; fichiers 0600. SQLite en WAL, `synchronous=FULL`, busy timeout 5 s. Un `DatabasePool` GRDB par processus, transactions courtes. `ValueObservation` local ne constitue pas un bus interprocessus : surveiller `change_log.seq` et rafraîchir périodiquement l'UI. Voir [GRDB](https://github.com/groue/GRDB.swift) pour les primitives de pool et migration.
+Dossier interne privé, permissions 0700 ; fichiers 0600. Voir [GRDB](https://github.com/groue/GRDB.swift) pour les primitives de migration.
+
+Current state: one GRDB `DatabaseQueue` per process (the app, `hwyd-mcp`, `hwyd-pipeline`), rollback journal, `synchronous=FULL` set explicitly on each connection, busy timeout 5 s, short transactions. A `DatabasePool` in WAL mode is not used: the app is the only regular writer, each session is one row written in one short transaction, and readers (MCP, helper) are separate processes that a pool does not serve; a read-only `hwyd-mcp` opens the file without having to create the `-wal` and `-shm` files. WAL can return if concurrent readers inside one process appear. `ValueObservation` is not a cross-process bus: the app polls `integration_sequence.seq` (the role of `change_log.seq` below) and reads only the sessions whose revision moved (architecture.md § 11, Sessions and persistence).
 
 ## 2. Schéma relationnel normatif
 

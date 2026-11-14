@@ -66,7 +66,7 @@ final class SessionFilesTests: XCTestCase, @unchecked Sendable {
         let kept = try await session(in: root, store: store, title: "À garder")
         let deletedFiles = try files(of: deleted, in: root), keptFiles = try files(of: kept, in: root)
         XCTAssertEqual(deletedFiles.count, 5)
-        let report = try await store.remove(deleted.id)
+        let removal = try await store.remove(deleted.id); let report = try XCTUnwrap(removal.files)
         XCTAssertTrue(report.isComplete)
         XCTAssertEqual(Set(deletedFiles).subtracting(report.removed), [])
         for path in deletedFiles { XCTAssertFalse(exists(path, in: root), path) }
@@ -111,7 +111,7 @@ final class SessionFilesTests: XCTestCase, @unchecked Sendable {
         item.audioChunks = [AudioChunk(source: .mic, relativePath: "audio/\(item.id.uuidString.lowercased())/precious.caf", start: 0, duration: 1),
                             AudioChunk(source: .mic, relativePath: "audio/../../escape.caf", start: 0, duration: 1)]
         item = try await store.save(item)
-        let report = try await store.remove(item.id)
+        let removal = try await store.remove(item.id); let report = try XCTUnwrap(removal.files)
         XCTAssertTrue(exists("precious.caf", in: outside))
         XCTAssertFalse(exists("audio/" + item.id.uuidString.lowercased(), in: root), "The link itself is removed")
         XCTAssertEqual(report.failures.map(\.path).sorted(), ["audio/../../escape.caf", "audio/\(item.id.uuidString.lowercased())/precious.caf"])
@@ -123,7 +123,7 @@ final class SessionFilesTests: XCTestCase, @unchecked Sendable {
         _ = try await session(in: root, store: store, title: "Autre")
         let audio = root.appendingPathComponent("audio").path
         try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: audio)
-        let report = try await store.remove(item.id)
+        let removal = try await store.remove(item.id); let report = try XCTUnwrap(removal.files)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: audio)
         XCTAssertFalse(report.isComplete)
         XCTAssertTrue(report.failures.contains { $0.path == "audio/" + item.id.uuidString.lowercased() })

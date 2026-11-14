@@ -181,7 +181,7 @@ def strip_interpolations(text):
 
 # Model-facing text, demo data and export formats stay French on purpose (docs/localization.md).
 UNTRANSLATED_FILES = {"Summary.swift", "SummaryWorkflow.swift", "RemoteLLMProvider.swift", "AgentSummary.swift",
-                      "DemoContent.swift", "SessionExporter.swift"}
+                      "DemoContent.swift", "SessionExporter.swift", "RecordingText.swift"}
 SCANNED = ("Sources/HWYDApp", "Sources/HWYDPipeline", "Packages/HWYDCore/Sources/HWYDCore")
 
 
