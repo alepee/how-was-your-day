@@ -3,7 +3,8 @@ import HWYDCore
 
 @MainActor enum PlaybackChecks {
     static func run(directory: URL) async throws {
-        let store = try SessionStore(directory: directory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let audio = DataDirectoryAudio(directory: directory)
         let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!
         func chunk(_ name: String, _ source: AudioSource, _ start: Double, _ value: Float) throws -> AudioChunk {
             let file = try AVAudioFile(forWriting: directory.appendingPathComponent(name), settings: format.settings)
@@ -16,7 +17,7 @@ import HWYDCore
         // Unequal starts, a missing interval, and a CAF boundary. No hardware output.
         let chunks = try [chunk("mic1.caf", .mic, 0, 0.2), chunk("mic2.caf", .mic, 0.1, 0.2), chunk("sys.caf", .system, 0.1, 0.4)]
         let playback = SessionPlayback()
-        try playback.start(chunks: chunks, store: store, at: 0, duration: 0.3, offline: true)
+        try playback.start(chunks: chunks, audio: audio, at: 0, duration: 0.3, offline: true)
         let samples = try playback.renderForTesting(frames: 4096)
         func magnitude(_ samples: [Float], _ index: Int, _ expected: Float) throws {
             guard abs(abs(samples[index]) - expected) < 0.005 else {
@@ -27,7 +28,7 @@ import HWYDCore
         try magnitude(samples, 2400, 0.3)
         try magnitude(samples, 3800, 0)
         playback.stop()
-        try playback.start(chunks: chunks, store: store, at: 0.15, duration: 0.3, offline: true)
+        try playback.start(chunks: chunks, audio: audio, at: 0.15, duration: 0.3, offline: true)
         playback.setAudible(.system, false)
         let muted = try playback.renderForTesting(frames: 512)
         try magnitude(muted, 400, 0.1)
@@ -39,26 +40,26 @@ import HWYDCore
         // One voice across a CAF boundary: two passages, a short gap, nothing from the other track.
         let voiceChunks = try [chunk("voice1.caf", .mic, 0, 0.25), chunk("voice2.caf", .mic, 0.1, 0.35), chunk("other.caf", .system, 0, 0.45)]
         let playlist = VoicePlaylist(spans: [.init(start: 0.02, end: 0.05), .init(start: 0.12, end: 0.15)], gap: 0.05)
-        try playback.start(playlist: playlist, source: .mic, chunks: voiceChunks, store: store, offline: true)
+        try playback.start(playlist: playlist, source: .mic, chunks: voiceChunks, audio: audio, offline: true)
         let voice = try playback.renderForTesting(frames: 2048)
         try magnitude(voice, 200, 0.125)
         try magnitude(voice, 900, 0)
         try magnitude(voice, 1500, 0.175)
         try magnitude(voice, 1900, 0)
         playback.stop()
-        let envelopes = try await WaveformReader().read(chunks: chunks, store: store, duration: 0.3, bins: 3)
+        let envelopes = try await WaveformReader().read(chunks: chunks, audio: audio, duration: 0.3, bins: 3)
         guard envelopes[.mic]?.peaks == [0.2, 0.2, 0], envelopes[.system]?.peaks == [0, 0.4, 0] else {
             throw CaptureFailure(message: "Waveform alignment failed")
         }
         let cachedReader = WaveformReader()
-        let cached = try await cachedReader.read(chunks: chunks, store: store, duration: 0.3, bins: 3)
+        let cached = try await cachedReader.read(chunks: chunks, audio: audio, duration: 0.3, bins: 3)
         let diskHits = await cachedReader.cacheHits
         guard diskHits == 1, cached[.mic]?.peaks == envelopes[.mic]?.peaks else { throw CaptureFailure(message: "Persistent waveform cache miss") }
-        _ = try await cachedReader.read(chunks: chunks, store: store, duration: 0.3, bins: 3)
+        _ = try await cachedReader.read(chunks: chunks, audio: audio, duration: 0.3, bins: 3)
         let memoryHits = await cachedReader.cacheHits
         guard memoryHits == 2 else { throw CaptureFailure(message: "Memory waveform cache miss") }
         _ = try chunk("mic1.caf", .mic, 0, 0.7)
-        let changed = try await cachedReader.read(chunks: chunks, store: store, duration: 0.3, bins: 3)
+        let changed = try await cachedReader.read(chunks: chunks, audio: audio, duration: 0.3, bins: 3)
         guard changed[.mic]?.peaks.first == 0.7 else { throw CaptureFailure(message: "Stale waveform cache after audio change") }
         let model = AppModel(environment: try .synthetic(directory: directory))
         guard model.isTrackAudible(.mic), model.isTrackAudible(.system) else { throw CaptureFailure(message: "Default mix failed") }

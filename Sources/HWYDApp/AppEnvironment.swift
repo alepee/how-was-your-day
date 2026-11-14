@@ -17,8 +17,8 @@ struct CaptureSource {
     let isSimulated: Bool
     let make: @MainActor () throws -> any AudioCapture
 
-    /// Core Audio, writing into the store's folder. Only the installed app's own data uses it.
-    static func coreAudio(directory: URL) -> CaptureSource { CaptureSource(isSimulated: false) { CoreAudioCapture(directory: directory) } }
+    /// Core Audio, writing where `audio` says. Only the installed app's own data uses it.
+    static func coreAudio(_ audio: any AudioLocator) -> CaptureSource { CaptureSource(isSimulated: false) { CoreAudioCapture(audio: audio) } }
     static func simulated(_ make: @escaping @MainActor () -> any AudioCapture = { SimulatedCapture() }) -> CaptureSource {
         CaptureSource(isSimulated: true, make: make)
     }
@@ -33,9 +33,11 @@ struct CaptureSource {
 /// lives in these adapters.
 @MainActor struct Workspace {
     var library: SessionLibrary
-    /// The store under the library: people, integration settings, audio files. Nil for the
-    /// examples, previews, and when the store cannot be opened.
+    /// The store under the library: people and integration settings. Nil for the examples,
+    /// previews, and when the store cannot be opened.
     var store: SessionStore?
+    /// Where the sessions' audio lives, for playback and waveforms. Nil when they hold none.
+    var audio: (any AudioLocator)?
     var capture: CaptureSource
     var transcription: any TranscriptionService
     var voiceMemory: any VoiceMemory
@@ -53,7 +55,7 @@ struct CaptureSource {
     /// shows the configured summarizer.
     static func examples(_ recordings: [Recording] = DemoContent.recordings(), over preferences: SettingsStore, capture: CaptureSource = .simulated(),
                          summarizer: @escaping @MainActor (SummaryConfiguration) -> any Summarizer) -> Workspace {
-        Workspace(library: SessionLibrary(volatile: recordings), store: nil, capture: capture,
+        Workspace(library: SessionLibrary(volatile: recordings), store: nil, audio: nil, capture: capture,
                   transcription: ExamplePipeline(), voiceMemory: ExamplePipeline(), speechModels: ExamplePipeline(),
                   summarizer: { RefusingSummarizer(showing: summarizer($0)) },
                   settings: VolatileSettings(over: preferences), isExamples: true)
@@ -74,7 +76,10 @@ struct CaptureSource {
     var notifier: (any UserNotifier)?
     var coordinator = WorkCoordinator()
     var agentDiscovery: any AgentDiscovery = FixedAgentDiscovery()
-    /// The installed app: keychain, calendar. Off for previews and checks.
+    /// Summary API keys. The keychain only for the installed app; every other environment gets
+    /// one in memory, so no preview, example or check can reach the user's keychain.
+    var secrets: any SecretVault = InMemorySecretVault()
+    /// The installed app: preferences, network checks of summary keys, calendar. Off for previews and checks.
     var usesSystem = false
     var appliesAppearance = false
     /// Monotonic time of the capture clock, in seconds.
@@ -108,9 +113,9 @@ struct CaptureSource {
     /// The installed app on the user's data. `examples` opens it on the examples (`--demo`); the
     /// user can leave them for their own sessions.
     static func installed(examples: Bool) -> AppEnvironment {
-        let directory = applicationSupport, preferences = UserDefaultsSettings(), helpers = HelperLocator.app
-        let summarizer = summarizers(directory: directory, helpers: helpers, readsKeychain: true)
-        var user = Workspace(library: SessionLibrary(volatile: []), store: nil, capture: .unavailable(WorkRefusal.storeUnavailable.localizedDescription),
+        let directory = applicationSupport, preferences = UserDefaultsSettings(), helpers = HelperLocator.app, secrets = KeychainVault()
+        let summarizer = summarizers(directory: directory, helpers: helpers, secrets: secrets)
+        var user = Workspace(library: SessionLibrary(volatile: []), store: nil, audio: nil, capture: .unavailable(WorkRefusal.storeUnavailable.localizedDescription),
                              transcription: HelperTranscriptionService(helpers: helpers, store: directory),
                              voiceMemory: HelperVoiceMemory(helpers: helpers, store: directory),
                              speechModels: HelperSpeechModelCatalog(helpers: helpers, store: directory),
@@ -118,10 +123,10 @@ struct CaptureSource {
         var startupError: String?
         do {
             let store = try SessionStore(directory: directory)
-            user.store = store; user.library = library(over: store, sweepsFiles: true); user.capture = .coreAudio(directory: directory)
+            user.store = store; user.audio = store.audio; user.library = library(over: store, sweepsFiles: true); user.capture = .coreAudio(store.audio)
         } catch { startupError = String(localized: "Impossible d’ouvrir les données locales : \(error.localizedDescription)") }
         return AppEnvironment(dataDirectory: directory, preferences: preferences, helpers: helpers, agentDiscovery: LoginShellAgentDiscovery(),
-                              usesSystem: true, appliesAppearance: true, user: user, startsWithExamples: examples, startupError: startupError)
+                              secrets: secrets, usesSystem: true, appliesAppearance: true, user: user, startsWithExamples: examples, startupError: startupError)
     }
 
     /// Volatile sessions for previews and snapshots: the examples (default), or `recordings` shown
@@ -129,37 +134,39 @@ struct CaptureSource {
     static func preview(recordings: [Recording]? = nil, examples: [Recording]? = nil, preferences: SettingsStore = InMemorySettings(),
                         capture: CaptureSource = .simulated(), coordinator: WorkCoordinator = WorkCoordinator(),
                         clock: @escaping @MainActor () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) -> AppEnvironment {
-        let summarizer = summarizers(directory: applicationSupport, helpers: .app, readsKeychain: false)
-        let user = Workspace(library: SessionLibrary(volatile: recordings ?? []), store: nil, capture: capture,
+        let secrets = InMemorySecretVault()
+        let summarizer = summarizers(directory: applicationSupport, helpers: .app, secrets: secrets)
+        let user = Workspace(library: SessionLibrary(volatile: recordings ?? []), store: nil, audio: nil, capture: capture,
                              transcription: ExamplePipeline(), voiceMemory: ExamplePipeline(), speechModels: ExamplePipeline(),
                              summarizer: summarizer, settings: preferences)
         return AppEnvironment(dataDirectory: applicationSupport, preferences: preferences, helpers: .app, coordinator: coordinator,
-                                         appliesAppearance: true, clock: clock, user: user, startsWithExamples: recordings == nil,
+                                         secrets: secrets, appliesAppearance: true, clock: clock, user: user, startsWithExamples: recordings == nil,
                                          initialLocales: SpeechLocales(installed: ["fr-FR", "en-US"], supported: ["de-DE", "en-US", "es-ES", "fr-FR"]),
                                          exampleCapture: capture, exampleRecordings: { examples ?? DemoContent.recordings() })
     }
 
     /// A store in `directory` for the synthetic checks (`--ui-test`, `--asr-test`). The pipeline is
     /// the bundled helper on that store unless a double is given; preferences are in memory unless
-    /// a check gives its own; the microphone is never opened and the keychain never read.
+    /// a check gives its own; the microphone is never opened, and the keychain is never reached: the
+    /// app's keys and the helper's voice prints are in memory.
     static func synthetic(directory: URL, preferences: SettingsStore = InMemorySettings(), notifier: (any UserNotifier)? = nil,
                           transcription: (any TranscriptionService)? = nil, voiceMemory: (any VoiceMemory)? = nil,
                           speechModels: (any SpeechModelCatalog)? = nil,
                           summarizer: (@MainActor (SummaryConfiguration) -> any Summarizer)? = nil,
                           coordinator: WorkCoordinator = WorkCoordinator()) throws -> AppEnvironment {
-        let helpers = HelperLocator.app
+        let helpers = HelperLocator(helpersDirectory: HelperLocator.app.helpersDirectory, secrets: .memory), secrets = InMemorySecretVault()
         let store = try SessionStore(directory: directory)
         // A check sweeps the folder it was given, never the user's data folder.
         let ownsFolder = directory.standardizedFileURL.resolvingSymlinksInPath() != applicationSupport.standardizedFileURL.resolvingSymlinksInPath()
-        let user = Workspace(library: library(over: store, sweepsFiles: ownsFolder), store: store,
+        let user = Workspace(library: library(over: store, sweepsFiles: ownsFolder), store: store, audio: store.audio,
                              capture: .unavailable("This model never opens the microphone."), // l10n:ignore
                              transcription: transcription ?? HelperTranscriptionService(helpers: helpers, store: directory),
                              voiceMemory: voiceMemory ?? HelperVoiceMemory(helpers: helpers, store: directory),
                              speechModels: speechModels ?? HelperSpeechModelCatalog(helpers: helpers, store: directory),
-                             summarizer: summarizer ?? summarizers(directory: directory, helpers: helpers, readsKeychain: false),
+                             summarizer: summarizer ?? summarizers(directory: directory, helpers: helpers, secrets: secrets),
                              settings: preferences)
         return AppEnvironment(dataDirectory: directory, preferences: preferences, helpers: helpers, notifier: notifier,
-                              coordinator: coordinator, user: user)
+                              coordinator: coordinator, secrets: secrets, user: user)
     }
 
     /// `sweepsFiles`: whether each load removes the files of sessions deleted earlier from the store's folder.
@@ -168,11 +175,10 @@ struct CaptureSource {
         SessionLibrary(repository: store, exportTarget: { try await store.exportDirectory().map(FolderExportPublisher.init) }, sweepsFiles: sweepsFiles)
     }
 
-    /// Summarizers for the settings of the moment. Only the installed app reads keys from the keychain.
-    private static func summarizers(directory: URL, helpers: HelperLocator, readsKeychain: Bool) -> @MainActor (SummaryConfiguration) -> any Summarizer {
-        let environment = SummarizerEnvironment(dataDirectory: directory, mcpExecutable: helpers.mcp) { service in
-            readsKeychain ? try SummaryKeychain.key(for: service) : nil
-        }
+    /// Summarizers for the settings of the moment, reading keys from the environment's vault.
+    private static func summarizers(directory: URL, helpers: HelperLocator, secrets: any SecretVault) -> @MainActor (SummaryConfiguration) -> any Summarizer {
+        let keys = SummaryKeys(vault: secrets)
+        let environment = SummarizerEnvironment(dataDirectory: directory, mcpExecutable: helpers.mcp) { try keys.key(for: $0) }
         return { SummarizerFactory.make($0, environment: environment) }
     }
 }

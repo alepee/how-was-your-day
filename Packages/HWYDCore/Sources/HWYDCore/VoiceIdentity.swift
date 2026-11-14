@@ -1,5 +1,4 @@
 import Foundation
-import Security
 import GRDB
 
 /// Where a voice was heard. The microphone and the call audio sound different enough
@@ -93,40 +92,35 @@ public enum VoiceError: LocalizedError {
         }
     }
 }
-/// Vectors never enter SQLite, job files, exports or logs. Helper alone accesses this service.
-public enum VoiceKeychain {
-    private static let service = "dev.lepee.hwyd.voice.we-speaker-v1"
+/// Voice prints of known people, one secret per person and channel in the
+/// `dev.lepee.hwyd.voice.we-speaker-v1` service. Vectors never enter SQLite, job files, exports or
+/// logs; `hwyd-pipeline` alone reads them, through the vault it is given.
+public struct VoicePrints: Sendable {
+    public static let service = "dev.lepee.hwyd.voice.we-speaker-v1"
     public static let exemplarLimit = 20
     /// Accounts of the former microphone split, folded into `mic` on first read.
     static let legacyAccounts: [VoiceChannel: [String]] = [.mic: ["near", "room"], .remote: []]
-    private static func query(_ person: UUID, _ account: String) -> [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
-         kSecAttrAccount as String: person.uuidString + "." + account,
-         kSecAttrSynchronizable as String: false]
+    public let vault: any SecretVault
+    public init(vault: any SecretVault) { self.vault = vault }
+
+    /// The vault item of one person's account (a channel, or a former one).
+    public static func item(_ person: UUID, _ account: String) -> SecretItem {
+        SecretItem(service: service, account: person.uuidString + "." + account)
     }
-    private static func read(_ person: UUID, _ account: String) throws -> [VoiceExemplar] {
-        var q = query(person, account); q[kSecReturnData as String] = true
-        var result: CFTypeRef?
-        let status = SecItemCopyMatching(q as CFDictionary, &result)
-        if status == errSecItemNotFound { return [] }
-        guard status == errSecSuccess, let data = result as? Data else { throw VoiceError.keychain(status) }
-        return try decode(data)
+    private func mapped<T>(_ body: () throws -> T) throws -> T {
+        do { return try body() } catch let failure as SecretVaultFailure { throw VoiceError.keychain(failure.status) }
     }
-    private static func write(_ values: [VoiceExemplar], _ person: UUID, _ account: String) throws {
+    private func read(_ person: UUID, _ account: String) throws -> [VoiceExemplar] {
+        guard let data = try mapped({ try vault.read(Self.item(person, account)) }) else { return [] }
+        return try Self.decode(data)
+    }
+    private func write(_ values: [VoiceExemplar], _ person: UUID, _ account: String) throws {
         guard !values.isEmpty else { return try delete(person, account) }
         let data = try JSONEncoder().encode(values)
-        let q = query(person, account)
-        let status = SecItemUpdate(q as CFDictionary, [kSecValueData as String: data] as CFDictionary)
-        if status == errSecItemNotFound {
-            var attributes = q; attributes[kSecValueData as String] = data
-            attributes[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-            let add = SecItemAdd(attributes as CFDictionary, nil)
-            guard add == errSecSuccess else { throw VoiceError.keychain(add) }
-        } else if status != errSecSuccess { throw VoiceError.keychain(status) }
+        try mapped { try vault.write(data, for: Self.item(person, account)) }
     }
-    private static func delete(_ person: UUID, _ account: String) throws {
-        let status = SecItemDelete(query(person, account) as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else { throw VoiceError.keychain(status) }
+    private func delete(_ person: UUID, _ account: String) throws {
+        try mapped { try vault.remove(Self.item(person, account)) }
     }
     /// Reads both formats: bare vectors before 0.9, exemplars with their origin since.
     static func decode(_ data: Data) throws -> [VoiceExemplar] {
@@ -146,17 +140,17 @@ public enum VoiceKeychain {
         return values
     }
     /// Exemplars of one channel. Former near and room samples move to `mic` the first time they are read.
-    public static func exemplars(person: UUID, channel: VoiceChannel) throws -> [VoiceExemplar] {
+    public func exemplars(person: UUID, channel: VoiceChannel) throws -> [VoiceExemplar] {
         let current = try read(person, channel.rawValue)
-        let legacy = try (legacyAccounts[channel] ?? []).flatMap { try read(person, $0) }
+        let legacy = try (Self.legacyAccounts[channel] ?? []).flatMap { try read(person, $0) }
         guard !legacy.isEmpty else { return current }
         // A former interrupted migration may have copied some of them already.
-        let merged = pruned(current + legacy.filter { old in !current.contains { $0.vector == old.vector } })
+        let merged = Self.pruned(current + legacy.filter { old in !current.contains { $0.vector == old.vector } })
         try write(merged, person, channel.rawValue)
-        for account in legacyAccounts[channel] ?? [] { try delete(person, account) }
+        for account in Self.legacyAccounts[channel] ?? [] { try delete(person, account) }
         return merged
     }
-    public static func vectors(person: UUID, channel: VoiceChannel) throws -> [[Float]] {
+    public func vectors(person: UUID, channel: VoiceChannel) throws -> [[Float]] {
         try exemplars(person: person, channel: channel).map(\.vector)
     }
     public static func normalized(_ vector: [Float]) throws -> [Float] {
@@ -165,14 +159,14 @@ public enum VoiceKeychain {
         guard norm > 0.0001 else { throw VoiceError.invalidVector }
         return vector.map { $0 / norm }
     }
-    public static func add(_ vector: [Float], person: UUID, channel: VoiceChannel, recordingID: UUID? = nil, speakerID: UUID? = nil) throws {
+    public func add(_ vector: [Float], person: UUID, channel: VoiceChannel, recordingID: UUID? = nil, speakerID: UUID? = nil) throws {
         let values = try exemplars(person: person, channel: channel)
-            + [VoiceExemplar(vector: try normalized(vector), recordingID: recordingID, speakerID: speakerID, addedAt: Date())]
-        try write(pruned(values), person, channel.rawValue)
+            + [VoiceExemplar(vector: try Self.normalized(vector), recordingID: recordingID, speakerID: speakerID, addedAt: Date())]
+        try write(Self.pruned(values), person, channel.rawValue)
     }
     /// What each session added, per channel. No vector leaves this function.
-    public static func contributions(person: UUID) throws -> [VoiceContribution] {
-        try VoiceChannel.allCases.flatMap { channel in contributions(of: try exemplars(person: person, channel: channel), channel: channel) }
+    public func contributions(person: UUID) throws -> [VoiceContribution] {
+        try VoiceChannel.allCases.flatMap { channel in Self.contributions(of: try exemplars(person: person, channel: channel), channel: channel) }
     }
     static func contributions(of exemplars: [VoiceExemplar], channel: VoiceChannel) -> [VoiceContribution] {
         Dictionary(grouping: exemplars, by: \.recordingID).map { id, group in
@@ -181,15 +175,15 @@ public enum VoiceKeychain {
     }
     /// Withdraws what one session added (nil: samples of unknown origin). Returns the channels that still hold samples.
     @discardableResult
-    public static func remove(person: UUID, recordingID: UUID?) throws -> [VoiceChannel] {
+    public func remove(person: UUID, recordingID: UUID?) throws -> [VoiceChannel] {
         try VoiceChannel.allCases.filter { channel in
             let kept = try exemplars(person: person, channel: channel).filter { $0.recordingID != recordingID }
             try write(kept, person, channel.rawValue)
             return !kept.isEmpty
         }
     }
-    public static func remove(person: UUID) throws {
-        let accounts = VoiceChannel.allCases.map(\.rawValue) + legacyAccounts.values.flatMap { $0 }
+    public func remove(person: UUID) throws {
+        let accounts = VoiceChannel.allCases.map(\.rawValue) + Self.legacyAccounts.values.flatMap { $0 }
         for account in accounts { try delete(person, account) }
     }
 }

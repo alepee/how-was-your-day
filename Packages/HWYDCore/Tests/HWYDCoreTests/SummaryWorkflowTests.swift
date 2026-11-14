@@ -108,7 +108,7 @@ final class SummaryWorkflowTests: XCTestCase, @unchecked Sendable {
               let store = env["HWYD_SUMMARY_STORE"], let id = env["HWYD_SUMMARY_RECORDING_ID"].flatMap(UUID.init(uuidString:)),
               let output = env["HWYD_SUMMARY_OUTPUT"] else { throw XCTSkip("Hosted replay not requested") }
         let recording = try await SessionStore(directory: URL(fileURLWithPath: store), readOnly: true, migrate: false).recording(id)
-        let key = try XCTUnwrap(SummaryKeychain.key(for: service), "No stored key")
+        let key = try XCTUnwrap(SummaryKeys(vault: KeychainVault()).key(for: service), "No stored key")
         let provider = try RemoteLLMProvider(service: service, model: env["HWYD_LIVE_LLM_MODEL"] ?? service.defaultModel, apiKey: key)
         let directory = URL(fileURLWithPath: output)
         do {

@@ -2,9 +2,9 @@ import Foundation
 
 /// Files a session owns in the data directory, outside SQLite.
 ///
-/// - `audio/<id lowercased>/`: CAF chunks of both tracks, partial chunks, sequence descriptors, manifest, recovery notes.
+/// - `audio/<id lowercased>/` (`DataDirectoryAudio.relativeFolder`): CAF chunks of both tracks, partial chunks, sequence descriptors, manifest, recovery notes.
 /// - `cache/summaries/<ID>/`: summary checkpoints (extracted evidence, drafts).
-/// - `cache/waveforms/<chunk id>-<bins>.json`: waveform envelopes, keyed by the first chunk of the session.
+/// - `cache/waveforms/<chunk id>-<bins>.json` (`DataDirectoryAudio.waveformFolder`): waveform envelopes, keyed by the first chunk of the session.
 /// - `jobs/<uuid>/`: a transcription job (`request.json` names the session; result, log, echo and diarization scratch audio).
 /// - `jobs/voice-<uuid>/`: a voice job (`request.json` embeds the session).
 /// - `jobs/voice-audio-<uuid>/`: echo-cancelled scratch audio of a voice job, removed by the helper when it exits normally.
@@ -23,23 +23,26 @@ public struct SessionFiles: Sendable {
         public var isComplete: Bool { failures.isEmpty }
     }
 
-    public let root: URL
-    public init(root: URL) { self.root = root }
+    /// The audio layout of the data directory: where session folders and waveforms are.
+    public let audio: DataDirectoryAudio
+    public var root: URL { audio.directory }
+    public init(audio: DataDirectoryAudio) { self.audio = audio }
+    private static let audioRoot = DataDirectoryAudio.audioRoot, waveforms = DataDirectoryAudio.waveformFolder
 
     /// Removes the files of session `id`. `chunks` are its audio chunks. Files still referenced by a session of `live` are kept.
     public func remove(id: UUID, chunks: [AudioChunk], keeping live: [Recording]) -> Report {
         var report = Report()
         let livePaths = Set(live.flatMap(\.audioChunks).map(\.relativePath))
         let liveChunkIDs = Set(live.flatMap(\.audioChunks).map(\.id))
-        for chunk in chunks where chunk.relativePath.hasPrefix("audio/") && !livePaths.contains(chunk.relativePath) {
+        for chunk in chunks where chunk.relativePath.hasPrefix(Self.audioRoot + "/") && !livePaths.contains(chunk.relativePath) {
             remove(chunk.relativePath, into: &report)
         }
-        let audio = "audio/" + id.uuidString.lowercased()
-        if !livePaths.contains(where: { $0.hasPrefix(audio + "/") }) { remove(audio, into: &report) }
+        let folder = DataDirectoryAudio.relativeFolder(for: id)
+        if !livePaths.contains(where: { $0.hasPrefix(folder + "/") }) { remove(folder, into: &report) }
         remove("cache/summaries/" + id.uuidString, into: &report)
         let ownChunks = Set(chunks.map(\.id)).subtracting(liveChunkIDs)
-        for name in entries("cache/waveforms") where waveformChunk(name).map(ownChunks.contains) == true {
-            remove("cache/waveforms/" + name, into: &report)
+        for name in entries(Self.waveforms) where waveformChunk(name).map(ownChunks.contains) == true {
+            remove(Self.waveforms + "/" + name, into: &report)
         }
         for name in entries("jobs") where jobOwner(name) == id { remove("jobs/" + name, into: &report) }
         return report
@@ -61,18 +64,19 @@ public struct SessionFiles: Sendable {
         let liveIDs = Set(live.map(\.id))
         let livePaths = live.flatMap(\.audioChunks).map(\.relativePath)
         let liveChunkIDs = Set(live.flatMap(\.audioChunks).map(\.id))
-        for name in entries("audio") {
-            guard let id = UUID(uuidString: name), !liveIDs.contains(id), !livePaths.contains(where: { $0.hasPrefix("audio/\(name)/") }),
-                  settled("audio/" + name) else { continue }
-            remove("audio/" + name, into: &report)
+        for name in entries(Self.audioRoot) {
+            let folder = Self.audioRoot + "/" + name
+            guard let id = UUID(uuidString: name), !liveIDs.contains(id), !livePaths.contains(where: { $0.hasPrefix(folder + "/") }),
+                  settled(folder) else { continue }
+            remove(folder, into: &report)
         }
         for name in entries("cache/summaries") {
             guard let id = UUID(uuidString: name), !liveIDs.contains(id), settled("cache/summaries/" + name) else { continue }
             remove("cache/summaries/" + name, into: &report)
         }
-        for name in entries("cache/waveforms") {
-            guard let chunk = waveformChunk(name), !liveChunkIDs.contains(chunk), settled("cache/waveforms/" + name) else { continue }
-            remove("cache/waveforms/" + name, into: &report)
+        for name in entries(Self.waveforms) {
+            guard let chunk = waveformChunk(name), !liveChunkIDs.contains(chunk), settled(Self.waveforms + "/" + name) else { continue }
+            remove(Self.waveforms + "/" + name, into: &report)
         }
         for name in entries("jobs") {
             let scratch = name.hasPrefix("voice-audio-") && UUID(uuidString: String(name.dropFirst("voice-audio-".count))) != nil

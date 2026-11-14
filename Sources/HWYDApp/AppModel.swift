@@ -195,6 +195,8 @@ final class AppModel: ObservableObject {
     var dataDirectory: URL { environment.dataDirectory }
     /// The store of the sessions shown; nil for the examples and previews.
     var store: SessionStore? { workspace.store }
+    /// The audio of the sessions shown; nil for the examples and previews, which hold none.
+    var audio: (any AudioLocator)? { workspace.audio }
     var showWindow: (() -> Void)?
     var openNotepad: (() -> Void)?
     /// Moves the playhead while something plays.
@@ -209,7 +211,8 @@ final class AppModel: ObservableObject {
         calendar = CalendarIntegration(settings: preferences, allowed: environment.usesSystem)
         coordinator = environment.coordinator
         // Previews, demos and tests never touch the keychain nor start a process to find agents.
-        summarySettings = SummarySettings(store: preferences, usesSystem: environment.usesSystem, notifier: notifier, discovery: environment.agentDiscovery)
+        summarySettings = SummarySettings(store: preferences, usesSystem: environment.usesSystem, notifier: notifier, discovery: environment.agentDiscovery,
+                                          secrets: environment.secrets)
         newSessionKind = preferences.value(.newSessionKind)
         diarizationEnabled = preferences.value(.diarizationEnabled)
         if let data = preferences.value(.recordingShortcut) {
@@ -644,13 +647,13 @@ final class AppModel: ObservableObject {
         if resume { play(at: playbackTime) } else { updatePlaybackFocus() }
     }
     func play(at time: Double) {
-        guard let item = selected, let store, !item.audioChunks.isEmpty else {
+        guard let item = selected, let audio, !item.audioChunks.isEmpty else {
             notifier.notify(.info(String(localized: "Aucun fichier audio disponible pour cette session."))); return
         }
         stopPlayback()
         do {
             playbackTime = min(max(0, time), item.duration)
-            try player.start(chunks: item.audioChunks, store: store, at: playbackTime, duration: item.duration)
+            try player.start(chunks: item.audioChunks, audio: audio, at: playbackTime, duration: item.duration)
             applyTrackMix(); isPlaying = true; playback.generation += 1; updatePlaybackFocus(); startPlaybackClock()
         } catch { notifier.notify(.error(String(localized: "Lecture impossible : \(error.localizedDescription)"))) }
     }
@@ -660,10 +663,10 @@ final class AppModel: ObservableObject {
     }
     func loadWaveforms(for item: Recording) async {
         trackEnvelopes = [:]; waveformError = nil
-        guard let store, !item.audioChunks.isEmpty else { waveformLoading = false; return }
+        guard let audio, !item.audioChunks.isEmpty else { waveformLoading = false; return }
         waveformLoading = true
         do {
-            let envelopes = try await waveformReader.read(chunks: item.audioChunks, store: store, duration: item.duration)
+            let envelopes = try await waveformReader.read(chunks: item.audioChunks, audio: audio, duration: item.duration)
             guard !Task.isCancelled, selectedID == item.id else { return }
             trackEnvelopes = envelopes; waveformLoading = false
         } catch {

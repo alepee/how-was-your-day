@@ -10,7 +10,7 @@ enum VoiceStage {
             guard segment.end - segment.start >= 0.5,
                   !recording.segments.contains(where: { $0.id != segment.id && $0.source == segment.source && $0.speakerID != segment.speakerID && $0.start < segment.end && $0.end > segment.start }) else { continue }
             for chunk in recording.audioChunks.filter({ $0.source == speaker.source && $0.start < segment.end && $0.start + $0.duration > segment.start }).sorted(by: { $0.start < $1.start }) {
-                let file = try AVAudioFile(forReading: audioOverrides[chunk.id] ?? store.audioURL(for: chunk), commonFormat: .pcmFormatFloat32, interleaved: false)
+                let file = try AVAudioFile(forReading: audioOverrides[chunk.id] ?? store.audio.url(for: chunk), commonFormat: .pcmFormatFloat32, interleaved: false)
                 guard file.processingFormat.sampleRate == 16000, file.processingFormat.channelCount == 1 else { throw VoiceError.insufficientSpeech }
                 let start = Int64(max(0, segment.start - chunk.start) * 16000)
                 let end = min(file.length, Int64((segment.end - chunk.start) * 16000))
@@ -34,11 +34,11 @@ enum VoiceStage {
         try await manager.prepareModels(directory: store.directory.appendingPathComponent("models/diarization"))
         let result = try await manager.process(audio: samples)
         guard let embeddings = result.speakerDatabase, embeddings.count == 1, let vector = embeddings.values.first else { throw VoiceError.insufficientSpeech }
-        return try VoiceKeychain.normalized(vector)
+        return try VoicePrints.normalized(vector)
     }
     /// Runs one voice command. The result is JSON: matches for enrollment and identification,
     /// contributions for `voice-sources`, nothing otherwise. It never carries a vector.
-    static func run(command: String, store: SessionStore, job: VoiceJob) async throws -> Data {
+    static func run(command: String, store: SessionStore, prints: VoicePrints, job: VoiceJob) async throws -> Data {
         let empty = try JSONEncoder().encode([String: VoiceMatch]())
         switch command {
         case "probe-voice":
@@ -47,17 +47,17 @@ enum VoiceStage {
             return empty
         case "forget-voice":
             guard let id = job.personID else { throw StoreError.notFound }
-            try VoiceKeychain.remove(person: id)
+            try prints.remove(person: id)
             try await updateChannels(person: id, store: store, channels: [])
             return empty
         case "forget-voice-source":
             guard let id = job.personID else { throw StoreError.notFound }
-            let remaining = try VoiceKeychain.remove(person: id, recordingID: job.sourceRecordingID)
+            let remaining = try prints.remove(person: id, recordingID: job.sourceRecordingID)
             try await updateChannels(person: id, store: store, channels: remaining)
             return empty
         case "voice-sources":
             guard let id = job.personID else { throw StoreError.notFound }
-            return try JSONEncoder().encode(VoiceKeychain.contributions(person: id))
+            return try JSONEncoder().encode(prints.contributions(person: id))
         default: break
         }
         let people = try await store.people().filter { $0.recognitionEnabled }
@@ -67,26 +67,26 @@ enum VoiceStage {
         defer { try? FileManager.default.removeItem(at: working) }
         // Microphone audio needs the echo of the call removed, for enrollment and for the identification that follows.
         let prepared = job.recording.audioChunks.contains(where: { $0.source == .mic }) ? try EchoCancellation.prepare(
-            TranscriptionRequest(recordingID: job.recording.id, chunks: job.recording.audioChunks), store: store, directory: working) : EchoPreparation()
+            TranscriptionRequest(recordingID: job.recording.id, chunks: job.recording.audioChunks), audio: store.audio, directory: working) : EchoPreparation()
         if command == "enroll-voice" {
             guard let person = people.first(where: { $0.id == job.personID }), let speaker else { throw VoiceError.consentRequired }
             let channel = VoiceChannel(source: speaker.source)
             let vector = try await embedding(recording: job.recording, speaker: speaker, store: store, audioOverrides: prepared.chunks)
             // Recheck enrollment eligibility after the expensive model run.
             guard try await store.people().contains(where: { $0.id == person.id && $0.recognitionEnabled }) else { throw VoiceError.consentRequired }
-            try VoiceKeychain.add(vector, person: person.id, channel: channel, recordingID: job.recording.id, speakerID: speaker.id)
+            try prints.add(vector, person: person.id, channel: channel, recordingID: job.recording.id, speakerID: speaker.id)
             guard var current = try await store.people().first(where: { $0.id == person.id }), current.recognitionEnabled else {
-                try VoiceKeychain.remove(person: person.id); throw VoiceError.consentRequired
+                try prints.remove(person: person.id); throw VoiceError.consentRequired
             }
             current.enrolledChannels = VoiceChannel.allCases.filter { current.channels.contains($0) || $0 == channel }
             current.lastEnrolledAt = Date()
             try await store.savePerson(current)
             // The new sample may name other voices of this session: look again. The sample is stored
             // already, so a failure here only costs the suggestions.
-            do { return try JSONEncoder().encode(await identify(recording: job.recording, store: store, audioOverrides: prepared.chunks)) }
+            do { return try JSONEncoder().encode(await identify(recording: job.recording, store: store, prints: prints, audioOverrides: prepared.chunks)) }
             catch { return empty }
         }
-        return try JSONEncoder().encode(await identify(recording: job.recording, store: store, audioOverrides: prepared.chunks))
+        return try JSONEncoder().encode(await identify(recording: job.recording, store: store, prints: prints, audioOverrides: prepared.chunks))
     }
     private static func updateChannels(person id: UUID, store: SessionStore, channels: [VoiceChannel]) async throws {
         guard var person = try await store.people().first(where: { $0.id == id }) else { return }
@@ -96,11 +96,11 @@ enum VoiceStage {
     }
     /// Proposes a known person for each voice. A voice is compared with the exemplars of its own channel;
     /// a person known only on the other channel can still be proposed, above a stricter threshold.
-    static func identify(recording: Recording, store: SessionStore, audioOverrides: [UUID: URL] = [:]) async throws -> [String: VoiceMatch] {
+    static func identify(recording: Recording, store: SessionStore, prints: VoicePrints, audioOverrides: [UUID: URL] = [:]) async throws -> [String: VoiceMatch] {
         let people = try await store.people().filter(\.recognitionEnabled)
         guard !people.isEmpty else { return [:] }
         let exemplars: [[VoiceChannel: [[Float]]]] = try people.map { person in
-            try Dictionary(uniqueKeysWithValues: VoiceChannel.allCases.map { ($0, try VoiceKeychain.vectors(person: person.id, channel: $0)) })
+            try Dictionary(uniqueKeysWithValues: VoiceChannel.allCases.map { ($0, try prints.vectors(person: person.id, channel: $0)) })
         }
         guard exemplars.contains(where: { $0.values.contains { !$0.isEmpty } }) else { return [:] }
         var speakers: [HWYDCore.Speaker] = []

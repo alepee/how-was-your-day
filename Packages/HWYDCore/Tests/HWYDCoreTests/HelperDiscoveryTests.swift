@@ -9,6 +9,17 @@ final class HelperDiscoveryTests: XCTestCase {
         XCTAssertEqual(helpers.mcp.path, "/Applications/How Was Your Day.app/Contents/Helpers/hwyd-mcp")
     }
 
+    func testHelperVaultIsTheKeychainUnlessMemoryIsAsked() {
+        var helpers = HelperLocator(appBundle: URL(fileURLWithPath: "/Applications/How Was Your Day.app"))
+        XCTAssertEqual(helpers.secrets, .keychain)
+        XCTAssertEqual(HelperSecrets(environment: [:]), .keychain)
+        XCTAssertEqual(HelperSecrets(environment: ["HWYD_SECRET_VAULT": "unknown"]), .keychain)
+        helpers.secrets = .memory
+        XCTAssertEqual(HelperSecrets(environment: helpers.environment), .memory)
+        XCTAssertTrue(HelperSecrets.memory.makeVault() is InMemorySecretVault)
+        XCTAssertTrue(HelperSecrets.keychain.makeVault() is KeychainVault)
+    }
+
     func testAgentDetectionOutputKeepsPresetOrderAndIgnoresUnknownLines() async {
         XCTAssertTrue(ACPAgentPreset.detectionScript.contains("command -v codex-acp"))
         XCTAssertEqual(ACPAgentPreset.installed(fromDetectionOutput: "gemini\nsomething-else\nclaude-agent-acp\n"),

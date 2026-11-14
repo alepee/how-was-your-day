@@ -1,5 +1,4 @@
 import Foundation
-import Security
 
 /// One summary stage, independent of the wire protocol: system text with its output contract,
 /// user input with `S<n>` references, the JSON schema and the reference map back to segment UUIDs.
@@ -368,45 +367,5 @@ public enum SummaryModelCatalog {
         }
         guard !ids.isEmpty || object["data"] != nil || object["models"] != nil else { throw SummaryFailure.invalidResponse }
         return Array(Set(ids)).sorted()
-    }
-}
-
-/// API keys for hosted summary providers, one generic password per service, never synchronized.
-public enum SummaryKeychain {
-    private static let service = "dev.lepee.hwyd.summary-api-key"
-    private static func query(_ provider: SummaryService) -> [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
-         kSecAttrAccount as String: provider.rawValue, kSecAttrSynchronizable as String: false]
-    }
-    public struct Failure: LocalizedError {
-        public let status: OSStatus
-        public var errorDescription: String? { String(localized: "Trousseau inaccessible (\(status)).", bundle: .hwyd) }
-    }
-    public static func key(for provider: SummaryService) throws -> String? {
-        var q = query(provider); q[kSecReturnData as String] = true
-        var result: CFTypeRef?
-        let status = SecItemCopyMatching(q as CFDictionary, &result)
-        if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess, let data = result as? Data else { throw Failure(status: status) }
-        return String(data: data, encoding: .utf8)
-    }
-    public static func hasKey(for provider: SummaryService) -> Bool {
-        var q = query(provider); q[kSecReturnAttributes as String] = true
-        return SecItemCopyMatching(q as CFDictionary, nil) == errSecSuccess
-    }
-    public static func setKey(_ key: String, for provider: SummaryService) throws {
-        let data = Data(key.trimmingCharacters(in: .whitespacesAndNewlines).utf8)
-        let q = query(provider)
-        let status = SecItemUpdate(q as CFDictionary, [kSecValueData as String: data] as CFDictionary)
-        if status == errSecItemNotFound {
-            var attributes = q; attributes[kSecValueData as String] = data
-            attributes[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-            let add = SecItemAdd(attributes as CFDictionary, nil)
-            guard add == errSecSuccess else { throw Failure(status: add) }
-        } else if status != errSecSuccess { throw Failure(status: status) }
-    }
-    public static func removeKey(for provider: SummaryService) throws {
-        let status = SecItemDelete(query(provider) as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else { throw Failure(status: status) }
     }
 }

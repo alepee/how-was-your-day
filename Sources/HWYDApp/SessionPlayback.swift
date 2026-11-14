@@ -25,7 +25,7 @@ import HWYDCore
     }
     var playlistFinished: Bool { running && playlist.map { elapsed >= $0.length } == true }
     /// Plays only the given passages of one track, back to back.
-    func start(playlist: VoicePlaylist, source: AudioSource, chunks: [AudioChunk], store: SessionStore, offline: Bool = false) throws {
+    func start(playlist: VoicePlaylist, source: AudioSource, chunks: [AudioChunk], audio: any AudioLocator, offline: Bool = false) throws {
         stop()
         engine = AVAudioEngine()
         do {
@@ -38,7 +38,7 @@ import HWYDCore
                 for chunk in track where chunk.start < entry.to && chunk.start + chunk.duration > entry.from {
                     let file: AVAudioFile
                     if let existing = opened[chunk.id] { file = existing }
-                    else { file = try AVAudioFile(forReading: store.audioURL(for: chunk)); opened[chunk.id] = file; files.append(file) }
+                    else { file = try AVAudioFile(forReading: audio.url(for: chunk)); opened[chunk.id] = file; files.append(file) }
                     let rate = file.processingFormat.sampleRate
                     if !connected { engine.connect(node, to: engine.mainMixerNode, format: file.processingFormat); connected = true }
                     let from = max(entry.from, chunk.start), to = min(entry.to, chunk.start + chunk.duration)
@@ -55,7 +55,7 @@ import HWYDCore
             try launch(offline: offline)
         } catch { stop(); throw error }
     }
-    func start(chunks: [AudioChunk], store: SessionStore, at time: Double, duration: Double, offline: Bool = false) throws {
+    func start(chunks: [AudioChunk], audio: any AudioLocator, at time: Double, duration: Double, offline: Bool = false) throws {
         stop()
         engine = AVAudioEngine()
         offset = time; end = duration
@@ -67,7 +67,7 @@ import HWYDCore
                 engine.attach(node); nodes[source] = node
                 var connected = false
                 for chunk in track {
-                    let file = try AVAudioFile(forReading: store.audioURL(for: chunk))
+                    let file = try AVAudioFile(forReading: audio.url(for: chunk))
                     let rate = file.processingFormat.sampleRate
                     if !connected {
                         engine.connect(node, to: engine.mainMixerNode, format: file.processingFormat)
@@ -131,19 +131,19 @@ actor WaveformReader {
     }
     private var memory: [String: [AudioSource: TrackEnvelope]] = [:]
     private(set) var cacheHits = 0
-    func read(chunks: [AudioChunk], store: SessionStore, duration: Double, bins: Int = 600) throws -> [AudioSource: TrackEnvelope] {
+    func read(chunks: [AudioChunk], audio: any AudioLocator, duration: Double, bins: Int = 600) throws -> [AudioSource: TrackEnvelope] {
         guard duration.isFinite, duration > 0, bins > 0, bins <= 10000 else { return [:] }
         var identity = "waveform-v1|\(duration)|\(bins)"
         for chunk in chunks {
-            let url = try store.audioURL(for: chunk)
+            let url = try audio.url(for: chunk)
             let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
             identity += "|\(url.path)|\(chunk.start)|\(chunk.duration)|\(attributes[.size] ?? 0)|\((attributes[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0)"
         }
         let key = SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
         if let value = memory[key] { cacheHits += 1; return value }
-        let directory = store.directory.appendingPathComponent("cache/waveforms")
-        let file = directory.appendingPathComponent("\(chunks.first?.id.uuidString ?? "empty")-\(bins).json")
-        if let data = try? Data(contentsOf: file), let cached = try? JSONDecoder().decode(Cached.self, from: data), cached.key == key {
+        let directory = audio.waveformCache
+        let file = directory?.appendingPathComponent("\(chunks.first?.id.uuidString ?? "empty")-\(bins).json")
+        if let file, let data = try? Data(contentsOf: file), let cached = try? JSONDecoder().decode(Cached.self, from: data), cached.key == key {
             remember(cached.envelopes, key: key); cacheHits += 1; return cached.envelopes
         }
         var result: [AudioSource: TrackEnvelope] = [:]
@@ -152,7 +152,7 @@ actor WaveformReader {
             var available = false
             for chunk in chunks where chunk.source == source {
                 try Task.checkCancellation()
-                let file = try AVAudioFile(forReading: store.audioURL(for: chunk))
+                let file = try AVAudioFile(forReading: audio.url(for: chunk))
                 guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: 8192) else { continue }
                 while file.framePosition < file.length {
                     try Task.checkCancellation()
@@ -177,8 +177,10 @@ actor WaveformReader {
         try Task.checkCancellation()
         remember(result, key: key)
         // A full cache or read-only disk must not prevent playback.
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-        if let data = try? JSONEncoder().encode(Cached(key: key, envelopes: result)) { try? data.write(to: file, options: .atomic) }
+        if let directory, let file {
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            if let data = try? JSONEncoder().encode(Cached(key: key, envelopes: result)) { try? data.write(to: file, options: .atomic) }
+        }
         return result
     }
     private func remember(_ value: [AudioSource: TrackEnvelope], key: String) {

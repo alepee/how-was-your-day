@@ -32,13 +32,14 @@ import HWYDCore
         for mode in [LaunchMode.snapshot(directory), .uiTest(directory), .asrTest(directory), .selfTest(directory, seconds: 2), .preview] {
             let environment = AppEnvironment.launch(mode)
             guard mode.isSynthetic, environment.preferences is InMemorySettings, !environment.usesSystem, environment.user.store == nil,
-                  environment.user.capture.isSimulated, environment.examples().capture.isSimulated,
+                  environment.secrets is InMemorySecretVault, environment.user.audio == nil, environment.user.capture.isSimulated, environment.examples().capture.isSimulated,
                   (try environment.user.capture.make()) is SimulatedCapture else {
                 throw CaptureFailure(message: "A synthetic mode reached the user's preferences, data or microphone: \(mode)")
             }
         }
         let checks = try AppEnvironment.synthetic(directory: directory)
         guard checks.preferences is InMemorySettings, !checks.usesSystem, !checks.user.capture.isSimulated,
+              checks.secrets is InMemorySecretVault, checks.helpers.secrets == .memory, checks.examples().audio == nil,
               (try? checks.user.capture.make()) == nil, checks.examples().transcription.refusal == .examples,
               checks.examples().summarizer(SummaryConfiguration()).refusal == .examples else {
             throw CaptureFailure(message: "The checks' environment can record or process the examples")

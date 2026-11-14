@@ -246,7 +246,7 @@ extension TranscriptionRequest {
 }
 
 public enum TranscriptionPipeline {
-    public static func run(_ request: TranscriptionRequest, store: SessionStore, recognizer: any SpeechRecognizing, audioOverrides: [UUID: URL] = [:]) async throws -> TranscriptionResult {
+    public static func run(_ request: TranscriptionRequest, audio: any AudioLocator, recognizer: any SpeechRecognizing, audioOverrides: [UUID: URL] = [:]) async throws -> TranscriptionResult {
         guard !request.chunks.isEmpty, request.chunks.allSatisfy({ $0.start.isFinite && $0.start >= 0 && $0.duration.isFinite && $0.duration > 0 }) else { throw TranscriptionError.invalidAudio }
         var resolved = request
         var detections: [LanguageDetection]?
@@ -254,7 +254,7 @@ public enum TranscriptionPipeline {
         if request.locale == SpeechLanguage.automatic {
             var found: [LanguageDetection] = []
             for source in [AudioSource.mic, .system] where request.chunks.contains(where: { $0.source == source }) {
-                found.append(try await detectLanguage(request, source: source, store: store, recognizer: recognizer, audioOverrides: audioOverrides))
+                found.append(try await detectLanguage(request, source: source, audio: audio, recognizer: recognizer, audioOverrides: audioOverrides))
             }
             for detection in found { locales[detection.source] = detection.locale }
             resolved.locale = locales[.mic] ?? found.first?.locale ?? request.fallbackLocale ?? SpeechLanguage.defaultLocale
@@ -263,7 +263,7 @@ public enum TranscriptionPipeline {
         var segments: [TranscriptSegment] = []
         for chunk in request.chunks.sorted(by: { $0.start < $1.start }) {
             try Task.checkCancellation()
-            segments += try await recognizer.transcribe(file: audioOverrides[chunk.id] ?? store.audioURL(for: chunk), chunk: chunk, locale: locales[chunk.source] ?? resolved.locale)
+            segments += try await recognizer.transcribe(file: audioOverrides[chunk.id] ?? audio.url(for: chunk), chunk: chunk, locale: locales[chunk.source] ?? resolved.locale)
         }
         segments.sort { $0.start == $1.start ? $0.source.rawValue < $1.source.rawValue : $0.start < $1.start }
         var result = TranscriptionResult(request: resolved, segments: segments)
@@ -284,7 +284,7 @@ public enum TranscriptionPipeline {
     /// When the text points to another candidate, the sample is transcribed again with it, and the
     /// higher mean word confidence decides. Anything inconclusive keeps the fallback. When no
     /// candidate fits well, the texts may still reveal an installable language to suggest.
-    static func detectLanguage(_ request: TranscriptionRequest, source: AudioSource, store: SessionStore, recognizer: any SpeechRecognizing,
+    static func detectLanguage(_ request: TranscriptionRequest, source: AudioSource, audio: any AudioLocator, recognizer: any SpeechRecognizing,
                                audioOverrides: [UUID: URL]) async throws -> LanguageDetection {
         let candidates = SpeechLanguage.oneLocalePerLanguage(request.candidateLocales ?? [])
         let fallback = request.fallbackLocale ?? candidates.first ?? SpeechLanguage.defaultLocale
@@ -295,7 +295,7 @@ public enum TranscriptionPipeline {
         var excerpt: [(chunk: AudioChunk, url: URL, seconds: Double)] = [], remaining = detectionSeconds
         for chunk in chunks where remaining > 0 {
             let seconds = min(chunk.duration, remaining)
-            excerpt.append((chunk, try audioOverrides[chunk.id] ?? store.audioURL(for: chunk), seconds)); remaining -= seconds
+            excerpt.append((chunk, try audioOverrides[chunk.id] ?? audio.url(for: chunk), seconds)); remaining -= seconds
         }
         func listen(_ locale: String) async throws -> SpeechSample {
             var texts: [String] = [], weighted = 0.0, weight = 0.0

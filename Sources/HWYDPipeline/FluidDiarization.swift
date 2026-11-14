@@ -26,12 +26,12 @@ enum DiarizationStage {
         let manager = OfflineDiarizerManager(config: OfflineDiarizerConfig())
         try await manager.prepareModels(directory: directory)
     }
-    static func run(_ result: TranscriptionResult, store: SessionStore, workingDirectory: URL, diagnosticURL: URL? = nil, microphoneOverride: URL? = nil) async throws -> TranscriptionResult {
+    static func run(_ result: TranscriptionResult, audio: any AudioLocator, models: URL, workingDirectory: URL, diagnosticURL: URL? = nil, microphoneOverride: URL? = nil) async throws -> TranscriptionResult {
         ModelHub.offlineMode = true
         let folder = workingDirectory.appendingPathComponent("diarization-\(UUID())")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         defer { try? FileManager.default.removeItem(at: folder) }
-        let diarizer = FluidDiarizer(directory: store.directory.appendingPathComponent("models/diarization"))
+        let diarizer = FluidDiarizer(directory: models)
         var turns: [SpeakerTurn] = []
         for source in [HWYDCore.AudioSource.mic, .system] {
             let chunks = result.request.chunks.filter { $0.source == source }.sorted { $0.start < $1.start }
@@ -40,7 +40,7 @@ enum DiarizationStage {
             if source == .mic, let microphoneOverride { file = microphoneOverride }
             else {
                 file = folder.appendingPathComponent("\(source.rawValue).caf")
-                try assemble(chunks, store: store, destination: file)
+                try assemble(chunks, audio: audio, destination: file)
             }
             turns += try await diarizer.diarize(file: file, source: source)
         }
@@ -57,7 +57,7 @@ enum DiarizationStage {
         output.diarizationEngine = "fluidaudio-0.17.7-community-1-exclusive"
         return output
     }
-    static func assemble(_ chunks: [AudioChunk], store: SessionStore, destination: URL) throws {
+    static func assemble(_ chunks: [AudioChunk], audio: any AudioLocator, destination: URL) throws {
         let format = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)!
         let output = try AVAudioFile(forWriting: destination, settings: format.settings)
         let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 8192)!
@@ -72,7 +72,7 @@ enum DiarizationStage {
                 buffer.floatChannelData![0].update(repeating: 0, count: Int(buffer.frameLength))
                 try output.write(from: buffer); written += Int64(buffer.frameLength)
             }
-            let input = try AVAudioFile(forReading: store.audioURL(for: chunk), commonFormat: .pcmFormatFloat32, interleaved: false)
+            let input = try AVAudioFile(forReading: audio.url(for: chunk), commonFormat: .pcmFormatFloat32, interleaved: false)
             guard input.processingFormat.sampleRate == 16000, input.processingFormat.channelCount == 1,
                   abs(Double(input.length) / 16000 - chunk.duration) <= 2.0 / 16000 else { throw TranscriptionError.invalidAudio }
             while input.framePosition < input.length {

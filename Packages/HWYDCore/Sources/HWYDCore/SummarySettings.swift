@@ -29,13 +29,18 @@ import Foundation
     private let notifier: any UserNotifier
 
     private let store: SettingsStore
-    /// False for previews and tests: preferences stay untouched, and neither the keychain nor the network is used.
+    /// False for previews and tests: preferences stay untouched, and neither the stored keys nor the network are used.
     private let usesSystem: Bool
     private let discovery: any AgentDiscovery
+    /// Hosted providers' keys, in the vault the composition root gives: the keychain for the
+    /// installed app, memory for everything else.
+    private let keys: SummaryKeys
     private var modelsTask: Task<Void, Never>?
 
-    public init(store: SettingsStore, usesSystem: Bool, notifier: any UserNotifier, discovery: any AgentDiscovery = FixedAgentDiscovery()) {
+    public init(store: SettingsStore, usesSystem: Bool, notifier: any UserNotifier, discovery: any AgentDiscovery = FixedAgentDiscovery(),
+                secrets: any SecretVault = InMemorySecretVault()) {
         self.store = store; self.usesSystem = usesSystem; self.notifier = notifier; self.discovery = discovery
+        keys = SummaryKeys(vault: secrets)
         enabled = store.value(.summaryEnabled)
         endpoint = store.value(.summaryEndpoint)
         localModel = store.value(.summaryLocalModel)
@@ -72,7 +77,7 @@ import Foundation
         hostedModel = service.isRemote ? store.value(.summaryHostedModel(service)) ?? service.defaultModel : ""
         modelsTask?.cancel(); modelsTask = nil
         availableModels = []; modelsLoading = false
-        keyStored = service.isRemote && usesSystem && SummaryKeychain.hasKey(for: service)
+        keyStored = service.isRemote && usesSystem && keys.hasKey(for: service)
     }
 
     public func select(_ newService: SummaryService) {
@@ -104,7 +109,7 @@ import Foundation
                 notifier.notify(.info(String(localized: "Liste des modèles indisponible : \(error.localizedDescription)", bundle: .hwyd)))
             }
             guard !Task.isCancelled else { return }
-            do { try SummaryKeychain.setKey(key, for: service) }
+            do { try keys.setKey(key, for: service) }
             catch { notifier.notify(.error(String(localized: "Clé API : \(error.localizedDescription)", bundle: .hwyd))); return }
             guard self.service == service else { return }
             keyStored = true
@@ -120,7 +125,7 @@ import Foundation
         modelsTask = Task {
             defer { if self.service == service { modelsLoading = false } }
             do {
-                guard let key = try SummaryKeychain.key(for: service) else { return }
+                guard let key = try keys.key(for: service) else { return }
                 let models = try await SummaryModelCatalog.models(service: service, apiKey: key)
                 if !Task.isCancelled, self.service == service { applyAvailableModels(models) }
             } catch {
@@ -145,7 +150,7 @@ import Foundation
         guard service.isRemote, !isDemo, usesSystem else { return }
         modelsTask?.cancel(); availableModels = []; modelsLoading = false
         do {
-            try SummaryKeychain.removeKey(for: service); keyStored = false
+            try keys.removeKey(for: service); keyStored = false
             notifier.notify(.info(String(localized: "Clé \(service.displayName) supprimée.", bundle: .hwyd)))
         } catch { notifier.notify(.error(String(localized: "Clé API : \(error.localizedDescription)", bundle: .hwyd))) }
     }

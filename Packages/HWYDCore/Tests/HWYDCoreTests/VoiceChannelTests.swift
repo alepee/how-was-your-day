@@ -5,7 +5,7 @@ import XCTest
 final class VoiceChannelTests: XCTestCase {
     private func unit(_ index: Int, _ tilt: Float = 0) -> [Float] {
         var vector = [Float](repeating: 0, count: 256); vector[index] = 1; vector[index + 1] = tilt
-        return try! VoiceKeychain.normalized(vector)
+        return try! VoicePrints.normalized(vector)
     }
 
     func testFormerMicrophoneChannelsReadAsMic() throws {
@@ -27,27 +27,27 @@ final class VoiceChannelTests: XCTestCase {
     }
 
     func testStoredSamplesKeepTheirOriginAndOldOnesStayReadable() throws {
-        let legacy = try VoiceKeychain.decode(JSONEncoder().encode([unit(0)]))
+        let legacy = try VoicePrints.decode(JSONEncoder().encode([unit(0)]))
         XCTAssertEqual(legacy.count, 1)
         XCTAssertNil(legacy[0].recordingID)
         let session = UUID(), speaker = UUID()
-        let current = try VoiceKeychain.decode(JSONEncoder().encode([VoiceExemplar(vector: unit(2), recordingID: session, speakerID: speaker, addedAt: Date())]))
+        let current = try VoicePrints.decode(JSONEncoder().encode([VoiceExemplar(vector: unit(2), recordingID: session, speakerID: speaker, addedAt: Date())]))
         XCTAssertEqual(current[0].recordingID, session)
         XCTAssertEqual(current[0].speakerID, speaker)
-        XCTAssertThrowsError(try VoiceKeychain.decode(JSONEncoder().encode([[Float](repeating: 0, count: 256)])))
+        XCTAssertThrowsError(try VoicePrints.decode(JSONEncoder().encode([[Float](repeating: 0, count: 256)])))
     }
 
     func testPruningKeepsTheLimitAndOrigins() {
         let session = UUID()
         let values = (0..<25).map { VoiceExemplar(vector: unit($0 * 2, Float($0) / 10), recordingID: $0 < 5 ? session : nil) }
-        let kept = VoiceKeychain.pruned(values)
-        XCTAssertEqual(kept.count, VoiceKeychain.exemplarLimit)
+        let kept = VoicePrints.pruned(values)
+        XCTAssertEqual(kept.count, VoicePrints.exemplarLimit)
         XCTAssertTrue(kept.allSatisfy { kept in values.contains(kept) })
     }
 
     func testContributionsGroupSamplesBySessionWithoutVectors() throws {
         let first = UUID(), later = Date()
-        let contributions = VoiceKeychain.contributions(of: [
+        let contributions = VoicePrints.contributions(of: [
             VoiceExemplar(vector: unit(0), recordingID: first, addedAt: Date(timeIntervalSince1970: 10)),
             VoiceExemplar(vector: unit(2), recordingID: first, addedAt: later),
             VoiceExemplar(vector: unit(4))], channel: .mic)
