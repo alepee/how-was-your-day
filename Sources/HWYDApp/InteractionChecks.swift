@@ -75,10 +75,20 @@ import HWYDCore
         try write("cache/summaries/\(deleted.id.uuidString)/evidence.json")
         deleted = try await store.save(deleted)
         let kept = try await store.save(Recording(title: "Kept fixture", state: .sealed))
-        let earlier = "audio/\(UUID().uuidString.lowercased())/mic-000000.caf"
-        try write(earlier)
+        let earlier = "audio/\(UUID().uuidString.lowercased())"
+        try write(earlier + "/mic-000000.caf")
+        let quiet = Date.now.addingTimeInterval(-2 * SessionFiles.orphanQuietPeriod)
+        for path in [earlier + "/mic-000000.caf", earlier] {
+            try FileManager.default.setAttributes([.modificationDate: quiet], ofItemAtPath: directory.appendingPathComponent(path).path)
+        }
+        // A capture that is starting has a folder but no row yet.
+        let starting = "audio/\(UUID().uuidString.lowercased())/mic-000000.partial.caf"
+        try write(starting)
         await model.load()
+        let sweepDeadline = ContinuousClock.now.advanced(by: .seconds(3))
+        while exists(earlier), ContinuousClock.now < sweepDeadline { try await Task.sleep(for: .milliseconds(10)) }
         guard !exists(earlier) else { throw CaptureFailure(message: "Launch kept the audio of a session deleted earlier") }
+        guard exists(starting) else { throw CaptureFailure(message: "Launch sweep removed the folder of a starting capture") }
         model.deleteCandidate = model.recordings.first { $0.id == deleted.id }
         model.deleteConfirmed()
         let deadline = ContinuousClock.now.advanced(by: .seconds(3))
