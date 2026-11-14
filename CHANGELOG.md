@@ -9,6 +9,8 @@ Entries describe what a user observes. The detailed release notes published on G
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-14
+
 ### Added
 - « Générer automatiquement » in Settings › Summary (off by default) starts a session's summary on its own, 10 seconds after the session is ready: transcript complete and every voice named, confirmed or ignored. A message announces each automatic summary and lets you cancel it. It makes one attempt per transcript version until the session has a summary, waits for other processing to end, and never processes sessions that ended before you turned it on. Turning it off drops the automatic summaries still waiting. When the summary cannot run (provider not configured), nothing is sent and the line under the Generate button says why. Known limits: a refused attempt is not retried until the transcript changes, and a session that was ready when you quit HWYD during its 10 seconds is not picked up at the next launch.
 - The summary tab says when some voices are not identified yet, since the summary then refers to them generically.
@@ -200,7 +202,8 @@ Entries describe what a user observes. The detailed release notes published on G
 ### Added
 - First experimental release for Apple Silicon and macOS 26+: separate microphone and system audio recording, local French transcription, optional diarization, notes and speaker corrections, optional local summaries, calendar reminders, Markdown/JSON exports and a standalone MCP server.
 
-[Unreleased]: https://github.com/alepee/how-was-your-day/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/alepee/how-was-your-day/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/alepee/how-was-your-day/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/alepee/how-was-your-day/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/alepee/how-was-your-day/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/alepee/how-was-your-day/compare/v0.11.0...v0.12.0
