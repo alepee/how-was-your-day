@@ -70,7 +70,7 @@ The local default is an `Apple Development` identity (a free Apple ID added in X
 SIGN_IDENTITY=- HWYD_ALLOW_ADHOC=1 scripts/build-app.sh debug
 ```
 
-Ad hoc signatures can cause repeated macOS permission prompts. Public release packaging refuses them. Never rebuild over an app that is recording. Use a separate output directory:
+Ad hoc signatures can cause repeated macOS permission prompts. An ad hoc signature has no team ID, so an ad hoc build disables library validation to load its embedded Sparkle. Public release packaging refuses them. Never rebuild over an app that is recording. Use a separate output directory:
 
 ```sh
 HWYD_APP_OUTPUT='build/validation/How Was Your Day.app' scripts/build-app.sh debug

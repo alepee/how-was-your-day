@@ -6,7 +6,8 @@ export DEVELOPER_DIR ?= /Applications/Xcode.app/Contents/Developer
 APP      := build/How Was Your Day.app
 HWYD     := $(APP)/Contents/MacOS/HWYD
 MCP      := $(APP)/Contents/Helpers/hwyd-mcp
-# Synthetic test runs write here, never in the user's store.
+# Synthetic test runs write here, never in the user's store. scripts/test-mcp.py only accepts a
+# store folder whose name contains "test".
 TEST_DIR := build/make-tests
 
 # The last published tag is the version source of truth (no version file).
@@ -72,10 +73,10 @@ test: test-core test-pipeline test-realtime test-scripts ## Run all tests that n
 .PHONY: test-app
 test-app: ## Run synthetic checks against the built app (no microphone)
 	rm -rf "$(TEST_DIR)"
-	"$(HWYD)" --self-test "$(TEST_DIR)/audio"
-	"$(HWYD)" --ui-test "$(TEST_DIR)/ui"
-	"$(HWYD)" --ui-test "$(TEST_DIR)/ui-en" -AppleLanguages '(en)'
-	python3 scripts/test-mcp.py "$(MCP)" "$(TEST_DIR)/ui"
+	"$(HWYD)" --self-test "$(TEST_DIR)/audio-test"
+	"$(HWYD)" --ui-test "$(TEST_DIR)/ui-test"
+	"$(HWYD)" --ui-test "$(TEST_DIR)/ui-test-en" -AppleLanguages '(en)'
+	python3 scripts/test-mcp.py "$(MCP)" "$(TEST_DIR)/ui-test"
 
 .PHONY: snapshot
 snapshot: ## Render UI snapshots (French and English) into build/screenshots

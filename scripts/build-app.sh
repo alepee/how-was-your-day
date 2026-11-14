@@ -70,5 +70,15 @@ sparkle="$app/Contents/Frameworks/Sparkle.framework"
 codesign --force "${timestamp_flag}" --options runtime --sign "$sign_identity" "$sparkle/Versions/B/Autoupdate"
 codesign --force "${timestamp_flag}" --options runtime --sign "$sign_identity" "$sparkle/Versions/B/Updater.app"
 codesign --force "${timestamp_flag}" --options runtime --sign "$sign_identity" "$sparkle"
-codesign --force "${timestamp_flag}" --identifier dev.lepee.hwyd --options runtime --entitlements Resources/HWYD.entitlements --sign "$sign_identity" "$app"
+entitlements=Resources/HWYD.entitlements
+# Under the hardened runtime, library validation only loads code signed by the same team. Ad hoc
+# signatures have no team, so an ad hoc app cannot load its own ad hoc Sparkle. Isolated ad hoc
+# builds relax library validation; builds with a persistent identity keep it.
+if [[ "$sign_identity" == "-" ]]; then
+    entitlements="$(mktemp -t hwyd-adhoc-entitlements)"
+    trap 'rm -f "$entitlements"' EXIT
+    cp Resources/HWYD.entitlements "$entitlements"
+    /usr/libexec/PlistBuddy -c "Add :com.apple.security.cs.disable-library-validation bool true" "$entitlements" >/dev/null
+fi
+codesign --force "${timestamp_flag}" --identifier dev.lepee.hwyd --options runtime --entitlements "$entitlements" --sign "$sign_identity" "$app"
 printf 'App: %s/%s\n' "$PWD" "$app"
