@@ -160,7 +160,7 @@ Une tranche centrale dure 300 s, soit 4 800 000 frames à 16 kHz, sauf arrêt, l
 
 Écrire un journal de tranche atomique avec ID, piste, époque et ancrage temporel avant les premières frames. Écrire `000001.caf.partial`, fermer, synchroniser, renommer `000001.caf`, synchroniser le dossier, puis enregistrer hash, frames et bornes dans SQLite. Le CLI ignore les `.partial`. Un manifeste JSON atomique par session rend les fichiers fermés récupérables sans la DB. Il porte les pistes, époques, chunks et lacunes, sans vecteurs.
 
-Débranchement : stopper l'ancien IOProc, vider le ring, fermer les tranches, détruire aggregate puis tap. Recréer le graphe avec la nouvelle route. Garder l'origine de session. Inscrire un `gap` pour le temps absent. La piste système ne devient jamais une piste micro par changement d'ordre des canaux. Pas de pause/reprise utilisateur en v1 ; arrêt puis nouvelle session. Veille système : fermer la session avec motif `sleep`, ne pas redémarrer silencieusement au réveil.
+Changement de périphérique (état actuel) : le graphe n'est **pas** recréé. `CoreAudioCapture` compare les périphériques d'entrée et de sortie par défaut à ceux du démarrage ; s'ils changent, il signale `CaptureFault.routeChanged` et `CaptureSession` arrête la session (marquée interrompue, audio déjà scellé conservé et transcrit). L'utilisateur relance une session avec le nouveau périphérique. La piste système ne devient jamais une piste micro par changement d'ordre des canaux. Recréer le graphe en gardant l'origine de session et un `gap` reste la cible, non implémentée. Pause et reprise utilisateur existent : les devices sont arrêtés, la timeline audio et l'horloge de session sautent la pause. Le redémarrage du flux micro quand une app de réunion active le voice processing (0.13.0) suit la même règle. Veille système : la session est fermée (scellée), sans redémarrage au réveil.
 
 ## 5. Flux de bout en bout
 
@@ -223,7 +223,7 @@ L'app lance `Process` avec URL du binaire embarqué et arguments séparés, jama
 
 | Synchronisation | Contrat |
 |---|---|
-| `CaptureActor` | Sérialise démarrage, arrêt et changements de route ; pas le callback temps réel |
+| `CaptureActor` | Réalisé par l'actor `CoreAudioCapture`, sur sa propre file série : démarrage, pause, arrêt, contrôles de santé et redémarrages du flux micro, hors du main thread ; pas le callback temps réel |
 | `PipelineActor` | Ordonne les étapes ; adaptateurs SDK confinés dans leur actor ; pas de partage forcé par `@unchecked Sendable` |
 | `StoreActor` | Une façade par processus, `DatabasePool` GRDB ; les actors ne synchronisent pas les autres processus |
 | SQLite | WAL, foreign keys ON sur chaque connexion, busy timeout 5 s, transactions courtes ; aucune inférence dans une transaction |

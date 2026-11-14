@@ -8,8 +8,19 @@ struct CaptureFailure: LocalizedError {
     let message: String
     var errorDescription: String? { message }
 }
-@MainActor final class CaptureController {
-    private(set) var finalizationError: String?
+/// The Core Audio adapter of `AudioCapture`: a process tap and the microphone, in one aggregate
+/// device or on two clocks, written as CAF chunks by `AudioWriter`. HAL calls, the health checks
+/// and the restarts of the microphone stream run on the actor's own serial queue, never on the
+/// main thread: starting or restarting a tap aggregate can block for about a second.
+///
+/// The realtime IOProc (`HWYDRealtime`) only copies into a ring; the writer drains it on its own queue.
+actor CoreAudioCapture: AudioCapture {
+    private let queue = DispatchSerialQueue(label: "dev.lepee.hwyd.capture", qos: .userInitiated)
+    nonisolated var unownedExecutor: UnownedSerialExecutor { queue.asUnownedSerialExecutor() }
+    nonisolated let isSimulated = false
+    nonisolated let events: AsyncStream<CaptureEvent>
+    private let continuation: AsyncStream<CaptureEvent>.Continuation
+    private let directory: URL
     private var tap: AudioObjectID = 0
     /// Microphone plus tap on one clock, or the tap alone when the microphone runs on its own clock.
     private var aggregate: AudioObjectID = 0
@@ -23,27 +34,37 @@ struct CaptureFailure: LocalizedError {
     private var initialInput: AudioObjectID = 0
     private var initialOutput: AudioObjectID = 0
     /// Paused: the devices are stopped, so neither the microphone nor system audio is captured.
-    private(set) var isPaused = false
+    private var isPaused = false
     /// Restarts the microphone stream once another app opened the input after the capture started.
     private var claimWatch: MicrophoneClaimWatch?
     private var lastClaimPoll: TimeInterval = 0
-    var micLevel: Float { writer?.status().mic ?? 0 }
-    var systemLevel: Float { writer?.status().system ?? 0 }
-    var failure: String? {
+    /// Checks levels, health and microphone claims five times per second while recording.
+    private var monitor: Task<Void, Never>?
+    /// A fault was reported: the session stops the capture, nothing else is checked.
+    private var faulted = false
+
+    /// - Parameter directory: the store directory; audio goes to `audio/<session>` under it.
+    init(directory: URL) {
+        self.directory = directory
+        (events, continuation) = AsyncStream.makeStream(of: CaptureEvent.self)
+    }
+    /// The fault that must stop the session, if any.
+    private func fault() -> CaptureFault? {
         if let status = writer?.status() {
-            if let error = status.error { return error }
+            if let error = status.error { return CaptureFault(.writer, message: error) }
             if !isPaused, let lastPacket = status.lastPacket, ProcessInfo.processInfo.systemUptime - lastPacket > 3 {
-                return String(localized: "Le périphérique ne fournit plus de données audio. La session a été arrêtée.")
+                return CaptureFault(.stalled, message: String(localized: "Le périphérique ne fournit plus de données audio. La session a été arrêtée."))
             }
         }
         if aggregate != 0 {
+            // The graph is not rebuilt on a new route: the session stops, so that each track keeps its device.
             if (try? scalar(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultInputDevice, as: AudioObjectID.self)) != initialInput || (try? scalar(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultOutputDevice, as: AudioObjectID.self)) != initialOutput {
-                return String(localized: "La route audio a changé. La session a été arrêtée pour préserver les pistes. Relancez une session avec le nouveau périphérique.")
+                return CaptureFault(.routeChanged, message: String(localized: "La route audio a changé. La session a été arrêtée pour préserver les pistes. Relancez une session avec le nouveau périphérique."))
             }
         }
         return nil
     }
-    func start(id: UUID, directory: URL) async throws {
+    func start(session id: UUID) async throws {
         let granted = await AVCaptureDevice.requestAccess(for: .audio)
         guard granted else { throw CaptureFailure(message: String(localized: "L’accès au micro est refusé. Autorisez HWYD dans Réglages Système > Confidentialité et sécurité > Microphone.")) }
         lockFD = open(directory.appendingPathComponent("capture.lock").path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
@@ -133,7 +154,8 @@ struct CaptureFailure: LocalizedError {
                 try await Task.sleep(for: .milliseconds(50))
             }
             claimWatch = MicrophoneClaimWatch(readers: inputReaders())
-        } catch { _ = stop(); throw error }
+        } catch { _ = teardown(); continuation.finish(); throw error }
+        startMonitor()
     }
     /// Stops the devices without ending the session. Buffered audio is written first.
     /// The audio timeline skips the pause: chunks continue where the last frame ended.
@@ -152,19 +174,48 @@ struct CaptureFailure: LocalizedError {
         isPaused = false
         claimWatch?.reset(readers: inputReaders())
     }
+    func stop() -> CapturedAudio {
+        let audio = teardown()
+        continuation.finish()
+        return audio
+    }
+    private func startMonitor() {
+        monitor = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(200))
+                await self?.inspect()
+            }
+        }
+    }
+    /// One monitor pass: levels, then the fault that ends the session, then a microphone claim.
+    private func inspect() {
+        guard let writer, !isPaused, !faulted else { return }
+        let status = writer.status()
+        continuation.yield(.levels(mic: status.mic, system: status.system))
+        if let fault = fault() { report(fault); return }
+        do { try restartIfMicrophoneClaimed() } catch { report(CaptureFault(.restart, message: error.localizedDescription)) }
+    }
+    private func report(_ fault: CaptureFault) {
+        faulted = true
+        monitor?.cancel(); monitor = nil
+        continuation.yield(.failed(fault))
+    }
     /// A meeting app that opens the microphone after the capture started may switch on voice processing,
     /// which leaves the stream already running about 30 dB lower. Stopping and starting it again, like a manual
-    /// pause and resume, restores the level. Returns true when the stream restarted; the gap lasts a few
-    /// milliseconds and, like a pause, is left out of the timeline.
-    func restartIfMicrophoneClaimed() throws -> Bool {
-        guard !isPaused, claimWatch != nil else { return false }
+    /// pause and resume, restores the level. The gap lasts a few milliseconds to about a second and, like a pause,
+    /// is left out of the timeline; the events let the session clock skip it too.
+    private func restartIfMicrophoneClaimed() throws {
+        guard !isPaused, claimWatch != nil else { return }
         let now = ProcessInfo.processInfo.systemUptime
-        guard now - lastClaimPoll >= 0.5 else { return false }
+        guard now - lastClaimPoll >= 0.5 else { return }
         lastClaimPoll = now
-        guard claimWatch?.poll(readers: inputReaders(), now: now) == true else { return false }
+        guard claimWatch?.poll(readers: inputReaders(), now: now) == true else { return }
+        continuation.yield(.restarting)
+        let began = ContinuousClock.now
         pause()
         try resume()
-        return true
+        let parts = began.duration(to: .now).components
+        continuation.yield(.restarted(gap: Double(parts.seconds) + Double(parts.attoseconds) / 1e18))
     }
     /// The other processes currently reading audio input, from any device. A meeting app with voice processing
     /// reads through its own aggregate device, so the reader is not filtered on the capture's microphone.
@@ -183,12 +234,14 @@ struct CaptureFailure: LocalizedError {
         }
         return readers
     }
-    func stop() -> [AudioChunk] {
+    /// Stops and releases everything the capture holds, and seals the audio.
+    private func teardown() -> CapturedAudio {
+        monitor?.cancel(); monitor = nil
         if let ioProc, aggregate != 0 { AudioDeviceStop(aggregate, ioProc); AudioDeviceDestroyIOProcID(aggregate, ioProc) }
         if let micProc { AudioDeviceStop(initialInput, micProc); AudioDeviceDestroyIOProcID(initialInput, micProc) }
         ioProc = nil; micProc = nil
         let chunks = writer?.finish() ?? []
-        finalizationError = writer?.status().error
+        let finalizationError = writer?.status().error
         writer = nil
         if aggregate != 0 { AudioHardwareDestroyAggregateDevice(aggregate); aggregate = 0 }
         if tap != 0 { AudioHardwareDestroyProcessTap(tap); tap = 0 }
@@ -196,7 +249,7 @@ struct CaptureFailure: LocalizedError {
         if let micRing { HWYDRingDestroy(micRing); self.micRing = nil }
         if lockFD >= 0 { flock(lockFD, LOCK_UN); close(lockFD); lockFD = -1 }
         claimWatch = nil
-        return chunks
+        return CapturedAudio(chunks: chunks, finalizationError: finalizationError)
     }
     /// Each check reports what it read, so a failure on another Mac can be diagnosed from the message alone.
     /// The ring buffer and the writer assume one interleaved frame and one sample rate for every track.
@@ -514,7 +567,7 @@ private final class AudioWriter: @unchecked Sendable {
 }
 
 
-extension CaptureController {
+extension CoreAudioCapture {
     static func verifySyntheticCapture(directory: URL, seconds: Double = 2) throws {
         let id = UUID()
         guard let ring = HWYDRingCreate(3) else { throw CaptureFailure(message: "Ring allocation") }
