@@ -28,10 +28,10 @@ extension AppModel {
     func toggleVoicePlayback(_ speakerID: UUID) {
         if playback.voiceID == speakerID { stopPlayback(); return }
         guard let item = selected, let store, !item.audioChunks.isEmpty else {
-            notice = String(localized: "Aucun fichier audio disponible pour cette session."); return
+            notifier.notify(.info(String(localized: "Aucun fichier audio disponible pour cette session."))); return
         }
         guard let voice = item.voiceOverview.first(where: { $0.id == speakerID }), !voice.spans.isEmpty else {
-            notice = String(localized: "Aucun passage attribué à cette voix."); return
+            notifier.notify(.info(String(localized: "Aucun passage attribué à cette voix."))); return
         }
         stopPlayback()
         do {
@@ -39,7 +39,7 @@ extension AppModel {
             playbackTime = player.position; isPlaying = true
             playback.voiceID = speakerID; playback.generation += 1
             updatePlaybackFocus()
-        } catch { errorMessage = String(localized: "Lecture impossible : \(error.localizedDescription)") }
+        } catch { notifier.notify(.error(String(localized: "Lecture impossible : \(error.localizedDescription)"))) }
     }
     /// Applies a correction to the voices of the selected session and offers to undo it.
     /// Corrections never read or write a voice print.
@@ -53,15 +53,15 @@ extension AppModel {
             update(id) { $0 = item }
             if let voice = playback.voiceID, !item.speakers.contains(where: { $0.id == voice && !$0.ignored }) { stopPlayback() }
             let after = item.transcriptVersion
-            report(message(item), style: .success, actions: [ToastAction(title: String(localized: "Annuler")) { [weak self] in self?.undoVoiceEdit(id, restoring: before, ifStillAt: after) }], optional: true)
+            notifier.notify(.success(message(item), actions: [.perform(String(localized: "Annuler")) { [weak self] in self?.undoVoiceEdit(id, restoring: before, ifStillAt: after) }], optional: true))
             return true
-        } catch { errorMessage = error.localizedDescription; return false }
+        } catch { notifier.notify(.error(error.localizedDescription)); return false }
     }
     /// Puts the voices back as they were, unless the transcript changed again since.
     func undoVoiceEdit(_ id: UUID, restoring before: Recording, ifStillAt version: Int) {
         guard let current = recordings.first(where: { $0.id == id }), current.transcriptVersion == version,
               id != processingID, current.state != .recording else {
-            report(String(localized: "Annulation impossible : la session a changé depuis."), style: .error); return
+            notifier.notify(.error(String(localized: "Annulation impossible : la session a changé depuis."))); return
         }
         update(id) { item in
             item.speakers = before.speakers; item.absorbedSpeakers = before.absorbedSpeakers
@@ -69,7 +69,7 @@ extension AppModel {
             item.transcriptVersion = version + 1
         }
         if let voice = playback.voiceID, !before.speakers.contains(where: { $0.id == voice }) { stopPlayback() }
-        notice = String(localized: "Modification annulée.")
+        notifier.notify(.info(String(localized: "Modification annulée.")))
     }
     private func label(_ id: UUID, in item: Recording) -> String { item.speakers.first { $0.id == id }?.label ?? String(localized: "Voix") }
     /// "This voice is the same person as that one." Transcript correction only, no enrollment.

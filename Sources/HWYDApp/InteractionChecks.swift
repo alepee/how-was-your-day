@@ -53,8 +53,10 @@ import HWYDCore
             throw CaptureFailure(message: "A non-loopback summary server must be unavailable")
         }
         model.generateSummary()
-        guard model.summaryID == nil, model.errorMessage != nil else { throw CaptureFailure(message: "Unavailable summary did not explain why") }
-        model.errorMessage = nil
+        guard model.summaryID == nil, model.toastCenter.toasts.contains(where: { $0.style == .error && $0.actions.first?.title == String(localized: "Réglages") }) else {
+            throw CaptureFailure(message: "Unavailable summary did not explain why")
+        }
+        model.toastCenter.dismissAll()
         // Pending edits reach the store before the provider runs.
         let probe = Probe()
         let store = model.store
@@ -66,12 +68,12 @@ import HWYDCore
         model.generateSummary()
         try await waitForSummary(model)
         let given = await probe.given, stored = await probe.stored
-        guard model.summaryID == nil, !model.hasUnsavedChanges, model.errorMessage != nil, given == "Pending edit", stored == "Pending edit",
+        guard model.summaryID == nil, !model.hasUnsavedChanges, model.toastCenter.toasts.contains(where: { $0.style == .error }), given == "Pending edit", stored == "Pending edit",
               let persisted = try await model.store?.recording(recording.id), persisted.notes == "Pending edit",
               persisted.revision == model.recordings.first?.revision else {
             throw CaptureFailure(message: "Summary did not flush pending edits before the provider ran")
         }
-        model.errorMessage = nil; model.notice = nil
+        model.toastCenter.dismissAll()
         model.summarizerOverride = FixtureSummarizer { _ in try await Task.sleep(for: .seconds(30)) }
         model.generateSummary()
         model.enterDemo()
@@ -81,7 +83,8 @@ import HWYDCore
         }
         model.cancelSummary()
         try await waitForSummary(model)
-        guard model.summaryID == nil, model.errorMessage == nil, model.notice == String(localized: "Synthèse annulée.") else {
+        guard model.summaryID == nil, !model.toastCenter.toasts.contains(where: { $0.style == .error }),
+              model.toastCenter.toasts.last?.message == String(localized: "Synthèse annulée.") else {
             throw CaptureFailure(message: "Cancelled summary surfaced as a provider error")
         }
         print("Summary availability, pending-edit flush, demo exclusion and cancellation: PASS")
@@ -124,7 +127,8 @@ import HWYDCore
         let deadline = ContinuousClock.now.advanced(by: .seconds(3))
         while model.recordings.contains(where: { $0.id == deleted.id }), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         let remaining = try await store.all()
-        guard !exists(audio), !exists("cache/summaries/" + deleted.id.uuidString), model.errorMessage == nil,
+        guard !exists(audio), !exists("cache/summaries/" + deleted.id.uuidString),
+              !model.toastCenter.toasts.contains(where: { $0.style == .error }),
               remaining.map(\.id) == [kept.id], model.recordings.map(\.id) == [kept.id] else {
             throw CaptureFailure(message: "Deleting a session left its files or rows behind")
         }
@@ -147,7 +151,7 @@ import HWYDCore
         let deadline = ContinuousClock.now.advanced(by: .seconds(90))
         while model.pipelineBusy, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(100)) }
         guard !model.pipelineBusy else { model.cancelProcessing(); throw CaptureFailure(message: "ASR timeout") }
-        if let error = model.errorMessage { throw CaptureFailure(message: error) }
+        if let error = model.toastCenter.toasts.last(where: { $0.style == .error }) { throw CaptureFailure(message: error.message) }
         let saved = try await SessionStore(directory: directory).all()
         guard let item = saved.first(where: { $0.id == recording.id }),
               item.transcriptState == .ready, item.transcriptVersion == 1,
@@ -163,11 +167,11 @@ import HWYDCore
         guard let cancelled = model.recordings.first(where: { $0.id == recording.id }),
               cancelled.transcriptState == .failed, cancelled.segments == item.segments,
               cancelled.notes == item.notes else { throw CaptureFailure(message: "Cancellation lost previous transcript") }
-        model.errorMessage = nil
+        model.toastCenter.dismissAll()
         model.transcribe(recording.id)
         while model.pipelineBusy, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(100)) }
         guard model.recordings.first(where: { $0.id == recording.id })?.transcriptVersion == 2,
-              model.errorMessage == nil else { throw CaptureFailure(message: "Retry after cancellation failed") }
+              !model.toastCenter.toasts.contains(where: { $0.style == .error }) else { throw CaptureFailure(message: "Retry after cancellation failed") }
         print("Real Apple ASR through bundled helper: tracks, timestamps, persistence, concurrent notes, cancellation and retry: PASS")
     }
     /// Agent summaries through the bundled `hwyd-mcp`: a scripted ACP agent connects to the real
@@ -246,14 +250,24 @@ import HWYDCore
         guard model.activeCapture?.title == "Idée produit", model.activeCapture?.kind == .voiceMemo else { throw CaptureFailure(message: "Typed name was not applied") } // l10n:ignore
         model.stopCapture()
 
-        for toast in model.toasts { model.dismissToast(toast.id) }
-        model.notice = "Premier"; model.notice = "Premier"
-        model.report("Décision", style: .error, actions: [ToastAction(title: "Réessayer") {}]) // l10n:ignore
-        guard model.toasts.count == 2, model.toasts.last?.staysOnScreen == true, model.errorMessage == "Décision" else { throw CaptureFailure(message: "Toasts did not deduplicate or keep their actions") } // l10n:ignore
-        for index in 0..<5 { model.notice = "Message \(index)" }
-        guard model.toasts.count == 4, model.toasts.contains(where: { $0.message == "Décision" }) else { throw CaptureFailure(message: "Overflow must drop transient toasts before decisions") } // l10n:ignore
+        let toasts = model.toastCenter
+        toasts.dismissAll()
+        model.notifier.notify(.info("Premier")); model.notifier.notify(.info("Premier"))
+        model.notifier.notify(.error("Décision", actions: [.perform("Réessayer") {}])) // l10n:ignore
+        guard toasts.toasts.count == 2, toasts.toasts.last?.staysOnScreen == true, toasts.toasts.last?.message == "Décision" else { throw CaptureFailure(message: "Toasts did not deduplicate or keep their actions") } // l10n:ignore
+        for index in 0..<5 { model.notifier.notify(.info("Message \(index)")) }
+        guard toasts.toasts.count == 4, toasts.toasts.contains(where: { $0.message == "Décision" }) else { throw CaptureFailure(message: "Overflow must drop transient toasts before decisions") } // l10n:ignore
         try await Task.sleep(for: .seconds(5.5))
-        guard model.toasts.map(\.message) == ["Décision"] else { throw CaptureFailure(message: "Transient toasts must expire, decisions must stay: \(model.toasts.map(\.message))") } // l10n:ignore
+        guard toasts.toasts.map(\.message) == ["Décision"] else { throw CaptureFailure(message: "Transient toasts must expire, decisions must stay: \(toasts.toasts.map(\.message))") } // l10n:ignore
+        // A navigating action is handed to the model, which opens the destination.
+        let target = model.recordings[0]
+        model.showSettings = true
+        model.notifier.notify(.success("Prête", actions: [.navigate("Afficher", to: .session(target.id, .notes))])) // l10n:ignore
+        guard let ready = toasts.toasts.last else { throw CaptureFailure(message: "Missing navigation toast") }
+        toasts.run(ready.actions[0], of: ready)
+        guard !model.showSettings, model.selectedID == target.id, model.activeTab == .notes, toasts.toasts.map(\.message) == ["Décision"] else { // l10n:ignore
+            throw CaptureFailure(message: "Navigation intent did not open the session tab")
+        }
         print("New session setup without recording, kind and name, toast stacking, expiry and decisions: PASS")
     }
     static func run(directory: URL) async throws {
@@ -305,9 +319,9 @@ import HWYDCore
             throw CaptureFailure(message: "Tile merge failed or triggered enrollment")
         }
         // The merge offers « Annuler » in a toast that still leaves on its own, and can be separated later.
-        guard let undo = model.toasts.last(where: { $0.actions.first?.title == String(localized: "Annuler") }), !undo.staysOnScreen,
+        guard let undo = model.toastCenter.toasts.last(where: { $0.actions.first?.title == String(localized: "Annuler") }), !undo.staysOnScreen,
               merged.separableVoices(of: camille.id).map(\.id) == [unknown.id] else { throw CaptureFailure(message: "Merge cannot be undone") }
-        model.runToastAction(undo.actions[0], of: undo)
+        model.toastCenter.run(undo.actions[0], of: undo)
         guard let restored = model.selected, restored.segments == beforeMerge.segments, restored.speakers == beforeMerge.speakers,
               restored.transcriptVersion == merged.transcriptVersion + 1 else { throw CaptureFailure(message: "Merge undo failed") }
         model.mergeSpeaker(unknown.id, into: camille.id)
@@ -321,7 +335,7 @@ import HWYDCore
         model.requestEnrollment(camille.id)
         guard model.enrollmentCandidateID == camille.id, !model.voiceBusy, model.people == peopleBefore else { throw CaptureFailure(message: "Enrollment started without confirmation") }
         model.enrollmentCandidateID = nil
-        for toast in model.toasts { model.dismissToast(toast.id) }
+        model.toastCenter.dismissAll()
         var splitExample = TranscriptSegment(start: 0, end: 2, speakerID: nil, source: .mic, text: "Oui. Bonjour")
         splitExample.words = [.init(text: "Oui.", start: 0, end: 1), .init(text: " Bonjour", start: 1, end: 2)]
         let splitRecording = Recording(title: "Découpage synthétique", segments: [splitExample], isDemo: true) // l10n:ignore
@@ -333,7 +347,7 @@ import HWYDCore
         guard !model.splitSegment(splitExample, beforeWord: 1, recordingID: splitRecording.id) else {
             throw CaptureFailure(message: "Stale split accepted")
         }
-        model.errorMessage = nil
+        model.toastCenter.dismissAll()
         model.startCapture()
         try await Task.sleep(for: .milliseconds(650))
         guard let active = model.activeCapture, model.elapsed > 0 else { throw CaptureFailure(message: "Demo capture timer failed") }

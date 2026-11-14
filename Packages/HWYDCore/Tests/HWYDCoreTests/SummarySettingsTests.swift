@@ -6,7 +6,7 @@ import XCTest
     func testLoadsStoredValuesAndDefaults() {
         let store = InMemorySettings(["summary.enabled": true, "summary.service": "mistral", "summary.model.mistral": "mistral-small",
                                       "summary.contextTokens": 0, "summary.agent.command": "codex-acp"])
-        let settings = SummarySettings(store: store, usesSystem: false)
+        let settings = SummarySettings(store: store, usesSystem: false, notifier: RecordingNotifier())
         XCTAssertTrue(settings.enabled)
         XCTAssertEqual(settings.service, .mistral)
         XCTAssertEqual(settings.hostedModel, "mistral-small")
@@ -19,7 +19,7 @@ import XCTest
 
     func testSelectingAProviderLoadsItsOwnModel() {
         let store = InMemorySettings(["summary.model.openai": "gpt-test"])
-        let settings = SummarySettings(store: store, usesSystem: false)
+        let settings = SummarySettings(store: store, usesSystem: false, notifier: RecordingNotifier())
         XCTAssertEqual(settings.hostedModel, "")
         settings.select(.openai)
         XCTAssertEqual(settings.hostedModel, "gpt-test")
@@ -31,11 +31,11 @@ import XCTest
 
     func testSavesOnlyForTheInstalledAppOutsideDemo() {
         let store = InMemorySettings()
-        let preview = SummarySettings(store: store, usesSystem: false)
+        let preview = SummarySettings(store: store, usesSystem: false, notifier: RecordingNotifier())
         preview.enabled = true; preview.save()
         XCTAssertFalse(store.contains(.summaryEnabled))
 
-        let settings = SummarySettings(store: store, usesSystem: true)
+        let settings = SummarySettings(store: store, usesSystem: true, notifier: RecordingNotifier())
         settings.isDemo = true
         settings.enabled = true; settings.save()
         XCTAssertFalse(store.contains(.summaryEnabled))
@@ -49,7 +49,7 @@ import XCTest
     }
 
     func testAListedModelReplacesOnlyTheSuggestedDefault() {
-        let settings = SummarySettings(store: InMemorySettings(["summary.service": "gemini"]), usesSystem: false)
+        let settings = SummarySettings(store: InMemorySettings(["summary.service": "gemini"]), usesSystem: false, notifier: RecordingNotifier())
         XCTAssertEqual(settings.hostedModel, SummaryService.gemini.defaultModel)
         settings.applyAvailableModels(["gemini-pro"])
         XCTAssertEqual(settings.hostedModel, "")
@@ -59,7 +59,7 @@ import XCTest
     }
 
     func testAgentDetectionAsksTheInjectedDiscoveryOutsideDemo() async throws {
-        let settings = SummarySettings(store: InMemorySettings(), usesSystem: false, discovery: FixedAgentDiscovery(["codex-acp"]))
+        let settings = SummarySettings(store: InMemorySettings(), usesSystem: false, notifier: RecordingNotifier(), discovery: FixedAgentDiscovery(["codex-acp"]))
         settings.isDemo = true
         settings.detectAgents()
         try await Task.sleep(for: .milliseconds(50))

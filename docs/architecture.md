@@ -218,6 +218,15 @@ Two stores hold settings, each behind typed accessors; no caller spells a key.
 
 Known gaps, for later steps: speech and voice model readiness is still inferred in `AppModel` (a flag set after installation and the transcript history), and the keychain is reached through static enums.
 
+### User notices
+
+Flows tell the user what happened through the `UserNotifier` port (`Packages/HWYDCore/Sources/HWYDCore/UserNotifier.swift`), never by setting model state. A `UserNotice` carries a style (info, success, error), a message, its actions, and whether it waits for the user (`sticky`, or actions that are not `optional`). An action either names a `NavigationIntent` (a session tab, a session's language choice, the summary settings) or performs an effect its reporter owns, such as a retry or an undo.
+
+- `ToastCenter` (app, `@Observable`) is the adapter: it shows notices as toasts, keeps at most four (transient ones leave first), replaces a repeated message, owns the dismissal timers and hover hold, and announces each message to VoiceOver. Navigation intents are handed to `AppModel.navigate(to:)`, which `hwyd://` links also use.
+- `RecordingNotifier` (HWYDCore) keeps notices in memory for tests.
+
+`AppModel`, `SummarySettings` and the view extensions report through the notifier they are given. Known gap, for later steps: use cases still build their message strings themselves; typed results mapped to notices by the presentation come with the services that own them.
+
 ## 12. Traitements LLM (synthèse, action items)
 
 Opt-in dans les réglages. Un protocole unique `LLMProvider` (`generate(prompt, schema) -> structured output`) et trois backends :

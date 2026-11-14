@@ -21,10 +21,10 @@ extension AppModel {
             case .pdf:
                 try SummaryPDF.write(item, to: url)
             }
-            report(String(localized: "Synthèse exportée."), style: .success,
-                   actions: [ToastAction(title: String(localized: "Afficher dans le Finder")) { NSWorkspace.shared.activateFileViewerSelecting([url]) }])
+            notifier.notify(.success(String(localized: "Synthèse exportée."),
+                                     actions: [.perform(String(localized: "Afficher dans le Finder")) { NSWorkspace.shared.activateFileViewerSelecting([url]) }]))
         } catch {
-            errorMessage = String(localized: "Export de la synthèse impossible : \(error.localizedDescription)")
+            notifier.notify(.error(String(localized: "Export de la synthèse impossible : \(error.localizedDescription)")))
         }
     }
 }
