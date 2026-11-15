@@ -160,6 +160,8 @@ public actor WorkCoordinator {
         let run: @Sendable () async -> Void
     }
     private var running: (job: WorkJob, token: UUID, task: Task<Void, Never>)?
+    /// The running job was cancelled: it ends on its own, and the same job asked again waits for it.
+    private var runningCancelled = false
     private var queue: [Entry] = []
     private var revision = 0
     private var observers: [UUID: AsyncStream<WorkSnapshot>.Continuation] = [:]
@@ -177,14 +179,15 @@ public actor WorkCoordinator {
     /// when its kind does (`WorkJob.waitsWhenBusy`), unless `waits` says otherwise: an automatic
     /// summary waits its turn, one the user asks for is refused with the reason. A cancelled job
     /// sees `Task.isCancelled`; it still runs to its end, cleanup included, before the next one starts.
+    /// The same job asked again while a cancelled run ends is queued behind it, whatever its kind.
     @discardableResult
     public func request(_ job: WorkJob, waits: Bool? = nil, run: @escaping @Sendable () async -> Void) -> WorkDecision {
-        if running?.job == job || queue.contains(where: { $0.job == job }) { return .refused(.alreadyRequested(job)) }
+        if queue.contains(where: { $0.job == job }) || (running?.job == job && !runningCancelled) { return .refused(.alreadyRequested(job)) }
         guard let current = running?.job else {
             start(Entry(job: job, run: run)); changed()
             return .accepted
         }
-        guard waits ?? job.waitsWhenBusy else { return .refused(.busy(WorkBusy(job: current))) }
+        guard waits ?? job.waitsWhenBusy || current == job else { return .refused(.busy(WorkBusy(job: current))) }
         queue.append(Entry(job: job, run: run)); changed()
         return .queued(behind: WorkBusy(job: current))
     }
@@ -193,7 +196,7 @@ public actor WorkCoordinator {
     public func cancel(where matches: @Sendable (WorkJob) -> Bool) {
         let before = queue.count
         queue.removeAll { matches($0.job) }
-        if let running, matches(running.job) { running.task.cancel() }
+        if let running, matches(running.job) { running.task.cancel(); runningCancelled = true }
         if queue.count != before { changed() }
     }
 
@@ -247,12 +250,12 @@ public actor WorkCoordinator {
             await run()
             await self?.finished(token)
         }
-        running = (entry.job, token, task)
+        running = (entry.job, token, task); runningCancelled = false
     }
 
     private func finished(_ token: UUID) {
         guard running?.token == token else { return }
-        running = nil
+        running = nil; runningCancelled = false
         if !queue.isEmpty { start(queue.removeFirst()) }
         changed()
     }
