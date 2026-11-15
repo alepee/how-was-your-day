@@ -28,12 +28,13 @@ public protocol AudioCapture: Sendable {
     /// The input devices present and the system default input, as the capture last read them.
     var microphones: MicrophoneList { get async }
     /// Records `uid` from now on. The graph is rebuilt between `restarting` and `restarted(gap:)`,
-    /// which also frame `microphoneSwitched`; the gap is left out of the audio timeline and the
-    /// chunks keep their sequence. When the new microphone cannot start, the capture goes back to
+    /// then `microphoneSwitched` follows, so that the session dates the boundary on its corrected
+    /// clock; the gap is left out of the audio timeline and the chunks keep their sequence. When the new microphone cannot start, the capture goes back to
     /// the previous one if it is still there and throws; when neither runs, it reports
     /// `CaptureFault.restart` and throws.
     func switchMicrophone(to uid: String, reason: MicrophoneSwitchReason) async throws
-    /// Stops the devices without ending the session. The audio timeline skips the pause.
+    /// Stops the devices without ending the session. The audio timeline skips the pause. A restart
+    /// in progress ends with `restarted(gap:)` first: the pause is not part of its gap.
     func pause() async
     func resume() async throws
     /// Stops the devices and seals what was recorded.
@@ -56,7 +57,8 @@ public enum CaptureEvent: Equatable, Sendable {
     /// voice processing after the capture started. Like a pause, the restart is left out of the
     /// audio timeline.
     case restarting
-    /// The stream runs again. `gap` is how long it stood still, in seconds.
+    /// The stream runs again. `gap` is how long it stood still, in seconds. It can start before
+    /// `restarting`: a microphone that disappears is noticed after its last buffer.
     case restarted(gap: TimeInterval)
     /// The input devices or the system default input changed.
     case microphonesChanged(MicrophoneList)
@@ -66,8 +68,8 @@ public enum CaptureEvent: Equatable, Sendable {
     /// The microphone recorded disappeared. The stream stands still, between `restarting` and the
     /// `restarted(gap:)` of the next switch, until the session switches or stops.
     case microphoneLost(MicrophoneDevice)
-    /// The capture records this microphone from now on. Sent between `restarting` and
-    /// `restarted(gap:)`, unless the capture is paused.
+    /// The capture records this microphone from now on. Sent right after `restarted(gap:)`, or
+    /// alone while paused.
     case microphoneSwitched(MicrophoneDevice, reason: MicrophoneSwitchReason)
     /// The capture cannot go on. The session must stop; what was recorded so far is kept.
     case failed(CaptureFault)
@@ -120,13 +122,18 @@ public actor SimulatedCapture: AudioCapture {
     private let fixedName: String?
     public private(set) var microphones: MicrophoneList
     /// UID of the microphone recorded.
-    public private(set) var microphoneUID: String?
+    public var microphoneUID: String? { current?.uid }
+    /// The microphone recorded, kept once it disappeared, as a device would.
+    private var current: MicrophoneDevice?
     /// The switches the session asked for, in order.
     public private(set) var switches: [(uid: String, reason: MicrophoneSwitchReason)] = []
     /// Microphones whose switch fails, as a device that cannot start.
     private var failingMicrophones: Set<String> = []
     /// How long a switch keeps the stream still, reported in `restarted(gap:)`.
     private let switchGap: TimeInterval
+    /// Lets that time pass on the test's clock, between `restarting` and `restarted(gap:)`; a test
+    /// can also act there, as during a rebuild.
+    private let elapse: (@MainActor @Sendable (TimeInterval) async -> Void)?
     public private(set) var isPaused = false
     public private(set) var isStopped = false
     /// Active time, paused time left out, that drives the meters.
@@ -139,17 +146,19 @@ public actor SimulatedCapture: AudioCapture {
     ///   - simulated: false lets a test stand in for a real capture, whose sessions are transcribed.
     ///   - microphone: the input name the capture reports, whatever device it records.
     ///   - microphones: the inputs it pretends to see.
+    ///   - switchGap: how long a switch takes; `elapse` makes that time pass on the caller's clock.
     public init(animatesLevels: Bool = true, simulated: Bool = true, audio: CapturedAudio = CapturedAudio(),
                 startFailure: (any Error & Sendable)? = nil, microphone: String? = nil,
-                microphones: MicrophoneList = .simulated, switchGap: TimeInterval = 0) {
-        fixedName = microphone; self.microphones = microphones; self.switchGap = switchGap
+                microphones: MicrophoneList = .simulated, switchGap: TimeInterval = 0,
+                elapse: (@MainActor @Sendable (TimeInterval) async -> Void)? = nil) {
+        fixedName = microphone; self.microphones = microphones; self.switchGap = switchGap; self.elapse = elapse
         (events, continuation) = AsyncStream.makeStream(of: CaptureEvent.self)
         isSimulated = simulated
         self.audio = audio; self.startFailure = startFailure; self.animatesLevels = animatesLevels
     }
 
     public var microphone: MicrophoneDevice? {
-        guard var device = microphones.device(microphoneUID) else { return fixedName.map { MicrophoneDevice(uid: "simulated", name: $0) } }
+        guard var device = current else { return fixedName.map { MicrophoneDevice(uid: "simulated", name: $0) } }
         if let fixedName { device.name = fixedName }
         return device
     }
@@ -157,7 +166,7 @@ public actor SimulatedCapture: AudioCapture {
     public func start(session id: UUID, continuing start: CaptureContinuation, microphone uid: String?) async throws {
         if let startFailure { continuation.finish(); throw startFailure }
         session = id; startedFrom = start
-        microphoneUID = microphones.choice(remembered: uid) ?? microphones.defaultInput
+        current = microphones.device(uid) ?? microphones.defaultDevice
         runningSince = .now
         guard animatesLevels else { return }
         animation = Task { [weak self] in
@@ -180,9 +189,10 @@ public actor SimulatedCapture: AudioCapture {
         }
         // A lost microphone already stopped the stream.
         if !isPaused, !lost { continuation.yield(.restarting) }
-        microphoneUID = uid
-        continuation.yield(.microphoneSwitched(device, reason: reason))
+        if !isPaused { await elapse?(switchGap) }
+        current = device
         if !isPaused { continuation.yield(.restarted(gap: switchGap)) }
+        continuation.yield(.microphoneSwitched(device, reason: reason))
     }
     public func pause() async {
         guard !isPaused, !isStopped, let runningSince else { return }

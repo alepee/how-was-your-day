@@ -228,6 +228,8 @@ public final class CaptureSession: ObservableObject {
             notifier.notify(.error(error.localizedDescription)); return
         }
         guard phase == .paused(id) else { return }
+        // A restart that began before the pause ended with it (`AudioCapture.pause`).
+        restartFrozenAt = nil
         clock.run(at: now())
         phase = .recording(id)
     }

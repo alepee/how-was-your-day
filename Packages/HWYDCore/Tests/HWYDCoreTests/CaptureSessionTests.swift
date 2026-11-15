@@ -252,9 +252,16 @@ final class CaptureMicrophoneTests: XCTestCase {
         CaptureSession(notifier: notifier, transcribe: { [unowned self] id in transcriptions.append(id); return .accepted },
                        now: { [unowned self] in time }, date: { [unowned self] in wall }, settings: { [unowned self] in settings })
     }
+    /// Runs during a switch, between `restarting` and `restarted(gap:)`, as while a graph is rebuilt.
+    private var duringSwitch: (@MainActor () async -> Void)?
     private func device(_ devices: [MicrophoneDevice]? = nil, gap: TimeInterval = 0) -> SimulatedCapture {
         SimulatedCapture(animatesLevels: false, simulated: false, audio: CapturedAudio(chunks: [chunk]),
-                         microphones: MicrophoneList(devices: devices ?? [builtIn, usb], defaultInput: "builtin"), switchGap: gap)
+                         microphones: MicrophoneList(devices: devices ?? [builtIn, usb], defaultInput: "builtin"), switchGap: gap,
+                         elapse: { [unowned self] gap in
+                             time += gap
+                             let action = duringSwitch; duringSwitch = nil
+                             await action?()
+                         })
     }
     private func waitUntil(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async {
         for _ in 0..<1000 where !condition() { try? await Task.sleep(for: .milliseconds(1)) }
@@ -424,9 +431,11 @@ final class CaptureMicrophoneTests: XCTestCase {
         time += 10
         await capture.chooseMicrophone("usb")
         await waitUntil { capture.microphone == usb }
-        // The rebuild took 0.8 s that the clock had not counted yet: the clock skips them.
-        XCTAssertEqual(capture.elapsed, 10 - 0.8, accuracy: 1e-9)
-        time += 5.8
+        // The rebuild took 0.8 s on the clock: the session clock skips them and resumes where
+        // the new microphone starts.
+        XCTAssertEqual(capture.elapsed, 10, accuracy: 1e-9)
+        XCTAssertEqual(library.recording(id)?.boundaries?.first?.offset ?? -1, capture.elapsed, accuracy: 1e-9)
+        time += 5
         await capture.pause()
         time += 30
         await capture.chooseMicrophone("builtin")

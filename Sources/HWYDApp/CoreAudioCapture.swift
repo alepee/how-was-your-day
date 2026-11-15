@@ -43,27 +43,31 @@ actor CoreAudioCapture: AudioCapture {
     private var micRing: OpaquePointer?
     private var writer: AudioWriter?
     private var lockFD: Int32 = -1
-    /// The microphone recorded, and the devices as last read.
-    private(set) var microphone: MicrophoneDevice?
-    private(set) var microphones = MicrophoneList()
-    private var defaultOutput: AudioObjectID = 0
+    /// The microphone recorded, the devices as last reported and what changes mean (`CaptureDevices`).
+    private var devices: CaptureDevices?
+    var microphone: MicrophoneDevice? { devices?.microphone }
+    var microphones: MicrophoneList { devices?.reported ?? MicrophoneList() }
     /// Paused: the devices are stopped, so neither the microphone nor system audio is captured.
     private var isPaused = false
-    /// The microphone recorded disappeared: the stream stands still until the session switches.
-    private var lost = false
-    /// The graph is being rebuilt: the health checks and the device checks wait.
-    private var rebuilding = false
-    /// When the stream stopped for a restart, a rebuild or a lost microphone.
-    private var stillSince: ContinuousClock.Instant?
+    /// One device check or rebuild at a time; notifications meanwhile check again after it.
+    private var gate = DeviceCheckGate()
+    /// The graph was built but has not delivered yet: it was built while paused, or paused before
+    /// its first buffers. Resuming waits for them, as a switch does.
+    private var awaitingAudio = false
+    /// When the stream stopped delivering, in `systemUptime` seconds, for a restart, a rebuild or a
+    /// lost microphone.
+    private var stillSince: TimeInterval?
     /// Restarts the microphone stream once another app opened the input after the capture started.
     private var claimWatch: MicrophoneClaimWatch?
     private var lastClaimPoll: TimeInterval = 0
     /// Checks levels, health and microphone claims five times per second while recording.
     private var monitor: Task<Void, Never>?
-    /// Listens to the devices and the default input and output; changes are checked once they settle.
-    private var devices: DeviceWatch?
+    /// Listens to the devices and the default input and output, and to the microphone in use.
+    private var watch: DeviceWatch?
     private var alive: DeviceWatch?
-    private var routeCheck: Task<Void, Never>?
+    /// Waits for device notifications to settle. Only the wait is ever cancelled, never a check.
+    private var settle: Task<Void, Never>?
+    private var settleIsImmediate = false
     /// A fault was reported: the session stops the capture, nothing else is checked.
     private var faulted = false
 
@@ -72,11 +76,12 @@ actor CoreAudioCapture: AudioCapture {
         self.audio = audio
         (events, continuation) = AsyncStream.makeStream(of: CaptureEvent.self)
     }
+    private static var uptime: TimeInterval { ProcessInfo.processInfo.systemUptime }
     /// The fault that must stop the session, if any.
     private func fault() -> CaptureFault? {
         guard let status = writer?.status() else { return nil }
         if let error = status.error { return CaptureFault(.writer, message: error) }
-        if !isPaused, let lastPacket = status.lastPacket, ProcessInfo.processInfo.systemUptime - lastPacket > 3 {
+        if !isPaused, let lastPacket = status.lastPacket, Self.uptime - lastPacket > 3 {
             return CaptureFault(.stalled, message: String(localized: "Le périphérique ne fournit plus de données audio. La session a été arrêtée."))
         }
         return nil
@@ -91,9 +96,9 @@ actor CoreAudioCapture: AudioCapture {
         }
         do {
             session = id
-            microphones = HAL.microphones(); defaultOutput = HAL.defaultOutput
+            let list = HAL.microphones(), output = HAL.defaultOutput
             // The chosen microphone, else the system default input.
-            guard let device = microphones.device(uid) ?? microphones.defaultDevice else { throw CaptureFailure(message: String(localized: "Aucun microphone disponible.")) }
+            guard let device = list.device(uid) ?? list.defaultDevice else { throw CaptureFailure(message: String(localized: "Aucun microphone disponible.")) }
             try createTap()
             let inputs = try buildGraph(on: device)
             let folder = try audio.sessionFolder(for: id)
@@ -104,9 +109,9 @@ actor CoreAudioCapture: AudioCapture {
             writer?.start()
             try startDevices()
             try await waitForAudio(seconds: 5)
-            microphone = device
+            devices = CaptureDevices(list: list, output: output, microphone: device)
             claimWatch = MicrophoneClaimWatch(readers: inputReaders())
-            devices = HAL.watchDevices(on: queue) { [weak self] in Task { await self?.devicesChanged() } }
+            watch = HAL.watchDevices(on: queue) { [weak self] in Task { await self?.devicesChanged() } }
         } catch { _ = teardown(); continuation.finish(); throw error }
         startMonitor()
     }
@@ -114,17 +119,31 @@ actor CoreAudioCapture: AudioCapture {
     /// The audio timeline skips the pause: chunks continue where the last frame ended.
     func pause() {
         guard !isPaused, writer != nil else { return }
-        stopDevices()
-        writer?.pause()
+        // A restart in progress ends here for the session clock: the pause is not part of its gap.
+        restarted()
+        halt()
         isPaused = true
     }
-    func resume() throws {
-        guard isPaused, writer != nil else { return }
+    func resume() async throws {
+        guard isPaused, let writer else { return }
         isPaused = false
         // Nothing to start until the session switched: the stream still stands still.
-        if lost { continuation.yield(.restarting); stillSince = .now; return }
-        writer?.resume()
-        do { try startDevices() } catch { isPaused = true; throw error }
+        if devices?.isLost == true { continuation.yield(.restarting); stillSince = Self.uptime; return }
+        if awaitingAudio {
+            // A graph built during the pause may be a Bluetooth headset still switching to call
+            // mode: wait for its first buffers as a switch does, before the session clock runs.
+            writer.rearm()
+            do {
+                try startDevices()
+                if try await waitForAudio(seconds: 8) == .flowing { awaitingAudio = false }
+            } catch {
+                if self.writer != nil { halt(); isPaused = true }
+                throw error
+            }
+        } else {
+            writer.resume()
+            do { try startDevices() } catch { isPaused = true; throw error }
+        }
         claimWatch?.reset(readers: inputReaders())
     }
     func stop() -> CapturedAudio {
@@ -132,29 +151,40 @@ actor CoreAudioCapture: AudioCapture {
         continuation.finish()
         return audio
     }
+    /// Stops the devices and writes what their rings hold.
+    private func halt() {
+        stopDevices()
+        writer?.pause()
+    }
 
     // MARK: Microphone
 
     func switchMicrophone(to uid: String, reason: MicrophoneSwitchReason) async throws {
-        guard writer != nil, !faulted else { throw CaptureFailure(message: String(localized: "Aucune capture en cours.")) }
-        guard !rebuilding else { throw CaptureFailure(message: String(localized: "Un changement de micro est déjà en cours.")) }
-        microphones = HAL.microphones()
-        guard let target = microphones.device(uid) else { throw CaptureFailure(message: String(localized: "Ce micro n’est plus branché.")) }
-        let previous = microphone, wasLost = lost
-        rebuilding = true
-        defer { rebuilding = false }
-        if !isPaused, !wasLost { continuation.yield(.restarting); stillSince = .now }
+        guard writer != nil, !faulted, let state = devices else { throw CaptureFailure(message: String(localized: "Aucune capture en cours.")) }
+        // Read without moving what the checks compare with: a change seen here first is still
+        // reported, and offered, by the next check.
+        guard let target = HAL.microphones().device(uid) else { throw CaptureFailure(message: String(localized: "Ce micro n’est plus branché.")) }
+        guard gate.begin() else { throw CaptureFailure(message: String(localized: "Un changement de micro est déjà en cours.")) }
+        defer { if gate.end() { devicesChanged() } }
+        let previous = state.microphone, wasLost = state.isLost
+        // The output changed while the microphone was lost: the tap is built again with the new microphone.
+        let newTap = state.outputChanged
+        if !isPaused, !wasLost { continuation.yield(.restarting); stillSince = Self.uptime }
         do {
-            try await rebuild(on: target, newTap: false)
-            lost = false; microphone = target
-            continuation.yield(.microphoneSwitched(target, reason: reason))
+            try await rebuild(on: target, newTap: newTap)
+            devices?.switched(to: target, newTap: newTap)
+            // The stream runs again first, so the session dates the boundary on its corrected clock.
             restarted()
+            continuation.yield(.microphoneSwitched(target, reason: reason))
         } catch {
+            // Stopped meanwhile: nothing is left to go back to.
+            guard writer != nil else { throw error }
             // Back to the previous microphone if it is still there, once.
             if !wasLost, let previous, HAL.device(uid: previous.uid) != 0, (try? await rebuild(on: previous, newTap: false)) != nil {
                 restarted()
                 throw CaptureFailure(message: String(localized: "\(target.name) n’a pas pu démarrer (\(error.localizedDescription)). L’enregistrement continue sur \(previous.name)."))
             }
+            guard writer != nil else { throw error }
             report(CaptureFault(.restart, message: String(localized: "Aucun micro n’a pu redémarrer : \(error.localizedDescription). La session a été arrêtée, l’audio est conservé.")))
             throw error
         }
@@ -163,53 +193,67 @@ actor CoreAudioCapture: AudioCapture {
     private func restarted() {
         defer { stillSince = nil }
         guard !isPaused, let stillSince else { return }
-        let parts = stillSince.duration(to: .now).components
-        continuation.yield(.restarted(gap: Double(parts.seconds) + Double(parts.attoseconds) / 1e18))
+        continuation.yield(.restarted(gap: max(0, Self.uptime - stillSince)))
     }
     /// Device notifications come in bursts (AirPods change the input, then the output): they are
-    /// checked once they settle.
-    private func devicesChanged() {
-        routeCheck?.cancel()
-        routeCheck = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(500))
+    /// checked once they settle, 500 ms after the last one. The microphone in use that stops being
+    /// alive is checked at once. A check or rebuild in progress is never interrupted: it checks
+    /// again when it ends.
+    private func devicesChanged(after delay: Duration = .milliseconds(500)) {
+        guard writer != nil, !faulted, gate.notified() else { return }
+        // A check already due at once covers this change too.
+        if delay != .zero, settleIsImmediate { return }
+        settle?.cancel()
+        settleIsImmediate = delay == .zero
+        settle = Task { [weak self] in
+            if delay != .zero { try? await Task.sleep(for: delay) }
             guard !Task.isCancelled else { return }
-            await self?.checkDevices()
+            await self?.settled()
         }
     }
+    private func settled() async {
+        settleIsImmediate = false
+        guard writer != nil, !faulted, gate.begin() else { return }
+        await checkDevices()
+        if gate.end() { devicesChanged() }
+    }
+    /// One look at the devices; the gate is held by the caller.
     private func checkDevices() async {
-        guard writer != nil, !faulted else { return }
-        // A rebuild creates and destroys devices itself; look again once it is over.
-        if rebuilding { devicesChanged(); return }
-        let before = microphones
-        microphones = HAL.microphones()
-        if microphones != before { continuation.yield(.microphonesChanged(microphones)) }
-        guard let current = microphone, !lost else { return }
-        if microphones.device(current.uid) == nil || !HAL.isAlive(HAL.device(uid: current.uid)) {
-            lost = true
-            stopDevices()
-            if !isPaused { continuation.yield(.restarting); stillSince = .now }
-            continuation.yield(.microphoneLost(current))
-            return
+        guard writer != nil, !faulted, var state = devices else { return }
+        let alive = state.microphone.map { HAL.isAlive(HAL.device(uid: $0.uid)) } ?? true
+        let actions = state.check(list: HAL.microphones(), output: HAL.defaultOutput, microphoneAlive: alive)
+        devices = state
+        for action in actions {
+            guard writer != nil, !faulted else { return }
+            switch action {
+            case .report(let list): continuation.yield(.microphonesChanged(list))
+            case .lose(let device): lose(device)
+            case .rebuildForOutput: if let current = devices?.microphone { await rebuildForOutput(on: current) }
+            case .offer(let device): continuation.yield(.microphoneOffered(device))
+            }
         }
-        let output = HAL.defaultOutput
-        if output != defaultOutput {
-            defaultOutput = output
-            await rebuildForOutput(on: current)
-        }
-        if microphones.defaultInput != before.defaultInput, let offered = microphones.defaultDevice, offered.uid != current.uid {
-            continuation.yield(.microphoneOffered(offered))
-        }
+    }
+    /// The microphone in use disappeared: its devices stop, what the rings hold is written, and
+    /// buffers lost as it went away are not a writer failure. The stream stood still since the
+    /// microphone's last buffer, not since now: in split mode system audio kept coming, and what it
+    /// holds beyond the microphone is dropped, so the session clock skips that time too.
+    private func lose(_ device: MicrophoneDevice) {
+        let lastPacket = writer?.lastPacket(track: 0)
+        stopDevices()
+        writer?.detach(forgivingDrops: true)
+        if !isPaused { continuation.yield(.restarting); stillSince = min(Self.uptime, lastPacket ?? Self.uptime) }
+        continuation.yield(.microphoneLost(device))
     }
     /// Whether a global tap follows a new output device on its own is not established: the tap and
     /// the graph are built again on the same microphone, which costs a short gap and no boundary.
     private func rebuildForOutput(on device: MicrophoneDevice) async {
-        rebuilding = true
-        defer { rebuilding = false }
-        if !isPaused { continuation.yield(.restarting); stillSince = .now }
+        if !isPaused { continuation.yield(.restarting); stillSince = Self.uptime }
         do {
             try await rebuild(on: device, newTap: true)
+            devices?.tapRebuilt()
             restarted()
         } catch {
+            guard writer != nil else { return }
             report(CaptureFault(.restart, message: String(localized: "La capture n’a pas pu repartir après un changement de sortie audio : \(error.localizedDescription). La session a été arrêtée, l’audio est conservé.")))
         }
     }
@@ -289,7 +333,7 @@ actor CoreAudioCapture: AudioCapture {
         }
         try HAL.check(AudioDeviceCreateIOProcID(aggregate, HWYDIOProc, UnsafeMutableRawPointer(ring), &ioProc), String(localized: "Préparation de la capture"))
         if let micRing { try HAL.check(AudioDeviceCreateIOProcID(micDevice, HWYDIOProc, UnsafeMutableRawPointer(micRing), &micProc), String(localized: "Préparation du micro")) }
-        alive = DeviceWatch(listeners: [(input, HAL.address(kAudioDevicePropertyDeviceIsAlive))], queue: queue) { [weak self] in Task { await self?.devicesChanged() } }
+        alive = DeviceWatch(listeners: [(input, HAL.address(kAudioDevicePropertyDeviceIsAlive))], queue: queue) { [weak self] in Task { await self?.devicesChanged(after: .zero) } }
         return inputs
     }
     private func startDevices() throws {
@@ -317,7 +361,8 @@ actor CoreAudioCapture: AudioCapture {
     }
     /// Builds the graph again on `device`: the writer writes what the old rings hold, the old graph
     /// goes, the new one is built in combined or split mode, and the writer reads it on the same
-    /// files and chunk sequence, its clocks anchored again. Started unless paused.
+    /// files and chunk sequence, its clocks anchored again. Started unless paused; a pause or a
+    /// stop while it waits for the first buffers ends the wait, and a resume waits for them.
     private func rebuild(on device: MicrophoneDevice, newTap: Bool) async throws {
         guard let writer else { throw CaptureFailure(message: String(localized: "Aucune capture en cours.")) }
         destroyGraph()
@@ -331,22 +376,34 @@ actor CoreAudioCapture: AudioCapture {
             let inputs = try buildGraph(on: device)
             writer.attach(inputs)
         } catch { destroyGraph(); releaseRings(); throw error }
+        awaitingAudio = true
         guard !isPaused else { return }
         try startDevices()
         // A Bluetooth headset may take more than a second to switch to call mode.
-        try await waitForAudio(seconds: 8)
+        let outcome = try await waitForAudio(seconds: 8)
+        guard self.writer != nil else { throw CaptureFailure(message: String(localized: "Aucune capture en cours.")) }
+        guard outcome == .flowing else { return }
+        awaitingAudio = false
         claimWatch?.reset(readers: inputReaders())
     }
-    /// Waits for the first buffers of both tracks. Returns early if the capture is paused or stopped meanwhile.
-    private func waitForAudio(seconds: Int) async throws {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(seconds))
-        while let writer, !isPaused, writer.status().lastPacket == nil {
-            if let error = writer.status().error { throw CaptureFailure(message: error) }
-            guard ContinuousClock.now < deadline else {
-                throw CaptureFailure(message: String(localized: "Le périphérique audio a démarré mais aucun buffer n’est reçu. Vérifiez les permissions micro et audio système, puis réessayez."))
-            }
-            try await Task.sleep(for: .milliseconds(50))
+    /// Waits for the first buffers of both tracks. Returns early if the capture is paused or
+    /// stopped meanwhile. Only the deadline ends the wait: device notifications never cancel it.
+    @discardableResult
+    private func waitForAudio(seconds: Int) async throws -> AudioWait.Outcome {
+        do {
+            return try await AudioWait.until(.now.advanced(by: .seconds(seconds))) { [weak self] in await self?.probe() ?? .stopped }
+        } catch let failure as AudioWait.Failure {
+            throw CaptureFailure(message: failure.message)
+        } catch {
+            throw CaptureFailure(message: String(localized: "Le périphérique audio a démarré mais aucun buffer n’est reçu. Vérifiez les permissions micro et audio système, puis réessayez."))
         }
+    }
+    private func probe() -> AudioWait.Probe {
+        guard let writer else { return .stopped }
+        if isPaused { return .paused }
+        let status = writer.status()
+        if let error = status.error { return .failed(error) }
+        return status.lastPacket == nil ? .waiting : .flowing
     }
 
     // MARK: Health
@@ -360,11 +417,20 @@ actor CoreAudioCapture: AudioCapture {
         }
     }
     /// One monitor pass: levels, then the fault that ends the session, then a microphone claim.
-    private func inspect() {
-        guard let writer, !isPaused, !faulted, !rebuilding, !lost else { return }
+    /// Lost buffers or a stalled stream first look at the devices: when the microphone in use is
+    /// going away, it is a lost microphone for the session to replace, not a fault.
+    private func inspect() async {
+        guard let writer, !isPaused, !faulted, !gate.isBusy, !awaitingAudio, devices?.isLost != true else { return }
         let status = writer.status()
         continuation.yield(.levels(mic: status.mic, system: status.system))
-        if let fault = fault() { report(fault); return }
+        if let fault = fault() {
+            if gate.begin() {
+                await checkDevices()
+                if gate.end() { devicesChanged() }
+            }
+            guard self.writer != nil, !faulted, devices?.isLost != true else { return }
+            report(fault); return
+        }
         do { try restartIfMicrophoneClaimed() } catch { report(CaptureFault(.restart, message: error.localizedDescription)) }
     }
     private func report(_ fault: CaptureFault) {
@@ -378,14 +444,16 @@ actor CoreAudioCapture: AudioCapture {
     /// is left out of the timeline; the events let the session clock skip it too.
     private func restartIfMicrophoneClaimed() throws {
         guard !isPaused, claimWatch != nil else { return }
-        let now = ProcessInfo.processInfo.systemUptime
+        let now = Self.uptime
         guard now - lastClaimPoll >= 0.5 else { return }
         lastClaimPoll = now
         guard claimWatch?.poll(readers: inputReaders(), now: now) == true else { return }
         continuation.yield(.restarting)
-        stillSince = .now
-        pause()
-        try resume()
+        stillSince = now
+        halt()
+        writer?.resume()
+        try startDevices()
+        claimWatch?.reset(readers: inputReaders())
         restarted()
     }
     /// The other processes currently reading audio input, from any device. A meeting app with voice processing
@@ -407,8 +475,8 @@ actor CoreAudioCapture: AudioCapture {
     /// Stops and releases everything the capture holds, and seals the audio.
     private func teardown() -> CapturedAudio {
         monitor?.cancel(); monitor = nil
-        routeCheck?.cancel(); routeCheck = nil
-        devices?.cancel(); devices = nil
+        settle?.cancel(); settle = nil
+        watch?.cancel(); watch = nil
         destroyGraph()
         let chunks = writer?.finish() ?? []
         let finalizationError = writer?.status().error
@@ -495,7 +563,8 @@ private final class AudioWriter: @unchecked Sendable {
     private static let toleranceSamples = 32.0
     private let queue = DispatchQueue(label: "dev.lepee.hwyd.audio-writer", qos: .userInitiated)
     private let statusLock = NSLock()
-    private var state: (mic: Float, system: Float, error: String?, lastPackets: [Double?]) = (0, 0, nil, [nil, nil])
+    /// `dropped`: the error is buffers the realtime callback could not queue.
+    private var state: (mic: Float, system: Float, error: String?, dropped: Bool, lastPackets: [Double?]) = (0, 0, nil, false, [nil, nil])
     private var inputs: [CaptureInput] = []
     private var split = false
     private let folder: AudioFolder
@@ -546,12 +615,18 @@ private final class AudioWriter: @unchecked Sendable {
     }
     /// Called once the devices stopped: writes what the rings hold, then reads nothing until
     /// `attach`. Samples one track holds beyond the other are dropped, as at a pause in split mode.
-    func detach() {
+    /// `forgivingDrops`: the rings belong to a microphone that disappeared, whose last buffers may
+    /// have been refused by the realtime callback; those losses do not fail the writer. Nothing
+    /// is desynchronized by them: what follows is anchored again.
+    func detach(forgivingDrops: Bool = false) {
         queue.sync {
             drain()
             use([])
             pending = [[], []]; clocks = [TrackClock(), TrackClock()]; origin = nil
-            statusLock.lock(); state.mic = 0; state.system = 0; statusLock.unlock()
+            statusLock.lock()
+            state.mic = 0; state.system = 0
+            if forgivingDrops, state.dropped { state.error = nil; state.dropped = false }
+            statusLock.unlock()
         }
     }
     /// Reads new rings, before their devices start. Both clocks are anchored again on their first
@@ -569,6 +644,13 @@ private final class AudioWriter: @unchecked Sendable {
         let packets = state.lastPackets.compactMap { $0 }
         return (state.mic, state.system, state.error, packets.count == 2 ? packets.min() : nil)
     }
+    /// When `track` last delivered, in `systemUptime` seconds; nil before its first buffer.
+    func lastPacket(track: Int) -> Double? {
+        statusLock.lock(); defer { statusLock.unlock() }
+        return state.lastPackets[track]
+    }
+    /// Waits for the first buffers of both tracks again: `status().lastPacket` is nil until then.
+    func rearm() { statusLock.lock(); state.lastPackets = [nil, nil]; statusLock.unlock() }
     func start() {
         queue.sync {
             let source = DispatchSource.makeTimerSource(queue: queue)
@@ -603,12 +685,12 @@ private final class AudioWriter: @unchecked Sendable {
         statusLock.lock(); let now = ProcessInfo.processInfo.systemUptime; state.lastPackets = [now, now]; statusLock.unlock()
     }
     func consumeForTest() { queue.sync { drain() } }
-    private func setError(_ message: String) { statusLock.lock(); state.error = message; statusLock.unlock() }
+    private func setError(_ message: String, dropped: Bool = false) { statusLock.lock(); state.error = message; state.dropped = dropped; statusLock.unlock() }
     private func drain() {
         guard status().error == nil else { return }
         for input in inputs where HWYDRingDropped(input.ring) > 0 {
             let reasons = (0..<4).map { String(HWYDRingDropReason(input.ring, UInt32($0))) }.joined(separator: "/")
-            setError(String(localized: "La capture a perdu des buffers audio (\(reasons)). La session est arrêtée pour éviter une désynchronisation silencieuse.")); return
+            setError(String(localized: "La capture a perdu des buffers audio (\(reasons)). La session est arrêtée pour éviter une désynchronisation silencieuse."), dropped: true); return
         }
         do {
             for (index, input) in inputs.enumerated() {
