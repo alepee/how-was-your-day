@@ -796,8 +796,10 @@ final class AppModel: ObservableObject {
         guard recordings.contains(where: { $0.id == id }) else { return }
         navigate(to: .session(id, .summary)); generateSummary()
     }
-    func generateSummary() {
-        guard let id = selected?.id else { return }
+    /// Asks for the summary of `recordingID`, or of the open session when nil. A session context
+    /// menu summarizes a session without opening it.
+    func generateSummary(_ recordingID: UUID? = nil) {
+        guard let id = recordingID ?? selected?.id else { return }
         enqueue { [weak self] in await self?.requestSummary(id) }
     }
     /// Asks for a summary. An `automatic` request comes from `AutomaticSummaryTrigger`: it waits

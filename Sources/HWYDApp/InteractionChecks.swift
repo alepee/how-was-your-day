@@ -142,7 +142,10 @@ import HWYDCore
         }
         notices.clear()
         slot.fixture = FixtureSummarizer { _ in try await Task.sleep(for: .seconds(30)) }
-        model.generateSummary()
+        // The sidebar and library context menus summarize a session that is not open.
+        model.selectedID = nil
+        model.generateSummary(recording.id)
+        try await waitUntil("Summary did not start for an unselected session") { model.summaryID == recording.id }
         model.enterDemo()
         guard !model.isDemoMode, model.recordings.first?.id == recording.id else {
             model.cancelSummary()
@@ -154,7 +157,7 @@ import HWYDCore
               notices.messages.last == String(localized: "Synthèse annulée.") else {
             throw CaptureFailure(message: "Cancelled summary surfaced as a provider error")
         }
-        print("Summary availability, pending-edit flush, demo exclusion and cancellation: PASS")
+        print("Summary availability, pending-edit flush, unselected target, demo exclusion and cancellation: PASS")
     }
     private actor Counter { var value = 0; func add() { value += 1 } }
     /// Automatic summaries: a fixture summarizer stands in for the provider, so no model, network or

@@ -9,6 +9,9 @@ Entries describe what a user observes. The detailed release notes published on G
 
 ## [Unreleased]
 
+### Added
+- Right-clicking a session, in the library or among the recent sessions of the sidebar, opens it, generates or regenerates its summary without opening it (or cancels a summary running or waiting), and deletes it. Deleting is unavailable while work runs or waits on the session.
+
 ## [0.14.0] - 2026-11-14
 
 ### Added
