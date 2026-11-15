@@ -9,9 +9,12 @@ Entries describe what a user observes. The detailed release notes published on G
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-15
+
 ### Added
 - Choose the microphone a session records, on the setup screen and while recording. HWYD remembers your last choice and uses the Mac's default input when that microphone is not connected. When macOS switches its default input during a recording (AirPods connecting, for example), HWYD asks first, with a notification offering « Basculer » or « Garder … » and the same question in the capture screen; not answering keeps the current microphone. For a Bluetooth headset, it warns that its microphone switches it to call mode. The permission to show notifications is asked the first time there is one to show, and no banner repeats a question already shown in the capture screen. If the microphone in use is unplugged, recording continues on the default input and HWYD tells you; with no microphone left, the session stops as interrupted and can be resumed. Exports and `hwyd-mcp` give the session's first microphone and each change. Switching has been checked with simulated devices; its behaviour with AirPods, Bluetooth headsets and USB interfaces is still to be confirmed on real hardware.
 - « Reprendre l’enregistrement », in a session's header and its right-click menu, records the rest of a session you stopped or that was interrupted, up to 24 hours after it ended. The new audio follows the earlier audio, notes taken now follow the earlier ones, and the transcript marks « Reprise à … » where recording resumed. When recording stops, the whole session is transcribed again: corrections to its transcript are lost (you are asked to confirm first), and an existing summary is kept and marked as made from an earlier transcript. JSON exports and `hwyd-mcp` give where and when recording resumed.
+- Exporting a summary (PDF or Markdown) first asks which sections to include, among those the summary has. « Résumé » is always included. « Contexte » starts unticked on every export, since its notes come from a coding agent's own sources and can be private; when ticked, its sources are exported with it. The PDF counts only the exported sections. Nothing is remembered between exports.
 - Right-clicking a session, in the library or among the recent sessions of the sidebar, opens it, generates or regenerates its summary without opening it (or cancels a summary running or waiting), and deletes it. Deleting is unavailable while work runs or waits on the session.
 
 ### Changed
@@ -210,7 +213,8 @@ Entries describe what a user observes. The detailed release notes published on G
 ### Added
 - First experimental release for Apple Silicon and macOS 26+: separate microphone and system audio recording, local French transcription, optional diarization, notes and speaker corrections, optional local summaries, calendar reminders, Markdown/JSON exports and a standalone MCP server.
 
-[Unreleased]: https://github.com/alepee/how-was-your-day/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/alepee/how-was-your-day/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/alepee/how-was-your-day/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/alepee/how-was-your-day/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/alepee/how-was-your-day/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/alepee/how-was-your-day/compare/v0.12.0...v0.12.1
