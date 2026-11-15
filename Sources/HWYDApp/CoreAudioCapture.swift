@@ -97,8 +97,9 @@ actor CoreAudioCapture: AudioCapture {
         do {
             session = id
             let list = HAL.microphones(), output = HAL.defaultOutput
-            // The chosen microphone, else the system default input.
-            guard let device = list.device(uid) ?? list.defaultDevice else { throw CaptureFailure(message: String(localized: "Aucun microphone disponible.")) }
+            // The chosen microphone, else the system default input, else the first recordable one
+            // (the default input may be an aggregate or a virtual device the capture cannot record).
+            guard let device = list.device(uid) ?? list.defaultDevice ?? list.devices.first else { throw CaptureFailure(message: String(localized: "Aucun microphone disponible.")) }
             try createTap()
             let inputs = try buildGraph(on: device)
             let folder = try audio.sessionFolder(for: id)

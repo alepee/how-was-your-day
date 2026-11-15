@@ -131,6 +131,8 @@ public final class CaptureSession: ObservableObject {
     private var clock = SessionClock()
     /// When the clock froze for a restart of the microphone stream.
     private var restartFrozenAt: TimeInterval?
+    /// A resume waits for audio (up to 8 s for a Bluetooth headset): a second request meanwhile is ignored.
+    private var isResuming = false
 
     /// - Parameters:
     ///   - transcribe: requests a session's transcription; the decision says whether it starts or waits.
@@ -235,7 +237,9 @@ public final class CaptureSession: ObservableObject {
 
     /// Resumes a paused capture. A failure is reported and the capture stays paused.
     public func resume() async {
-        guard case .paused(let id) = phase, let capture else { return }
+        guard case .paused(let id) = phase, !isResuming, let capture else { return }
+        isResuming = true
+        defer { isResuming = false }
         do { try await capture.resume() } catch {
             notifier.notify(.error(error.localizedDescription)); return
         }
@@ -412,10 +416,12 @@ public final class CaptureSession: ObservableObject {
         case .restarted(let gap):
             // The clock ran from the start of the restart until it froze, and stood still from
             // the end of the restart until now: both are corrected so that it skips `gap` exactly.
+            // A restart the session did not see begin (it came while paused or resuming) ran while
+            // the clock stood still: there is nothing to skip.
+            guard let frozenAt = restartFrozenAt else { return }
             let time = now()
-            let frozen = restartFrozenAt.map { time - $0 } ?? 0
             restartFrozenAt = nil
-            clock.shift(by: frozen - gap)
+            clock.shift(by: (time - frozenAt) - gap)
             if phase == .recording(id) { clock.run(at: time) }
         case .microphonesChanged(let list):
             microphones = list

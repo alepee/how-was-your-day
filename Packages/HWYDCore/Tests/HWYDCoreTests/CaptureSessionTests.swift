@@ -17,6 +17,25 @@ private actor UnresumableCapture: AudioCapture {
     func stop() async -> CapturedAudio { continuation.finish(); return CapturedAudio() }
 }
 
+/// A capture whose resume waits until the test lets it go, as a Bluetooth headset negotiating call mode.
+private actor SlowResumeCapture: AudioCapture {
+    nonisolated let isSimulated = false
+    nonisolated let events: AsyncStream<CaptureEvent>
+    private let continuation: AsyncStream<CaptureEvent>.Continuation
+    private var held: CheckedContinuation<Void, Never>?
+    private(set) var resumes = 0
+    init() { (events, continuation) = AsyncStream.makeStream(of: CaptureEvent.self) }
+    func start(session id: UUID, continuing continuation: CaptureContinuation, microphone: String?) async throws {}
+    nonisolated let microphone: MicrophoneDevice? = nil
+    nonisolated let microphones = MicrophoneList()
+    func switchMicrophone(to uid: String, reason: MicrophoneSwitchReason) async throws {}
+    func pause() async {}
+    func resume() async throws { resumes += 1; await withCheckedContinuation { held = $0 } }
+    var isHolding: Bool { held != nil }
+    func release() { held?.resume(); held = nil }
+    func stop() async -> CapturedAudio { continuation.finish(); return CapturedAudio() }
+}
+
 @MainActor
 final class CaptureSessionTests: XCTestCase {
     private var time: TimeInterval = 100
@@ -221,6 +240,37 @@ final class CaptureSessionTests: XCTestCase {
         await capture.resume()
         XCTAssertEqual(capture.phase, .paused(id))
         XCTAssertEqual(notifier.messages, ["resume failed"])
+    }
+
+    func testASecondResumeWhileTheFirstWaitsForAudioIsIgnored() async throws {
+        let capture = session(), device = SlowResumeCapture()
+        let idStarted = try await capture.start(CaptureRequest(), with: device, in: SessionLibrary(volatile: []))
+        let id = try XCTUnwrap(idStarted)
+        time += 5
+        await capture.pause()
+        let first = Task { await capture.resume() }
+        for _ in 0..<1000 { if await device.isHolding { break }; try? await Task.sleep(for: .milliseconds(1)) }
+        await capture.resume()
+        let resumes = await device.resumes
+        XCTAssertEqual(resumes, 1, "the second request does not reach the capture")
+        XCTAssertEqual(capture.phase, .paused(id), "the clock waits for audio")
+        time += 6
+        await device.release(); await first.value
+        XCTAssertEqual(capture.phase, .recording(id))
+        XCTAssertEqual(capture.elapsed, 5, accuracy: 1e-9, "the wait for audio is not recorded time")
+    }
+
+    func testARestartEndingWhileThePauseHeldTheClockSkipsNothing() async throws {
+        let capture = session()
+        let idStarted = try await capture.start(CaptureRequest(), with: realCapture(), in: SessionLibrary(volatile: []))
+        let id = try XCTUnwrap(idStarted)
+        time += 10
+        await capture.pause()
+        // A rebuild during the pause: the session ignores its start, then hears it ended.
+        capture.handle(.restarting, session: id)
+        capture.handle(.restarted(gap: 2), session: id)
+        await capture.resume()
+        XCTAssertEqual(capture.elapsed, 10, accuracy: 1e-9)
     }
 
     func testDiscardForgetsTheCaptureWithoutEndingTheSession() async throws {
