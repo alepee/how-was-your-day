@@ -12,6 +12,22 @@ import HWYDCore
             runTheme(into: destination, preference: preference)
         }
     }
+    /// A session of the user's, ended an hour ago, where recording resumed once: the header offers
+    /// to resume again and the transcript marks where it did. No capture can start.
+    private static func renderResumedSession(preferences: SettingsStore, to url: URL) {
+        let alice = Speaker(label: "Alice", confirmed: true), you = Speaker(label: "Vous", confirmed: true) // l10n:ignore
+        var item = Recording(title: "Point d’équipe", kind: .meeting, startedAt: Date().addingTimeInterval(-5400), duration: 1260, speakers: [alice, you], segments: [ // l10n:ignore
+            .init(start: 14, end: 22, speakerID: alice.id, source: .system, text: "On fait le point sur la livraison de jeudi."), // l10n:ignore
+            .init(start: 25, end: 31, speakerID: you.id, source: .mic, text: "Il reste la relecture des textes."), // l10n:ignore
+            .init(start: 742, end: 750, speakerID: you.id, source: .mic, text: "On reprend : la relecture est faite."), // l10n:ignore
+            .init(start: 753, end: 760, speakerID: alice.id, source: .system, text: "Parfait, je prépare l’annonce.")]) // l10n:ignore
+        item.audioChunks = [.init(source: .mic, relativePath: "preview-mic.caf", start: 0, duration: 1260)]
+        item.endedAt = Date().addingTimeInterval(-3600)
+        item.boundaries = [CaptureBoundary(offset: 735, at: Date().addingTimeInterval(-4200), reason: .resumed, microphone: "MacBook Pro Microphone")]
+        let model = AppModel(environment: .preview(recordings: [item], preferences: preferences, capture: .unavailable("Snapshots never record."))) // l10n:ignore
+        model.select(item); model.activeTab = .transcript
+        render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: url)
+    }
     /// A capture clock the snapshots set by hand.
     @MainActor private final class ManualClock { var time: TimeInterval = 0 }
     /// Lets the tasks of the main actor run until `condition` holds, at most five seconds.
@@ -46,6 +62,7 @@ import HWYDCore
         model.playbackTime = 25; model.updatePlaybackFocus()
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-transcript-follow.png"))
         model.playbackTime = 0; model.playback.activeSegmentIDs = []
+        renderResumedSession(preferences: preferences, to: directory.appendingPathComponent("studio-transcript-resumed.png"))
         renderVoiceTiles(preferences: preferences, to: directory.appendingPathComponent("studio-voices.png"))
         var splitExample = TranscriptSegment(start: 12, end: 16, speakerID: nil, source: .mic, text: "Oui. Bonjour à tous.") // l10n:ignore
         splitExample.words = [.init(text: "Oui.", start: 12, end: 12.5), .init(text: " Bonjour", start: 13, end: 14), .init(text: " à", start: 14, end: 14.5), .init(text: " tous.", start: 14.5, end: 16)] // l10n:ignore

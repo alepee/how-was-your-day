@@ -13,6 +13,7 @@ struct DetailView: View {
                     Eyebrow(text: "\(recording.kind.label) · \(recording.startedAt.formatted(.dateTime.day().month(.wide)))")
                     Spacer()
                     if recording.isDemo { Badge(text: String(localized: "EXEMPLE")) }
+                    ResumeRecordingButton(recording: recording)
                     Button { model.exportSelected() } label: { Label("Exporter", systemImage: "square.and.arrow.up") }.buttonStyle(StudioButtonStyle())
                 }
                 TextField("Titre de la session", text: Binding(get: { model.selected?.title ?? recording.title }, set: { value in model.update(recording.id) { $0.title = value } }))
@@ -161,6 +162,32 @@ struct DetailView: View {
         return text
     }
 }
+/// Resumes recording in the session. Hidden where it can never apply (an example, past 24 hours),
+/// disabled with the reason while a capture or work on the session keeps it from starting.
+struct ResumeRecordingButton: View {
+    @EnvironmentObject var model: AppModel
+    let recording: Recording
+    var body: some View {
+        let refusal = model.resumeRefusal(for: recording)
+        if refusal?.hidesAction != true {
+            Button { model.requestResume(recording) } label: { Label("Reprendre l’enregistrement", systemImage: "record.circle") }
+                .buttonStyle(StudioButtonStyle()).disabled(refusal != nil)
+                .help(refusal?.localizedDescription ?? String(localized: "Enregistrer la suite de cette session, après l’audio déjà enregistré."))
+        }
+    }
+}
+/// Where recording resumed in the transcript, before the first passage that follows.
+struct ResumeMarker: View {
+    let resume: CaptureBoundary
+    var body: some View {
+        HStack(spacing: 16) {
+            Text(timeLabel(resume.offset)).font(.system(size: Studio.Size.caption, design: .monospaced)).foregroundStyle(Studio.muted)
+                .frame(width: 46, alignment: .leading)
+            Label(SessionResume.label(resume), systemImage: "record.circle").font(.system(size: Studio.Size.caption, weight: .medium)).foregroundStyle(Studio.copper)
+            Rectangle().fill(Studio.line).frame(height: 0.5)
+        }.padding(.horizontal, 17).padding(.vertical, 4).accessibilityElement(children: .combine)
+    }
+}
 /// Where the notes stand: example, saving or saved on this Mac.
 struct NotesSaveStatus: View {
     @EnvironmentObject var model: AppModel
@@ -218,7 +245,9 @@ private struct TranscriptPane<Header: View>: View {
                     if recording.segments.isEmpty {
                         EmptyPanel(symbol: "text.bubble", title: recording.transcriptState == .ready ? String(localized: "Aucune parole reconnue") : String(localized: "Votre transcript viendra ici"), detail: recording.isDemo ? String(localized: "Cet exemple ne contient pas de transcript.") : String(localized: "La transcription utilise les fichiers audio conservés. Vous pouvez continuer à écrire vos notes pendant le traitement."))
                     } else {
+                        let markers = SessionResume.markers(recording.boundaries, before: heard.sorted { $0.start < $1.start })
                         ForEach(heard) { segment in
+                            ForEach(markers[segment.id] ?? [], id: \.offset) { ResumeMarker(resume: $0) }
                             TranscriptRow(segment: segment, speaker: segment.speakerID.flatMap { speakers[$0] },
                                 candidates: candidates[segment.source] ?? [],
                                 disabled: disabled, isActive: active.contains(segment.id),

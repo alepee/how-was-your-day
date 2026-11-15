@@ -150,18 +150,20 @@ struct CaptureSource {
     /// A store in `directory` for the synthetic checks (`--ui-test`, `--asr-test`). The pipeline is
     /// the bundled helper on that store unless a double is given; preferences are in memory unless
     /// a check gives its own; the microphone is never opened, and the keychain is never reached: the
-    /// app's keys and the helper's voice prints are in memory.
+    /// app's keys and the helper's voice prints are in memory. `capture` refuses every start unless a
+    /// check gives a double that stands for a real capture (`SimulatedCapture(simulated: false)`).
     static func synthetic(directory: URL, preferences: SettingsStore = InMemorySettings(), notifier: (any UserNotifier)? = nil,
                           transcription: (any TranscriptionService)? = nil, voiceMemory: (any VoiceMemory)? = nil,
                           speechModels: (any SpeechModelCatalog)? = nil,
                           summarizer: (@MainActor (SummaryConfiguration) -> any Summarizer)? = nil,
-                          coordinator: WorkCoordinator = WorkCoordinator(), automaticSummaryDelay: Duration = .seconds(10)) throws -> AppEnvironment {
+                          coordinator: WorkCoordinator = WorkCoordinator(), automaticSummaryDelay: Duration = .seconds(10),
+                          capture: CaptureSource = .unavailable("This model never opens the microphone.")) throws -> AppEnvironment { // l10n:ignore
         let helpers = HelperLocator(helpersDirectory: HelperLocator.app.helpersDirectory, secrets: .memory), secrets = InMemorySecretVault()
         let store = try SessionStore(directory: directory)
         // A check sweeps the folder it was given, never the user's data folder.
         let ownsFolder = directory.standardizedFileURL.resolvingSymlinksInPath() != applicationSupport.standardizedFileURL.resolvingSymlinksInPath()
         let user = Workspace(library: library(over: store, sweepsFiles: ownsFolder), store: store, audio: store.audio,
-                             capture: .unavailable("This model never opens the microphone."), // l10n:ignore
+                             capture: capture,
                              transcription: transcription ?? HelperTranscriptionService(helpers: helpers, store: directory),
                              voiceMemory: voiceMemory ?? HelperVoiceMemory(helpers: helpers, store: directory),
                              speechModels: speechModels ?? HelperSpeechModelCatalog(helpers: helpers, store: directory),

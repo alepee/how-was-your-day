@@ -395,6 +395,78 @@ import HWYDCore
         }
         print("No real capture outside the installed app: PASS")
     }
+    /// Recording resumes in a sealed session through a double that stands for a real capture and
+    /// opens no device: earlier chunks are kept, new ones follow them, one resume is recorded, the
+    /// session's waiting transcription is cancelled, then requested again at the end.
+    private static func checkSessionResume(directory: URL) async throws {
+        let notices = RecordingNotifier(), coordinator = WorkCoordinator()
+        let id = UUID(), folder = "audio/" + id.uuidString.lowercased()
+        let earlier = [AudioSource.mic, .system].map { AudioChunk(source: $0, relativePath: "\(folder)/\($0.rawValue)-000000.caf", start: 0, duration: 5) }
+        let added = [AudioSource.mic, .system].map { AudioChunk(source: $0, relativePath: "\(folder)/\($0.rawValue)-000001.caf", start: 0, duration: 3) }
+        let device = SimulatedCapture(animatesLevels: false, simulated: false, audio: CapturedAudio(chunks: added))
+        let service = InMemoryTranscriptionService { request in
+            TranscriptionResult(request: request, segments: [.init(start: 1, end: 2, speakerID: nil, source: .mic, text: "Avant"), // l10n:ignore
+                                                              .init(start: 6, end: 7, speakerID: nil, source: .mic, text: "Après")]) // l10n:ignore
+        }
+        let model = AppModel(environment: try .synthetic(directory: directory, notifier: notices, transcription: service, coordinator: coordinator,
+                                                         capture: CaptureSource(isSimulated: false) { device }))
+        await model.load()
+        var sealed = Recording(id: id, title: "Reprise", startedAt: Date().addingTimeInterval(-900), duration: 5.2, // l10n:ignore
+                               segments: [.init(start: 1, end: 2, speakerID: nil, source: .mic, text: "Avant corrigé")]) // l10n:ignore
+        sealed.audioChunks = earlier; sealed.endedAt = Date().addingTimeInterval(-600)
+        sealed.noteEntries = [NoteEntry(offset: 2, text: "avant")] // l10n:ignore
+        var late = Recording(title: "Hier", startedAt: Date().addingTimeInterval(-26 * 3600), duration: 60) // l10n:ignore
+        late.endedAt = Date().addingTimeInterval(-25 * 3600)
+        let example = Recording(title: "Exemple", isDemo: true), other = Recording(title: "Autre", startedAt: Date().addingTimeInterval(-60)) // l10n:ignore
+        for item in [sealed, late, example, other] { model.sessionLibrary.insert(item) }
+        await model.flush()
+        guard model.resumeRefusal(for: late) == .tooLate, model.resumeRefusal(for: example) == .example, model.resumeRefusal(for: sealed) == nil else {
+            throw CaptureFailure(message: "Resume eligibility: \(String(describing: model.resumeRefusal(for: late))), \(String(describing: model.resumeRefusal(for: sealed)))")
+        }
+        // A summary of the session runs: refused, nothing starts.
+        let summary = Gate()
+        _ = await coordinator.request(.summary(session: id)) { await summary.wait() }
+        try await waitUntil("Held summary not shown") { model.work.running == .summary(session: id) }
+        guard model.resumeRefusal(for: sealed) == .busy(.summary(session: id)) else { throw CaptureFailure(message: "A summary did not refuse the resume") }
+        await model.resumeRecording(id, reveal: false).value
+        guard model.activeCaptureID == nil, await device.session == nil,
+              notices.messages.last == ResumeRefusal.busy(.summary(session: id)).localizedDescription else { throw CaptureFailure(message: "Resumed during a summary") }
+        await summary.release(); await model.idle()
+        // Other work runs and the session's transcription waits behind it.
+        let blocker = Gate()
+        _ = await coordinator.request(.voice(session: nil)) { await blocker.wait() }
+        guard await model.requestTranscription(id) == .queued(behind: WorkBusy(job: .voice(session: nil))) else { throw CaptureFailure(message: "Transcription not queued") }
+        try await waitUntil("Queued transcription not shown") { model.work.isQueued(.transcription(session: id)) }
+        // The session has a transcript: the user confirms first.
+        model.requestResume(model.recordings.first { $0.id == id }!)
+        guard model.resumeCandidate?.id == id, model.activeCaptureID == nil else { throw CaptureFailure(message: "Resume did not ask for confirmation") }
+        await model.resumeConfirmed().value
+        let from = await device.startedFrom
+        guard model.activeCaptureID == id, from == CaptureContinuation(offset: 5.2, firstSequence: 1),
+              let recording = model.recordings.first(where: { $0.id == id }), recording.state == .recording,
+              recording.boundaries?.map(\.offset) == [5.2], recording.boundaries?.first?.reason == .resumed, recording.audioChunks == earlier, model.elapsed >= 5.2,
+              !model.work.isQueued(.transcription(session: id)) else {
+            throw CaptureFailure(message: "Resume did not start after the earlier audio, or left the transcription waiting")
+        }
+        guard model.resumeRefusal(for: model.recordings.first { $0.id == other.id }!) == .captureRunning,
+              await model.requestSummary(id) != .accepted else { throw CaptureFailure(message: "Work or a second capture allowed during a resume") }
+        model.addTimestamp()
+        await model.stopCapture(reveal: false).value
+        guard model.work.isQueued(.transcription(session: id)) else { throw CaptureFailure(message: "Transcription not requested again at the end") }
+        await blocker.release()
+        try await waitIdle(model, seconds: 5, "Transcription after a resume did not finish")
+        let stored = try await SessionStore(directory: directory).recording(id)
+        let requests = await service.requests
+        guard stored.state == .sealed, stored.endedAt != nil, stored.boundaries?.count == 1,
+              stored.audioChunks.prefix(2).elementsEqual(earlier), stored.audioChunks.dropFirst(2).map(\.relativePath) == added.map(\.relativePath),
+              stored.audioChunks.dropFirst(2).allSatisfy({ $0.start == 5.2 }), stored.duration >= 5.2,
+              stored.noteEntries.count == 2, stored.noteEntries.last!.offset >= 5.2,
+              requests.count == 1, requests[0].chunks == stored.audioChunks, stored.segments.map(\.text) == ["Avant", "Après"], // l10n:ignore
+              RecordingText.artifact(stored, "transcript").contains(SessionResume.exportLabel(stored.boundaries![0])) else {
+            throw CaptureFailure(message: "Resumed session not stored as expected: \(stored.audioChunks.map { "\($0.relativePath)@\($0.start)" }), \(requests.count) transcription(s)")
+        }
+        print("Session resume: refusals, confirmation, earlier audio kept, new chunks after it, transcription cancelled then requested again: PASS")
+    }
     /// The setup screen never records by itself, and toasts stack, deduplicate and expire.
     private static func checkNewSessionAndToasts() async throws {
         let model = AppModel(environment: .preview())
@@ -515,6 +587,7 @@ import HWYDCore
         try await checkAgentSummary(directory: directory.appendingPathComponent("agent-summary-test"))
         try await checkSessionDeletion(directory: directory.appendingPathComponent("deletion-test"))
         try await checkNewSessionAndToasts()
+        try await checkSessionResume(directory: directory.appendingPathComponent("resume-test"))
         try await checkNoMicrophone(directory: directory.appendingPathComponent("no-microphone-test"))
         try await checkSyntheticEnvironments(directory: directory.appendingPathComponent("environments-test"))
         let notices = RecordingNotifier(), coordinator = WorkCoordinator()
