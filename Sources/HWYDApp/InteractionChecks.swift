@@ -397,19 +397,24 @@ import HWYDCore
     }
     /// Recording resumes in a sealed session through a double that stands for a real capture and
     /// opens no device: earlier chunks are kept, new ones follow them, one resume is recorded, the
-    /// session's waiting transcription is cancelled, then requested again at the end.
+    /// session's waiting transcription is cancelled, then requested again at the end. A capture that
+    /// cannot start leaves the transcription waiting; a running one cancelled by a resume ends silently.
     private static func checkSessionResume(directory: URL) async throws {
         let notices = RecordingNotifier(), coordinator = WorkCoordinator()
         let id = UUID(), folder = "audio/" + id.uuidString.lowercased()
         let earlier = [AudioSource.mic, .system].map { AudioChunk(source: $0, relativePath: "\(folder)/\($0.rawValue)-000000.caf", start: 0, duration: 5) }
-        let added = [AudioSource.mic, .system].map { AudioChunk(source: $0, relativePath: "\(folder)/\($0.rawValue)-000001.caf", start: 0, duration: 3) }
-        let device = SimulatedCapture(animatesLevels: false, simulated: false, audio: CapturedAudio(chunks: added))
+        func pair(_ sequence: Int) -> [AudioChunk] {
+            [AudioSource.mic, .system].map { AudioChunk(source: $0, relativePath: String(format: "%@/%@-%06d.caf", folder, $0.rawValue, sequence), start: 0, duration: 3) }
+        }
+        let added = pair(1), devices = Devices()
+        let valve = Valve()
         let service = InMemoryTranscriptionService { request in
-            TranscriptionResult(request: request, segments: [.init(start: 1, end: 2, speakerID: nil, source: .mic, text: "Avant"), // l10n:ignore
+            await valve.pass()
+            return TranscriptionResult(request: request, segments: [.init(start: 1, end: 2, speakerID: nil, source: .mic, text: "Avant"), // l10n:ignore
                                                               .init(start: 6, end: 7, speakerID: nil, source: .mic, text: "Après")]) // l10n:ignore
         }
         let model = AppModel(environment: try .synthetic(directory: directory, notifier: notices, transcription: service, coordinator: coordinator,
-                                                         capture: CaptureSource(isSimulated: false) { device }))
+                                                         capture: CaptureSource(isSimulated: false) { devices.make(pair) }))
         await model.load()
         var sealed = Recording(id: id, title: "Reprise", startedAt: Date().addingTimeInterval(-900), duration: 5.2, // l10n:ignore
                                segments: [.init(start: 1, end: 2, speakerID: nil, source: .mic, text: "Avant corrigé")]) // l10n:ignore
@@ -429,7 +434,7 @@ import HWYDCore
         try await waitUntil("Held summary not shown") { model.work.running == .summary(session: id) }
         guard model.resumeRefusal(for: sealed) == .busy(.summary(session: id)) else { throw CaptureFailure(message: "A summary did not refuse the resume") }
         await model.resumeRecording(id, reveal: false).value
-        guard model.activeCaptureID == nil, await device.session == nil,
+        guard model.activeCaptureID == nil, devices.made.isEmpty,
               notices.messages.last == ResumeRefusal.busy(.summary(session: id)).localizedDescription else { throw CaptureFailure(message: "Resumed during a summary") }
         await summary.release(); await model.idle()
         // Other work runs and the session's transcription waits behind it.
@@ -437,11 +442,19 @@ import HWYDCore
         _ = await coordinator.request(.voice(session: nil)) { await blocker.wait() }
         guard await model.requestTranscription(id) == .queued(behind: WorkBusy(job: .voice(session: nil))) else { throw CaptureFailure(message: "Transcription not queued") }
         try await waitUntil("Queued transcription not shown") { model.work.isQueued(.transcription(session: id)) }
+        // The capture cannot start (microphone denied): the session and its transcription stay as they were.
+        devices.fails = true
+        await model.resumeRecording(id, reveal: false).value
+        devices.fails = false
+        guard model.activeCaptureID == nil, model.work.isQueued(.transcription(session: id)), notices.messages.last == "denied",
+              let unchanged = model.recordings.first(where: { $0.id == id }), unchanged.state == .sealed, unchanged.boundaries == nil else {
+            throw CaptureFailure(message: "A failed start changed the session or dropped its transcription")
+        }
         // The session has a transcript: the user confirms first.
         model.requestResume(model.recordings.first { $0.id == id }!)
         guard model.resumeCandidate?.id == id, model.activeCaptureID == nil else { throw CaptureFailure(message: "Resume did not ask for confirmation") }
         await model.resumeConfirmed().value
-        let from = await device.startedFrom
+        let from = await devices.made.last?.startedFrom
         guard model.activeCaptureID == id, from == CaptureContinuation(offset: 5.2, firstSequence: 1),
               let recording = model.recordings.first(where: { $0.id == id }), recording.state == .recording,
               recording.boundaries?.map(\.offset) == [5.2], recording.boundaries?.first?.reason == .resumed, recording.audioChunks == earlier, model.elapsed >= 5.2,
@@ -465,7 +478,45 @@ import HWYDCore
               RecordingText.artifact(stored, "transcript").contains(SessionResume.exportLabel(stored.boundaries![0])) else {
             throw CaptureFailure(message: "Resumed session not stored as expected: \(stored.audioChunks.map { "\($0.relativePath)@\($0.start)" }), \(requests.count) transcription(s)")
         }
-        print("Session resume: refusals, confirmation, earlier audio kept, new chunks after it, transcription cancelled then requested again: PASS")
+        // A running transcription is cancelled by a second resume; the capture stops before it ends.
+        notices.clear()
+        await valve.close()
+        model.transcribe(id)
+        try await waitUntil("Transcription not running") { model.processingID == id }
+        model.resumeCandidate = stored
+        await model.resumeConfirmed().value
+        guard model.activeCaptureID == id else { throw CaptureFailure(message: "Second resume did not start") }
+        await model.stopCapture(reveal: false).value
+        guard model.work.isQueued(.transcription(session: id)) else { throw CaptureFailure(message: "Stop during a cancelled run did not queue the transcription") }
+        await valve.open()
+        try await waitIdle(model, seconds: 5, "Transcription after a second resume did not finish")
+        let again = try await SessionStore(directory: directory).recording(id)
+        guard await service.requests.count == 3, again.transcriptState == .ready, again.boundaries?.count == 2,
+              again.audioChunks.count == 6, again.transcriptVersion > stored.transcriptVersion,
+              !notices.notices.contains(where: { $0.style == .error }) else {
+            throw CaptureFailure(message: "Cancelled run not silent or transcription lost: \(notices.messages), \(again.transcriptState)")
+        }
+        print("Session resume: refusals, confirmation, failed start, earlier audio kept, new chunks after it, transcription cancelled then requested again: PASS")
+    }
+    /// Captures that stand for real ones and open no device, numbered like a writer would.
+    @MainActor private final class Devices {
+        struct Denied: LocalizedError { var errorDescription: String? { "denied" } }
+        var fails = false
+        private(set) var made: [SimulatedCapture] = []
+        func make(_ pair: (Int) -> [AudioChunk]) -> SimulatedCapture {
+            if fails { return SimulatedCapture(animatesLevels: false, simulated: false, startFailure: Denied()) }
+            let device = SimulatedCapture(animatesLevels: false, simulated: false, audio: CapturedAudio(chunks: pair(made.count + 1)), microphone: "Micro synthétique") // l10n:ignore
+            made.append(device)
+            return device
+        }
+    }
+    /// Holds a transcription while closed.
+    private actor Valve {
+        private var closed = false
+        private var waiters: [CheckedContinuation<Void, Never>] = []
+        func pass() async { if closed { await withCheckedContinuation { waiters.append($0) } } }
+        func close() { closed = true }
+        func open() { closed = false; waiters.forEach { $0.resume() }; waiters = [] }
     }
     /// The setup screen never records by itself, and toasts stack, deduplicate and expire.
     private static func checkNewSessionAndToasts() async throws {

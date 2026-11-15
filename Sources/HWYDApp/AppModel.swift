@@ -65,6 +65,8 @@ final class AppModel: ObservableObject {
     @Published var deleteCandidate: Recording?
     /// Session whose recording resumes once the user confirms that its transcript will be made again.
     @Published var resumeCandidate: Recording?
+    /// Sessions whose transcription a resume cancelled: the run that ends is silent, whenever it ends.
+    private var transcriptionsCancelledByResume: Set<UUID> = []
     @Published var mcpWritesEnabled = false
     @Published var exportDirectory = ""
     @Published var people: [VoicePerson] = []
@@ -523,15 +525,20 @@ final class AppModel: ObservableObject {
         let refusal = workspace.capture.isSimulated ? .example
             : SessionResume.refusal(for: item, now: Date(), captureIdle: captureSession.phase == .idle, jobs: jobs)
         if let refusal { notifier.notify(.info(refusal.localizedDescription)); return false }
-        if jobs.contains(.transcription(session: id)) {
-            await coordinator.cancel(.transcription(session: id))
-            show(await coordinator.snapshot)
-        }
         do {
             // The root chose the capture: Core Audio for the installed app's own data only.
             let capture = try workspace.capture.make()
-            return try await captureSession.continueRecording(id, with: capture, in: workspace.library)
+            guard try await captureSession.continueRecording(id, with: capture, in: workspace.library) else { return false }
         } catch { notifier.notify(.error(error.localizedDescription)); return false }
+        // Only once recording runs: a capture that cannot start leaves the session and its
+        // transcription as they were. The session is recording now, so a run that ends meanwhile
+        // is not applied, and its cancellation stays silent (`runTranscription`).
+        if await coordinator.snapshot.jobs(for: id).contains(.transcription(session: id)) {
+            transcriptionsCancelledByResume.insert(id)
+            await coordinator.cancel(.transcription(session: id))
+            show(await coordinator.snapshot)
+        }
+        return true
     }
     /// The Mac is going to sleep: the session ends with what was recorded.
     func systemWillSleep() { Task { await captureSession.systemWillSleep() } }
@@ -658,7 +665,9 @@ final class AppModel: ObservableObject {
     private func runTranscription(_ id: UUID, language: String?, in workspace: Workspace) async {
         let library = workspace.library
         guard let item = library.recording(id), item.state != .recording, !item.audioChunks.isEmpty else { return }
-        let originalVersion = item.transcriptVersion
+        let originalVersion = item.transcriptVersion, originalState = item.transcriptState
+        // A run that starts is not the one a resume cancelled: that one ended before it.
+        transcriptionsCancelledByResume.remove(id)
         library.edit(id) { $0.transcriptState = .pending }
         do {
             await library.flush()
@@ -679,9 +688,13 @@ final class AppModel: ObservableObject {
             if let warning = result.identityWarning { notifier.notify(.info(String(localized: "Transcript disponible.") + " " + warning)) }
             if let detections = result.languageDetection { reportLanguageFindings(detections, id: id) }
         } catch {
+            // Cancelled because recording resumed: the transcript stays as it was, and the whole
+            // session is transcribed again once the capture stops.
+            if transcriptionsCancelledByResume.remove(id) != nil || library.recording(id)?.state == .recording {
+                library.edit(id) { $0.transcriptState = originalState }
+                await library.flush(); return
+            }
             library.edit(id) { $0.transcriptState = .failed }
-            // Cancelled because recording resumed: transcribed again once the capture stops.
-            if library.recording(id)?.state == .recording { await library.flush(); return }
             notifier.notify(.error(String(localized: "Transcription : \(error.localizedDescription)"),
                                    actions: [.perform(String(localized: "Réessayer")) { [weak self] in self?.transcribe(id, language: language) }]))
             await library.flush()
