@@ -232,7 +232,7 @@ final class AppModel: ObservableObject {
         toastCenter = environment.toasts; notifier = environment.notifier ?? environment.toasts
         let preferences = environment.preferences
         workspace = environment.startsWithExamples ? environment.examples() : environment.user
-        systemNotifications = SystemNotifications(enabled: environment.usesSystem)
+        systemNotifications = SystemNotifications(allowed: environment.usesSystem)
         microphoneAlerts = MicrophoneAlerts(notifications: systemNotifications)
         calendar = CalendarIntegration(settings: preferences, allowed: environment.usesSystem, notifications: systemNotifications)
         coordinator = environment.coordinator

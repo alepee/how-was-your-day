@@ -79,6 +79,12 @@ import HWYDCore
             }
         }
         if ownsSystem {
+            model.systemNotifications.claim()
+            model.microphoneAlerts.isShownInApp = { [weak self, weak model] in
+                guard let self, let model, NSApp.isActive, model.microphoneOffer != nil else { return false }
+                let capture = self.mainWindow?.isVisible == true && model.showsCaptureScreen
+                return capture || self.notepad?.isVisible == true
+            }
             model.calendar.start()
             AppRoot.updater.start(isBusy: { [weak model] in model?.isBusy ?? false },
                                   busyChanges: model.$isBusy.removeDuplicates().map { _ in () }.eraseToAnyPublisher())

@@ -6,7 +6,13 @@ import HWYDCore
 /// The capture's microphone questions and notices as system notifications: during a meeting the
 /// user is in the meeting app, not in HWYD. The offer of a new microphone carries « Basculer » and
 /// « Garder <micro> »; dismissing it or not answering keeps the microphone. A newer offer replaces
-/// the notification, and an offer answered in the app, or gone, withdraws it.
+/// the notification, and an offer answered in the app, or gone, withdraws it. While the capture
+/// screen or the notepad shows the offer in the frontmost HWYD, the notification only goes to the
+/// Notification Center, without a banner: the question is not asked twice.
+///
+/// The permission to notify is asked with the first notice, not when a capture starts: the
+/// microphone's permission is asked then, and two prompts at once would leave the user to guess
+/// which one matters. When it is refused, the offer still shows in the capture screen.
 @MainActor final class MicrophoneAlerts {
     static let offerID = "hwyd.microphone.offer"
     static let noticeID = "hwyd.microphone.notice"
@@ -14,13 +20,14 @@ import HWYDCore
     private let notifications: SystemNotifications
     private var shown: MicrophoneOffer?
     private var changes: AnyCancellable?
-    private var asked = false
+    /// Whether the frontmost HWYD shows the pending offer (capture screen or notepad).
+    var isShownInApp: @MainActor () -> Bool = { false }
 
     init(notifications: SystemNotifications) { self.notifications = notifications }
 
     /// Follows the offers of `capture`; answers go back to it.
     func follow(_ capture: CaptureSession, open: @escaping @MainActor () -> Void) {
-        guard notifications.enabled else { return }
+        guard notifications.allowed else { return }
         changes = capture.$offer.sink { [weak self, weak capture] offer in
             MainActor.assumeIsolated {
                 guard let self, let capture else { return }
@@ -29,13 +36,6 @@ import HWYDCore
         }
         capture.onForcedSwitch = { [weak self] lost, next in self?.notice(lost: lost, next: next) }
     }
-    /// Asks for the permission to notify, once, when a real capture starts.
-    func prepare() {
-        guard notifications.enabled, !asked else { return }
-        asked = true
-        Task { _ = await notifications.authorize() }
-    }
-
     private func show(_ offer: MicrophoneOffer?, answeredBy capture: CaptureSession, open: @escaping @MainActor () -> Void) {
         guard offer != shown else { return }
         shown = offer
@@ -46,7 +46,9 @@ import HWYDCore
             UNNotificationAction(identifier: "keep", title: keep, options: [])
         ], intentIdentifiers: [], options: [.customDismissAction])
         let id = offer.id.uuidString
-        notifications.register([category]) { [weak capture] action, userInfo in
+        notifications.register([category], presentation: { [weak self] in
+            self?.isShownInApp() == true ? [.list] : [.banner, .sound, .list]
+        }) { [weak capture] action, userInfo in
             // Only the offer still pending: an older notification answers nothing.
             guard let capture, capture.offer?.id.uuidString == userInfo["offer"] as? String else { return }
             switch action {
