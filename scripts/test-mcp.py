@@ -41,7 +41,7 @@ c = Client()
 try:
     tools = c.rpc('tools/list', {})['result']['tools']; assert len(tools)==4
     result, listing = c.tool('list_recordings', {}); assert not result.get('isError'); assert listing['items'][0]['id']==rid
-    _, item = c.tool('get_recording', {'id':rid}); assert item['recording']['revision']==revision
+    _, item = c.tool('get_recording', {'id':rid}); assert item['recording']['revision']==revision and item['recording']['capture_boundaries']==[]
     assert 'Note enregistrée' in item['artifacts']['notes']['markdown']
     summary = item['artifacts']['summary']; assert summary['status']=='stale' and 'Synthèse périmée' in summary['markdown'] and summary['reason'] is None, summary
     resource = c.rpc('resources/read', {'uri':f'hwyd://recording/{rid}/summary.md'}); assert 'Synthèse périmée' in resource['result']['contents'][0]['text']
@@ -49,6 +49,10 @@ try:
     db.execute('update ui_recordings set payload=? where id=?', (json.dumps(dict(recording, summary=None)), row[0])); db.commit()
     _, item = c.tool('get_recording', {'id':rid, 'include':'summary'})
     summary = item['artifacts']['summary']; assert summary['status']=='unavailable' and summary['reason']=='not_generated_or_invalidated', summary
+    # Recording resumed in the session: where on its timeline, when, why and with which microphone.
+    db.execute('update ui_recordings set payload=? where id=?', (json.dumps(dict(recording, boundaries=[{'offset':12.5,'at':0,'reason':'resumed','microphone':'Micro'}])), row[0])); db.commit()
+    _, item = c.tool('get_recording', {'id':rid, 'include':'notes'})
+    assert item['recording']['capture_boundaries']==[{'offset_us':12500000,'at':'2001-01-01T00:00:00Z','reason':'resumed','microphone':'Micro'}], item['recording']
     db.execute('update ui_recordings set payload=? where id=?', (json.dumps(recording), row[0])); db.commit()
     _, search = c.tool('search', {'query':'enregistrée'}); assert search['items']
     resource = c.rpc('resources/read', {'uri':f'hwyd://recording/{rid}/notes.md'}); assert 'Note enregistrée' in resource['result']['contents'][0]['text']
@@ -68,4 +72,4 @@ try:
     args['expected_revision']=receipt['revision']
     result,error=c.tool('set_notes',args); assert error['code']=='WRITE_DISABLED'
 finally: c.close(); db.close()
-print('MCP stdio, resources, stale summary, FTS, read-only, CAS, idempotency, revocation: PASS')
+print('MCP stdio, resources, stale summary, capture boundaries, FTS, read-only, CAS, idempotency, revocation: PASS')
