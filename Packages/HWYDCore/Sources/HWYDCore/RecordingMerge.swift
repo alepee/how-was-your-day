@@ -4,7 +4,7 @@ import Foundation
 /// parts never conflict; the same part changed on both sides keeps the local side.
 public enum RecordingPart: String, CaseIterable, Sendable {
     case title, kind, notes, noteEntries, consent, language, calendar
-    /// Capture state, duration and audio chunks.
+    /// Capture state, duration, audio chunks, end date and capture boundaries.
     case capture
     /// Segments, voices, transcript state and provenance, and the transcript version.
     case transcript
@@ -39,8 +39,9 @@ extension Recording {
         take(.consent, \.consentAnnounced) { $0.consentAnnounced = $1.consentAnnounced }
         take(.language, \.speechLanguage) { $0.speechLanguage = $1.speechLanguage }
         take(.calendar, \.calendarContext) { $0.calendarContext = $1.calendarContext }
-        take(.capture, { CaptureParts(state: $0.state, duration: $0.duration, chunks: $0.audioChunks) }) {
+        take(.capture, CaptureParts.init) {
             $0.state = $1.state; $0.duration = $1.duration; $0.audioChunks = $1.audioChunks
+            $0.endedAt = $1.endedAt; $0.boundaries = $1.boundaries
         }
         take(.transcript, TranscriptParts.init) {
             $0.speakers = $1.speakers; $0.absorbedSpeakers = $1.absorbedSpeakers; $0.segments = $1.segments
@@ -62,7 +63,12 @@ extension Recording {
     }
 }
 
-private struct CaptureParts: Equatable { var state: CaptureState; var duration: Double; var chunks: [AudioChunk] }
+private struct CaptureParts: Equatable {
+    var state: CaptureState, duration: Double, chunks: [AudioChunk], endedAt: Date?, boundaries: [CaptureBoundary]?
+    init(_ item: Recording) {
+        state = item.state; duration = item.duration; chunks = item.audioChunks; endedAt = item.endedAt; boundaries = item.boundaries
+    }
+}
 private struct SummaryParts: Equatable { var text: String?; var provenance: SummaryProvenance? }
 private struct IdentityParts: Equatable { var startedAt: Date; var isDemo: Bool }
 private struct TranscriptParts: Equatable {

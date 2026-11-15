@@ -104,6 +104,45 @@
         "source": {
           "type": "string",
           "pattern": "^hwyd://session/[0-9a-f-]{36}$"
+        },
+        "capture_boundaries": {
+          "type": "array",
+          "description": "Where the capture changed, oldest first: offset_us on the session timeline, at in wall-clock time, reason (resumed: recording resumed after the session had ended; user, accepted, forced: reserved for microphone changes, not produced yet), microphone: input device used from there on, or null. Empty when the capture never changed.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "offset_us": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "resumed",
+                  "user",
+                  "accepted",
+                  "forced"
+                ]
+              },
+              "microphone": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "offset_us",
+              "at",
+              "reason",
+              "microphone"
+            ],
+            "additionalProperties": false
+          }
         }
       },
       "required": [
@@ -118,7 +157,8 @@
         "echo_cancellation_engine",
         "echo_assessed_segments",
         "echo_suspect_segments",
-        "source"
+        "source",
+        "capture_boundaries"
       ],
       "additionalProperties": false
     },

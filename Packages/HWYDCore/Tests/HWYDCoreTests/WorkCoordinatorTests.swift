@@ -85,6 +85,23 @@ final class WorkCoordinatorTests: XCTestCase {
         XCTAssertEqual(log, ["cancelled"])
     }
 
+    func testTheSameJobAskedWhileItsCancelledRunEndsWaitsForIt() async {
+        let coordinator = WorkCoordinator(), gate = Gate()
+        let job = WorkJob.transcription(session: first)
+        _ = await coordinator.request(job) { await gate.record("cancelled"); await gate.wait() }
+        let again = await coordinator.request(job) { await gate.record("again") }
+        XCTAssertEqual(again, .refused(.alreadyRequested(job)), "not while the run goes on")
+        await coordinator.cancel(job)
+        let queued = await coordinator.request(job) { await gate.record("again") }
+        XCTAssertEqual(queued, .queued(behind: WorkBusy(job: job)))
+        let twice = await coordinator.request(job) { await gate.record("twice") }
+        XCTAssertEqual(twice, .refused(.alreadyRequested(job)))
+        await gate.release()
+        await coordinator.idle()
+        let log = await gate.log
+        XCTAssertEqual(log, ["cancelled", "again"])
+    }
+
     func testDroppingQueuedJobsLeavesTheRunningOne() async {
         let coordinator = WorkCoordinator(), gate = Gate()
         await coordinator.request(.summary(session: first)) { await gate.wait(); await gate.record("first") }

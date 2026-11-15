@@ -16,6 +16,9 @@ public struct TranscriptionRequest: Codable, Sendable {
     public var chunks: [AudioChunk]
     public var diarize: Bool?
     public var echoCancellation: Bool?
+    /// Session offsets, in seconds, where the capture changed (`Recording.boundaries`): the
+    /// adaptive echo canceller starts again there, since the acoustic path may differ.
+    public var echoResets: [Double]?
     /// With `locale == SpeechLanguage.automatic`, the languages the pipeline may detect. One locale per language.
     public var candidateLocales: [String]?
     /// Locale used when detection is not conclusive (silence, too little speech, single candidate).

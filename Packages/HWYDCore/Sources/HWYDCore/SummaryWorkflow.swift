@@ -52,12 +52,17 @@ extension SummaryPipeline {
         func json<T: Encodable>(_ value: T) throws -> String { String(decoding: try encoder.encode(value), as: UTF8.self) }
         let fingerprint = try inputHash(recording)
         let labels = Dictionary(uniqueKeysWithValues: recording.speakers.map { ($0.id, $0.label) })
+        // Where recording resumed: the provider knows the session was cut there.
+        let markers = SessionResume.markers(recording.boundaries, before: recording.segments.sorted { $0.start < $1.start })
         func source(_ segments: [TranscriptSegment]) throws -> String {
             struct Row: Encodable {
                 let id: String; let speaker: String; let start: String; let source: String; let text: String; let echo_suspect: Bool?
+                /// Absent unless recording resumed just before this passage.
+                let resumed: String?
             }
             return try json(segments.enumerated().map { index, segment in
-                Row(id: "S\(index + 1)", speaker: segment.speakerID.flatMap { labels[$0] } ?? "Voix non identifiée", start: timeLabel(segment.start), source: segment.source.rawValue, text: segment.text, echo_suspect: segment.echoSuspect)
+                Row(id: "S\(index + 1)", speaker: segment.speakerID.flatMap { labels[$0] } ?? "Voix non identifiée", start: timeLabel(segment.start), source: segment.source.rawValue, text: segment.text, echo_suspect: segment.echoSuspect,
+                    resumed: markers[segment.id].map { $0.map { SessionResume.exportLabel($0) }.joined(separator: ", ") })
             })
         }
         func split(_ segments: [TranscriptSegment], budget: Int) throws -> [[TranscriptSegment]] {

@@ -10,6 +10,7 @@ Entries describe what a user observes. The detailed release notes published on G
 ## [Unreleased]
 
 ### Added
+- « Reprendre l’enregistrement », in a session's header and its right-click menu, records the rest of a session you stopped or that was interrupted, up to 24 hours after it ended. The new audio follows the earlier audio, notes taken now follow the earlier ones, and the transcript marks « Reprise à … » where recording resumed. When recording stops, the whole session is transcribed again: corrections to its transcript are lost (you are asked to confirm first), and an existing summary is kept and marked as made from an earlier transcript. JSON exports and `hwyd-mcp` give where and when recording resumed.
 - Right-clicking a session, in the library or among the recent sessions of the sidebar, opens it, generates or regenerates its summary without opening it (or cancels a summary running or waiting), and deletes it. Deleting is unavailable while work runs or waits on the session.
 
 ## [0.14.0] - 2026-11-14

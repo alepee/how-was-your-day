@@ -170,6 +170,17 @@ final class AutomaticSummaryTests: XCTestCase {
         XCTAssertEqual(requests, [sessions[1].id], "Only the session that ended after the setting was turned on")
     }
 
+    func testAResumedSessionEndsWhenItsLastCaptureStopped() async throws {
+        let enabled = Date()
+        // Started and first ended before the setting; recording resumed and stopped after it.
+        var resumed = ready(startedAt: enabled.addingTimeInterval(-600), duration: 300)
+        resumed.endedAt = enabled.addingTimeInterval(60)
+        sessions = [resumed]
+        let trigger = trigger(since: enabled)
+        trigger.sessionsChanged(); await settle()
+        XCTAssertEqual(requests, [resumed.id])
+    }
+
     func testTheSettingIsDatedWhenTurnedOn() {
         let store = InMemorySettings()
         let settings = SummarySettings(store: store, usesSystem: false, notifier: RecordingNotifier())

@@ -28,6 +28,8 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
 
 `RecordingMetadata` est la projection MCP stable de l'enregistrement. `get_recording` renvoie les artefacts en Markdown, ou le transcript structuré avec `format: structured`. Les numéros de version et les volumes sont explicites. Aucun score ASR n’est inventé : `confidence` vaut `null` lorsqu’il n’est pas disponible.
 
+`capture_boundaries` lists where the capture changed on the session timeline, oldest first, empty when it never did: `offset_us`, `at` (wall clock), `reason` and `microphone` (input device used from there on, or `null`). Only `resumed` (recording resumed after the session had ended) is produced today; `user`, `accepted` and `forced` are reserved for microphone changes during a recording. In Markdown, the transcript carries a `**[HH:MM:SS] Reprise à HH:MM**` line before the first passage after each resume.
+
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -135,6 +137,20 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
         "source": {
           "type": "string",
           "pattern": "^hwyd://session/[0-9a-f-]{36}$"
+        },
+        "capture_boundaries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "offset_us": {"type": "integer", "minimum": 0},
+              "at": {"type": "string", "format": "date-time"},
+              "reason": {"type": "string", "enum": ["resumed", "user", "accepted", "forced"]},
+              "microphone": {"type": ["string", "null"]}
+            },
+            "required": ["offset_us", "at", "reason", "microphone"],
+            "additionalProperties": false
+          }
         }
       },
       "required": [
@@ -149,7 +165,8 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
         "echo_cancellation_engine",
         "echo_assessed_segments",
         "echo_suspect_segments",
-        "source"
+        "source",
+        "capture_boundaries"
       ],
       "additionalProperties": false
     },

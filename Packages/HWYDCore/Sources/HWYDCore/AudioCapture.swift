@@ -12,13 +12,22 @@ public protocol AudioCapture: Sendable {
     var isSimulated: Bool { get }
     var events: AsyncStream<CaptureEvent> { get }
     /// Returns once audio flows. Throws, with a message for the user, when the capture cannot
-    /// start; nothing is left running then.
-    func start(session id: UUID) async throws
+    /// start; nothing is left running then. `continuation` says where the chunks go on the
+    /// session's timeline and which file number they start from: `.start` for a new session,
+    /// after the earlier audio when recording resumes in a session that ended.
+    func start(session id: UUID, continuing continuation: CaptureContinuation) async throws
+    /// Name of the input device the running capture records, nil when unknown.
+    var microphone: String? { get async }
     /// Stops the devices without ending the session. The audio timeline skips the pause.
     func pause() async
     func resume() async throws
     /// Stops the devices and seals what was recorded.
     func stop() async -> CapturedAudio
+}
+
+extension AudioCapture {
+    /// Starts a new session.
+    public func start(session id: UUID) async throws { try await start(session: id, continuing: .start) }
 }
 
 /// What a running capture reports.
@@ -66,7 +75,8 @@ public struct CapturedAudio: Equatable, Sendable {
 }
 
 /// A capture that opens no device. In demo mode it animates the meters; tests set what `stop`
-/// returns, make `start` fail and send the events a device would.
+/// returns, make `start` fail and send the events a device would. The chunks `stop` returns are
+/// placed after the continuation's offset, as a device would write them.
 public actor SimulatedCapture: AudioCapture {
     public nonisolated let isSimulated: Bool
     public nonisolated let events: AsyncStream<CaptureEvent>
@@ -75,6 +85,10 @@ public actor SimulatedCapture: AudioCapture {
     private let startFailure: (any Error & Sendable)?
     private let animatesLevels: Bool
     public private(set) var session: UUID?
+    /// Where the last start continued.
+    public private(set) var startedFrom: CaptureContinuation?
+    /// The input device a test says it records.
+    public nonisolated let microphone: String?
     public private(set) var isPaused = false
     public private(set) var isStopped = false
     /// Active time, paused time left out, that drives the meters.
@@ -86,15 +100,16 @@ public actor SimulatedCapture: AudioCapture {
     ///   - animatesLevels: sends moving levels five times per second, as demo mode shows them.
     ///   - simulated: false lets a test stand in for a real capture, whose sessions are transcribed.
     public init(animatesLevels: Bool = true, simulated: Bool = true, audio: CapturedAudio = CapturedAudio(),
-                startFailure: (any Error & Sendable)? = nil) {
+                startFailure: (any Error & Sendable)? = nil, microphone: String? = nil) {
+        self.microphone = microphone
         (events, continuation) = AsyncStream.makeStream(of: CaptureEvent.self)
         isSimulated = simulated
         self.audio = audio; self.startFailure = startFailure; self.animatesLevels = animatesLevels
     }
 
-    public func start(session id: UUID) async throws {
+    public func start(session id: UUID, continuing start: CaptureContinuation) async throws {
         if let startFailure { continuation.finish(); throw startFailure }
-        session = id
+        session = id; startedFrom = start
         runningSince = .now
         guard animatesLevels else { return }
         animation = Task { [weak self] in
@@ -117,7 +132,11 @@ public actor SimulatedCapture: AudioCapture {
         animation?.cancel(); animation = nil
         isStopped = true
         continuation.finish()
-        return audio
+        let offset = startedFrom?.offset ?? 0
+        guard offset > 0 else { return audio }
+        var placed = audio
+        for index in placed.chunks.indices { placed.chunks[index].start += offset }
+        return placed
     }
     /// Sends an event as the hardware would.
     public nonisolated func emit(_ event: CaptureEvent) { continuation.yield(event) }

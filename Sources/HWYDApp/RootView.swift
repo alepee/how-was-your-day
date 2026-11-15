@@ -25,6 +25,10 @@ struct RootView: View {
             Button("Annuler", role: .cancel) { model.deleteCandidate = nil }
             Button("Supprimer", role: .destructive) { model.deleteConfirmed() }
         } message: { Text("Les notes, le transcript, la synthèse et l’audio de cette session seront supprimés.") }
+        .alert("Reprendre l’enregistrement ?", isPresented: Binding(get: { model.resumeCandidate != nil }, set: { if !$0 { model.resumeCandidate = nil } })) {
+            Button("Annuler", role: .cancel) { model.resumeCandidate = nil }
+            Button("Reprendre") { model.resumeConfirmed() }
+        } message: { Text("À l’arrêt, le transcript sera refait à partir de toute la session : ses corrections (texte, noms des voix, regroupements, voix ignorées) seront perdues. Les voix mémorisées seront de nouveau proposées. Une synthèse existante est conservée et signalée comme antérieure au nouveau transcript.") }
     }
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 7) {

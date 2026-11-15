@@ -34,6 +34,11 @@ summary_version: null
 date: "2026-10-23"
 started_at: "2026-10-23T08:00:00Z"
 ended_at: "2026-10-23T08:30:00Z"
+capture_boundaries:  # present only when the capture changed (recording resumed)
+  - offset_us: 1200000000
+    at: "2026-10-23T08:20:00Z"
+    reason: resumed  # user, accepted, forced: reserved for microphone changes, not produced yet
+    microphone: "MacBook Pro Microphone"  # or null when unknown
 timezone: "Europe/Paris"
 duration_us: 1800000000
 title: "Point produit"
@@ -119,7 +124,7 @@ Points clés validés de la session.
 **[00:00:14.000 - 00:00:15.200] Speaker 2 (système)** : Bonjour.
 ```
 
-Ordre des sections fixe. Horodatages `HH:MM:SS.mmm`, heures non limitées à 23. Notes : entrées horodatées ordonnées par offset puis ID, suivies du Markdown libre. Sans notes, section vide. Summary : section présente seulement si une synthèse validée existe ; sinon section omise, sans texte de remplacement. Le statut reste dans le frontmatter (`summary.status`). Un summary stale porte un avertissement et sa version source. Transcript : segments ordonnés par `start_us`, piste puis ID ; libellé confirmé ou Speaker N. Une proposition n'est pas affichée comme nom acquis. Aucun texte arbitraire n'est interprété comme HTML par l'app. Échapper noms/titres dans les marqueurs Markdown ; préserver le Markdown manuel comme contenu utilisateur.
+Ordre des sections fixe. Horodatages `HH:MM:SS.mmm`, heures non limitées à 23. Notes : entrées horodatées ordonnées par offset puis ID, suivies du Markdown libre. Sans notes, section vide. Summary : section présente seulement si une synthèse validée existe ; sinon section omise, sans texte de remplacement. Le statut reste dans le frontmatter (`summary.status`). Un summary stale porte un avertissement et sa version source. Transcript : segments ordonnés par `start_us`, piste puis ID ; libellé confirmé ou Speaker N. Là où l'enregistrement a repris (frontière `resumed`), une ligne `**[HH:MM:SS] Reprise à HH:MM**` (heure locale) précède le premier segment qui commence à partir de la reprise. `ended_at` est l'heure d'arrêt de la dernière capture quand elle est connue, sinon `started_at` plus la durée enregistrée. Après un plantage pendant une reprise, `ended_at` reste celle de l'arrêt précédent : elle peut précéder la fin de l'audio. Une proposition n'est pas affichée comme nom acquis. Aucun texte arbitraire n'est interprété comme HTML par l'app. Échapper noms/titres dans les marqueurs Markdown ; préserver le Markdown manuel comme contenu utilisateur.
 
 Les fichiers exportés sont des vues gérées par HWYD. Éditer les notes dans l'app ou via MCP. Avant remplacement d'un fichier plat modifié hors HWYD, comparer au dernier hash publié et conserver une copie `.conflict-<timestamp>.md`. Signaler le conflit ; ne pas importer silencieusement le transcript édité ni perdre les notes externes. Les générations référencées par index sont immuables.
 

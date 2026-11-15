@@ -7,6 +7,10 @@ public enum SessionExporter {
         let h = SHA256.hash(data: Data(seed.utf8)).prefix(16).map { String(format: "%02x", $0) }.joined()
         return "\(h.prefix(8))-\(h.dropFirst(8).prefix(4))-\(h.dropFirst(12).prefix(4))-\(h.dropFirst(16).prefix(4))-\(h.dropFirst(20))"
     }
+    /// A capture boundary as JSON exports and `hwyd-mcp` give it.
+    public static func captureBoundary(_ boundary: CaptureBoundary) -> [String: Any] {
+        ["offset_us": micros(boundary.offset), "at": boundary.at.ISO8601Format(), "reason": boundary.reason.rawValue, "microphone": nullable(boundary.microphone)]
+    }
     static func micros(_ seconds: Double) -> Int64 { Int64((max(0, min(seconds.isFinite ? seconds : 0, 1e10)) * 1e6).rounded()) }
     static func nullable<T>(_ value: T?) -> Any { value.map { $0 as Any } ?? NSNull() }
     /// The text of an artifact, as exported and indexed. See `RecordingText.artifact`.
@@ -23,9 +27,9 @@ public enum SessionExporter {
         if let event = item.calendarContext {
             calendar = ["provider": "eventkit", "event_id": event.id, "calendar_id": NSNull(), "title": event.title, "description": nullable(event.details), "location": nullable(event.location), "url": nullable(event.meetingURL?.absoluteString), "starts_at": event.start.ISO8601Format(), "ends_at": event.end.ISO8601Format(), "participants": event.participants.map { ["name": nullable($0.name), "email": nullable($0.email), "response": "unknown"] }, "links": event.meetingURL.map { [$0.absoluteString] } ?? [], "attachments": [], "attachments_status": "unavailable"] as [String: Any]
         }
-        return ["hwyd_schema": 1, "is_demo": item.isDemo, "type": "Session", "id": id, "source": "hwyd://session/" + id,
+        var document: [String: Any] = ["hwyd_schema": 1, "is_demo": item.isDemo, "type": "Session", "id": id, "source": "hwyd://session/" + id,
             "revision": item.revision, "transcript_version": item.transcriptVersion, "notes_version": item.notesVersion ?? item.revision, "summary_version": nullable(item.summary == nil ? nil : item.summaryVersion),
-            "date": String(item.startedAt.ISO8601Format().prefix(10)), "started_at": item.startedAt.ISO8601Format(), "ended_at": item.startedAt.addingTimeInterval(item.duration).ISO8601Format(), "timezone": "UTC", "duration_us": micros(item.duration), "title": item.title, "session_kind": item.kind.rawValue, "app": item.calendarContext?.meetingURL?.host == "meet.google.com" ? "meet" : "unknown", "status": item.state == .recording ? "capturing" : item.transcriptState == .ready ? "complete" : "partial", "locale": nullable(item.transcription?.locale), "track_locales": nullable(item.transcription.map { provenance in ["mic": provenance.locale(for: .mic), "system": provenance.locale(for: .system)].filter { source, _ in item.audioChunks.contains { $0.source.rawValue == source } } }), "consent_announced": item.consentAnnounced,
+            "date": String(item.startedAt.ISO8601Format().prefix(10)), "started_at": item.startedAt.ISO8601Format(), "ended_at": item.endDate.ISO8601Format(), "timezone": "UTC", "duration_us": micros(item.duration), "title": item.title, "session_kind": item.kind.rawValue, "app": item.calendarContext?.meetingURL?.host == "meet.google.com" ? "meet" : "unknown", "status": item.state == .recording ? "capturing" : item.transcriptState == .ready ? "complete" : "partial", "locale": nullable(item.transcription?.locale), "track_locales": nullable(item.transcription.map { provenance in ["mic": provenance.locale(for: .mic), "system": provenance.locale(for: .system)].filter { source, _ in item.audioChunks.contains { $0.source.rawValue == source } } }), "consent_announced": item.consentAnnounced,
             "participants": item.participants.map { ["id": ($0.personID ?? $0.id).uuidString.lowercased(), "name": $0.label, "alias": NSNull()] as [String: Any] }, "calendar": calendar,
             "audio": ["state": item.audioChunks.isEmpty ? "missing" : "available", "retention_hours": NSNull(), "expires_at": NSNull(), "encryption": "volume_only"], "summary": summary,
             "tracks": [AudioSource.mic, .system].filter { source in item.audioChunks.contains { $0.source == source } || item.segments.contains { $0.source == source } }.map { ["id": track($0), "source": $0.rawValue, "channel": channel($0), "sample_rate": 16000, "channels": 1] as [String: Any] },
@@ -33,6 +37,12 @@ public enum SessionExporter {
             "segments": item.segments.map { segment in ["id": segment.id.uuidString, "start_us": micros(segment.start), "end_us": micros(segment.end), "track_id": track(segment.source), "speaker_id": nullable(segment.speakerID?.uuidString), "text": segment.text, "confidence": NSNull(), "flags": (segment.words == nil ? ["timing_coarse"] : []) + (ignoredSpeakers.contains(segment.speakerID ?? UUID()) ? ["speaker_ignored"] : []), "words": (segment.words ?? []).enumerated().map { index, word in ["id": uuid(segment.id.uuidString + String(index)), "text": word.text, "start_us": micros(word.start), "end_us": micros(word.end), "confidence": NSNull(), "timing_quality": "word"] as [String: Any] }] as [String: Any] },
             "gaps": [], "notes": ["version": item.notesVersion ?? item.revision, "markdown": item.notes, "entries": item.noteEntries.map { ["id": $0.id.uuidString, "offset_us": micros($0.offset), "text": $0.text] as [String: Any] }],
             "provenance": ["pipeline_version": "hwyd-0.2", "run_id": NSNull(), "asr": [], "diarizer": [], "echo_policy": "not-applied", "alignment_policy": "word-overlap", "identity_policy": "experimental-v2"], "exported_at": exportedAt.ISO8601Format()]
+        // Only once the capture changed (recording resumed): another session exports as it always
+        // did, so a revision published before keeps the same bytes.
+        if let boundaries = item.boundaries {
+            document["capture_boundaries"] = boundaries.map(captureBoundary)
+        }
+        return document
     }
     public static func export(_ recording: Recording, to directory: URL) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

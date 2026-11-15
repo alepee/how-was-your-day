@@ -61,6 +61,10 @@ struct SessionContextMenu: View {
     let item: Recording
     var body: some View {
         Button("Ouvrir") { model.select(item) }
+        let resume = model.resumeRefusal(for: item)
+        if resume?.hidesAction != true {
+            Button("Reprendre l’enregistrement") { model.requestResume(item) }.disabled(resume != nil)
+        }
         if !item.isDemo, item.id != model.activeCaptureID {
             if model.summaryID == item.id || model.work.isQueued(.summary(session: item.id)) {
                 Button("Annuler la synthèse") { model.cancelSummary(of: item.id) }

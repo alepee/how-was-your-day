@@ -32,6 +32,9 @@ struct RecordingPages {
             return true
         }.sorted { $0.start == $1.start ? $0.id.uuidString < $1.id.uuidString : $0.start < $1.start }
         totalSegments = selected.count
+        // Where recording resumed: a resume inside the requested time range is marked before the
+        // first selected passage at or after it; one outside the range is not shown.
+        let markers = SessionResume.markers(recording.boundaries?.filter { $0.offset >= from && $0.offset < to }, before: selected)
         for name in names {
             if name == "transcript" {
                 for (index, segment) in selected.enumerated() {
@@ -44,8 +47,9 @@ struct RecordingPages {
                             "confidence": NSNull(), "echo_suspect": nullable(segment.echoSuspect)]
                         try append(name, text: segment.text, segment: object, maximum: maximum)
                     } else {
-                        var single = recording; single.segments = [segment]
-                        let text = (index == 0 ? "" : "\n\n") + SessionExporter.artifact(single, "transcript")
+                        var single = recording; single.segments = [segment]; single.boundaries = nil
+                        let lines = (markers[segment.id] ?? []).map(RecordingText.resumeLine) + [SessionExporter.artifact(single, "transcript")]
+                        let text = (index == 0 ? "" : "\n\n") + lines.joined(separator: "\n\n")
                         try append(name, text: text, segment: nil, maximum: maximum)
                     }
                 }

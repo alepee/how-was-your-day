@@ -8,7 +8,8 @@ private actor UnresumableCapture: AudioCapture {
     nonisolated let events: AsyncStream<CaptureEvent>
     private let continuation: AsyncStream<CaptureEvent>.Continuation
     init() { (events, continuation) = AsyncStream.makeStream(of: CaptureEvent.self) }
-    func start(session id: UUID) async throws {}
+    func start(session id: UUID, continuing continuation: CaptureContinuation) async throws {}
+    nonisolated let microphone: String? = nil
     func pause() async {}
     func resume() async throws { throw Failure() }
     func stop() async -> CapturedAudio { continuation.finish(); return CapturedAudio() }

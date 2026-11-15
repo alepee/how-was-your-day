@@ -3453,6 +3453,22 @@
         }
       }
     },
+    "Enregistrer la suite de cette session, après l’audio déjà enregistré.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Record the rest of this session, after the audio already recorded."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enregistrer la suite de cette session, après l’audio déjà enregistré."
+          }
+        }
+      }
+    },
     "Enregistrer les notes": {
       "localizations": {
         "en": {
@@ -5309,6 +5325,22 @@
         }
       }
     },
+    "Les exemples ne peuvent pas reprendre l’enregistrement.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Examples cannot resume recording."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les exemples ne peuvent pas reprendre l’enregistrement."
+          }
+        }
+      }
+    },
     "Les horodatages ne permettent pas de découper ce passage à cet endroit.": {
       "localizations": {
         "en": {
@@ -5673,6 +5705,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "L’audio système expose %u canaux, 2 attendus. Aucun enregistrement n’a démarré."
+          }
+        }
+      }
+    },
+    "L’enregistrement ne peut reprendre que dans les 24 heures qui suivent la fin de la session.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recording can only resume within 24 hours of the end of the session."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’enregistrement ne peut reprendre que dans les 24 heures qui suivent la fin de la session."
           }
         }
       }
@@ -7181,6 +7229,38 @@
         }
       }
     },
+    "Reprendre l’enregistrement": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume recording"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reprendre l’enregistrement"
+          }
+        }
+      }
+    },
+    "Reprendre l’enregistrement ?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume recording?"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reprendre l’enregistrement ?"
+          }
+        }
+      }
+    },
     "Reprendre l’enregistrement dans la même session": {
       "localizations": {
         "en": {
@@ -7225,6 +7305,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Reprise du micro"
+          }
+        }
+      }
+    },
+    "Reprise à %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resumed at %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reprise à %@"
           }
         }
       }
@@ -9850,6 +9946,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "À chaque synthèse, le titre, le transcript et les noms des voix sont envoyés à %@, dont les conditions de traitement et de conservation s’appliquent. Les notes, l’audio et les empreintes vocales restent sur ce Mac."
+          }
+        }
+      }
+    },
+    "À l’arrêt, le transcript sera refait à partir de toute la session : ses corrections (texte, noms des voix, regroupements, voix ignorées) seront perdues. Les voix mémorisées seront de nouveau proposées. Une synthèse existante est conservée et signalée comme antérieure au nouveau transcript.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When recording stops, the transcript is made again from the whole session: its corrections (text, voice names, merges, ignored voices) are lost. Remembered voices are proposed again. An existing summary is kept and marked as older than the new transcript."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À l’arrêt, le transcript sera refait à partir de toute la session : ses corrections (texte, noms des voix, regroupements, voix ignorées) seront perdues. Les voix mémorisées seront de nouveau proposées. Une synthèse existante est conservée et signalée comme antérieure au nouveau transcript."
           }
         }
       }

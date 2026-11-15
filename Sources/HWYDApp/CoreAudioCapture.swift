@@ -42,6 +42,8 @@ actor CoreAudioCapture: AudioCapture {
     private var monitor: Task<Void, Never>?
     /// A fault was reported: the session stops the capture, nothing else is checked.
     private var faulted = false
+    /// Name of the input device recorded, once started.
+    private(set) var microphone: String?
 
     /// - Parameter audio: where each session's chunks go (`audio/<session>` under the store's directory).
     init(audio: any AudioLocator) {
@@ -64,7 +66,7 @@ actor CoreAudioCapture: AudioCapture {
         }
         return nil
     }
-    func start(session id: UUID) async throws {
+    func start(session id: UUID, continuing start: CaptureContinuation) async throws {
         let granted = await AVCaptureDevice.requestAccess(for: .audio)
         guard granted else { throw CaptureFailure(message: String(localized: "L’accès au micro est refusé. Autorisez HWYD dans Réglages Système > Confidentialité et sécurité > Microphone.")) }
         lockFD = open(audio.captureLockFile.path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
@@ -77,7 +79,9 @@ actor CoreAudioCapture: AudioCapture {
             initialOutput = try scalar(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultOutputDevice, as: AudioObjectID.self)
             guard initialInput != 0 else { throw CaptureFailure(message: String(localized: "Aucun microphone disponible.")) }
             let inputUID = try string(initialInput, kAudioDevicePropertyDeviceUID)
-            let micName = (try? string(initialInput, kAudioObjectPropertyName)) ?? String(localized: "le micro")
+            let deviceName = try? string(initialInput, kAudioObjectPropertyName)
+            microphone = deviceName
+            let micName = deviceName ?? String(localized: "le micro")
             let micStreams = try streams(initialInput)
             guard micStreams.count == 1 else { throw CaptureFailure(message: String(localized: "Ce prototype prend en charge les microphones à un seul flux d’entrée. Sélectionnez le micro du Mac.")) }
             let micFormat = try format(micStreams[0])
@@ -138,7 +142,10 @@ actor CoreAudioCapture: AudioCapture {
                     CaptureInput(ring: systemRing, channels: 2, sampleRate: systemFormat.mSampleRate, layout: .system)
                 ]
             }
-            writer = try AudioWriter(inputs: inputs, folder: audio.sessionFolder(for: id))
+            let folder = try audio.sessionFolder(for: id)
+            // A resumed session's files are never written over, even one its chunks do not list.
+            writer = AudioWriter(inputs: inputs, folder: folder, startFrames: start.offsetFrames,
+                                 firstSequence: max(start.firstSequence, CaptureContinuation.firstFreeSequence(in: folder.url)))
             // Drain before the devices start: starting a tap aggregate can block for about a second.
             writer?.start()
             try check(AudioDeviceCreateIOProcID(aggregate, HWYDIOProc, UnsafeMutableRawPointer(ring), &ioProc), String(localized: "Préparation de la capture"))
@@ -375,9 +382,15 @@ private final class AudioWriter: @unchecked Sendable {
     private var firstHostTime: UInt64?
     /// Measured in split mode: the largest correction applied to a track, in samples. Read by tests.
     private(set) var corrections: [Int64] = [0, 0]
-    /// - Parameter folder: the session's audio folder, created by the locator.
-    init(inputs: [CaptureInput], folder: AudioFolder, chunkSeconds: Double = 300) {
+    /// - Parameters:
+    ///   - folder: the session's audio folder, created by the locator.
+    ///   - startFrames: where the first chunk starts on the session's timeline, at 16 kHz: zero
+    ///     for a new session, after the earlier audio when recording resumes. Descriptors record
+    ///     it too, so recovery after a crash places the chunks on the same timeline.
+    ///   - firstSequence: number of the first chunk pair, past the files already in `folder`.
+    init(inputs: [CaptureInput], folder: AudioFolder, chunkSeconds: Double = 300, startFrames: Int64 = 0, firstSequence: Int = 0) {
         chunkLimit = Int64(chunkSeconds * Self.outputRate)
+        outputFrames = startFrames; sequence = firstSequence
         self.inputs = inputs
         split = inputs.count == 2
         self.folder = folder
@@ -601,6 +614,55 @@ extension CoreAudioCapture {
                 let expected: Float = source == .mic ? 0.2 : 0.6
                 guard abs(middle - expected) < 0.015 else { throw CaptureFailure(message: "Channels mixed: \(middle), expected \(expected)") }
             }
+        }
+    }
+
+    /// Recording resumed in a session: the second capture's chunks follow the first's on the
+    /// timeline, are numbered after its files, leave them untouched, and recovery finds both parts.
+    static func verifySyntheticResume(audio: DataDirectoryAudio) throws {
+        let id = UUID(), folder = try audio.sessionFolder(for: id)
+        guard let ring = HWYDRingCreate(3) else { throw CaptureFailure(message: "Ring allocation") }
+        defer { HWYDRingDestroy(ring) }
+        let samples = UnsafeMutablePointer<Float>.allocate(capacity: 480 * 3)
+        defer { samples.deallocate() }
+        for i in 0..<480 { samples[i * 3] = 0.2; samples[i * 3 + 1] = 0.6; samples[i * 3 + 2] = 0.6 }
+        /// One second of audio in 0.4 s chunks, as one capture.
+        func capture(_ continuation: CaptureContinuation) throws -> [AudioChunk] {
+            let writer = AudioWriter(inputs: [CaptureInput(ring: ring, channels: 3, sampleRate: 48000, layout: .combined(micChannels: 1))], folder: folder,
+                                     chunkSeconds: 0.4, startFrames: continuation.offsetFrames,
+                                     firstSequence: max(continuation.firstSequence, CaptureContinuation.firstFreeSequence(in: folder.url)))
+            var input = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(mNumberChannels: 3, mDataByteSize: UInt32(480 * 3 * 4), mData: samples))
+            var time = AudioTimeStamp()
+            for block in 0..<100 {
+                time.mHostTime = UInt64(block * 10_000_000)
+                var inputTime = time, outputTime = time
+                withUnsafeMutablePointer(to: &input) { pointer in
+                    _ = HWYDIOProc(0, &time, pointer, &inputTime, pointer, &outputTime, UnsafeMutableRawPointer(ring))
+                }
+                writer.consumeForTest()
+            }
+            let chunks = writer.finish()
+            guard writer.status().error == nil, HWYDRingDropped(ring) == 0, chunks.count == 6 else { throw CaptureFailure(message: "Resumed capture: \(writer.status().error ?? "\(chunks.count) chunks")") }
+            return chunks
+        }
+        var session = Recording(title: "Resume", duration: 1.0137) // l10n:ignore
+        session.audioChunks = try capture(.start)
+        let earlier = try session.audioChunks.map { try Data(contentsOf: audio.url(for: $0)) }
+        let continuation = CaptureContinuation(after: session)
+        guard continuation.firstSequence == 3, abs(continuation.offset - 1.0137) < 1 / 16000.0 else { throw CaptureFailure(message: "Resume continuation \(continuation)") }
+        let added = try capture(continuation)
+        guard try session.audioChunks.map({ try Data(contentsOf: audio.url(for: $0)) }) == earlier else { throw CaptureFailure(message: "Resume wrote over earlier audio") }
+        guard added.compactMap({ CaptureContinuation.sequence(ofFile: $0.relativePath) }).min() == 3,
+              zip(added.filter({ $0.source == .mic }).map(\.start), [0, 0.4, 0.8]).allSatisfy({ abs($0 - continuation.offset - $1) < 1e-9 }) else {
+            throw CaptureFailure(message: "Resumed chunks misplaced: \(added.map { "\($0.relativePath) at \($0.start)" })")
+        }
+        // After a crash, recovery reads every descriptor: both captures, on one timeline.
+        // Recovery compares resolved paths: the check's folder may be relative, or under /tmp.
+        let root = audio.directory.standardizedFileURL.resolvingSymlinksInPath()
+        let recovered = AudioRecovery.merge(stored: session.audioChunks, recovered: try AudioRecovery.recover(in: root, recordingID: id))
+        let expected = AudioRecovery.merge(stored: session.audioChunks, recovered: added)
+        guard recovered.map(\.relativePath) == expected.map(\.relativePath), zip(recovered, expected).allSatisfy({ abs($0.start - $1.start) < 1e-9 && abs($0.duration - $1.duration) < 1e-9 }) else {
+            throw CaptureFailure(message: "Recovery of a resumed session: \(recovered.map { "\($0.relativePath) at \($0.start)" })")
         }
     }
 

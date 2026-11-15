@@ -24,9 +24,13 @@ public enum AgentSummaryTask {
 
     public static func prompt(_ recording: Recording) throws -> String {
         let labels = Dictionary(uniqueKeysWithValues: recording.speakers.map { ($0.id, $0.label) })
-        struct Row: Encodable { let id: String; let speaker: String; let start: String; let text: String }
-        let rows = segments(recording).enumerated().map { index, segment in
-            Row(id: "S\(index + 1)", speaker: segment.speakerID.flatMap { labels[$0] } ?? "Voix non identifiée", start: timeLabel(segment.start), text: segment.text)
+        // `resumed`, absent unless recording resumed just before the passage, tells the agent the session was cut there.
+        struct Row: Encodable { let id: String; let speaker: String; let start: String; let text: String; let resumed: String? }
+        let passages = segments(recording)
+        let markers = SessionResume.markers(recording.boundaries, before: passages.sorted { $0.start < $1.start })
+        let rows = passages.enumerated().map { index, segment in
+            Row(id: "S\(index + 1)", speaker: segment.speakerID.flatMap { labels[$0] } ?? "Voix non identifiée", start: timeLabel(segment.start), text: segment.text,
+                resumed: markers[segment.id].map { $0.map { SessionResume.exportLabel($0) }.joined(separator: ", ") })
         }
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         let transcript = String(decoding: try encoder.encode(rows), as: UTF8.self)
