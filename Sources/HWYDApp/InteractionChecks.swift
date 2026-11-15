@@ -395,6 +395,40 @@ import HWYDCore
         }
         print("No real capture outside the installed app: PASS")
     }
+    /// The setup screen offers the remembered microphone, the capture records it, an offered microphone is
+    /// accepted from the capture screen, one that disappears gives way to the default input, and every
+    /// switch is a boundary of the session. No device is opened: the capture is a double.
+    private static func checkMicrophoneSwitch(directory: URL) async throws {
+        let notices = RecordingNotifier(), preferences = InMemorySettings()
+        let builtIn = MicrophoneDevice(uid: "builtin", name: "Micro du Mac", transport: .builtIn) // l10n:ignore
+        let usb = MicrophoneDevice(uid: "usb", name: "Yeti", transport: .usb) // l10n:ignore
+        let airpods = MicrophoneDevice(uid: "airpods", name: "AirPods", transport: .bluetooth) // l10n:ignore
+        let list = MicrophoneList(devices: [builtIn, usb], defaultInput: "builtin")
+        let device = SimulatedCapture(animatesLevels: false, simulated: false, microphones: list)
+        preferences.set("usb", for: .microphone)
+        let model = AppModel(environment: try .synthetic(directory: directory, preferences: preferences, notifier: notices,
+                                                         capture: CaptureSource(isSimulated: false, microphones: FixedMicrophones(list)) { device }))
+        await model.load()
+        model.requestNewSession()
+        guard model.setupMicrophone == "usb" else { throw CaptureFailure(message: "Setup microphone: \(String(describing: model.setupMicrophone))") }
+        await model.startCapture(kind: .meeting, microphone: model.newSessionMicrophone).value
+        guard let id = model.activeCaptureID, model.captureMicrophone == usb, model.sessionLibrary.recording(id)?.microphone == "Yeti" else { // l10n:ignore
+            throw CaptureFailure(message: "Capture microphone: \(String(describing: model.captureMicrophone))")
+        }
+        await device.offer(airpods)
+        try await waitUntil("microphone offer shown") { model.microphoneOffer?.device == airpods }
+        model.acceptMicrophoneOffer()
+        try await waitUntil("offer accepted") { model.captureMicrophone == airpods && model.microphoneOffer == nil }
+        guard preferences.value(.microphone) == "airpods" else { throw CaptureFailure(message: "Accepted microphone not remembered") }
+        await device.remove("airpods")
+        try await waitUntil("forced switch") { model.captureMicrophone == builtIn }
+        guard model.activeCaptureID == id, notices.messages.contains(where: { $0.contains("AirPods") }) else { throw CaptureFailure(message: "Forced switch notice: \(notices.messages)") }
+        await model.stopCapture().value
+        let reasons = model.sessionLibrary.recording(id)?.boundaries?.map(\.reason) ?? []
+        guard reasons == [.accepted, .forced] else { throw CaptureFailure(message: "Microphone boundaries: \(reasons)") }
+        print("Microphone choice: remembered at setup, offer accepted, forced switch with notice, one boundary per switch: PASS")
+    }
+
     /// Recording resumes in a sealed session through a double that stands for a real capture and
     /// opens no device: earlier chunks are kept, new ones follow them, one resume is recorded, the
     /// session's waiting transcription is cancelled, then requested again at the end. A capture that
@@ -414,7 +448,7 @@ import HWYDCore
                                                               .init(start: 6, end: 7, speakerID: nil, source: .mic, text: "Après")]) // l10n:ignore
         }
         let model = AppModel(environment: try .synthetic(directory: directory, notifier: notices, transcription: service, coordinator: coordinator,
-                                                         capture: CaptureSource(isSimulated: false) { devices.make(pair) }))
+                                                         capture: CaptureSource(isSimulated: false, microphones: FixedMicrophones()) { devices.make(pair) }))
         await model.load()
         var sealed = Recording(id: id, title: "Reprise", startedAt: Date().addingTimeInterval(-900), duration: 5.2, // l10n:ignore
                                segments: [.init(start: 1, end: 2, speakerID: nil, source: .mic, text: "Avant corrigé")]) // l10n:ignore
@@ -639,6 +673,7 @@ import HWYDCore
         try await checkSessionDeletion(directory: directory.appendingPathComponent("deletion-test"))
         try await checkNewSessionAndToasts()
         try await checkSessionResume(directory: directory.appendingPathComponent("resume-test"))
+        try await checkMicrophoneSwitch(directory: directory.appendingPathComponent("microphone-test"))
         try await checkNoMicrophone(directory: directory.appendingPathComponent("no-microphone-test"))
         try await checkSyntheticEnvironments(directory: directory.appendingPathComponent("environments-test"))
         let notices = RecordingNotifier(), coordinator = WorkCoordinator()

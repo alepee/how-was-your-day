@@ -36,6 +36,8 @@ struct CaptureView: View {
                     Spacer()
                     if !compact { Button { model.openNotepad?() } label: { Label("Détacher les notes", systemImage: "macwindow.on.rectangle") }.buttonStyle(StudioButtonStyle()) }
                 }
+                if let offer = model.microphoneOffer { MicrophoneOfferCallout(offer: offer) }
+                microphoneRow
                 if !compact {
                     HStack(spacing: 12) {
                         source(String(localized: "Micro"), symbol: "mic", level: model.micLevel)
@@ -63,11 +65,55 @@ struct CaptureView: View {
             }.padding(.horizontal, compact ? 23 : 32).padding(.vertical, 15).background(Studio.inset).overlay(alignment: .top) { Rectangle().fill(Studio.line).frame(height: 1) }
         }
     }
+    /// The microphone recorded, which the user can change at any time.
+    @ViewBuilder private var microphoneRow: some View {
+        if !model.captureMicrophones.devices.isEmpty || model.captureMicrophone != nil {
+            HStack(spacing: 8) {
+                Image(systemName: "mic").foregroundStyle(Studio.muted)
+                Text("Micro").font(.system(size: Studio.Size.body)).foregroundStyle(Studio.muted)
+                MicrophonePicker(devices: devices, selection: model.captureMicrophone?.uid, disabled: model.isSwitchingMicrophone) { model.chooseMicrophone($0) }
+                    .accessibilityLabel("Micro enregistré")
+                if model.isSwitchingMicrophone { ProgressView().controlSize(.small) }
+                Spacer()
+            }
+        }
+    }
+    /// The inputs present, with the one recorded even while the list is being read again.
+    private var devices: [MicrophoneDevice] {
+        let list = model.captureMicrophones.devices
+        guard let current = model.captureMicrophone, !list.contains(where: { $0.uid == current.uid }) else { return list }
+        return [current] + list
+    }
     private func source(_ name: String, symbol: String, level: Float) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Label(name, systemImage: symbol).font(.system(size: Studio.Size.caption, weight: .medium))
             WaveformView(level: level).frame(height: 45)
         }.padding(16).frame(maxWidth: .infinity, alignment: .leading).background(Studio.surface, in: RoundedRectangle(cornerRadius: 7)).overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Studio.line))
+    }
+}
+/// The microphone the system proposed while recording, until the user answers. Not answering
+/// keeps the microphone in use.
+struct MicrophoneOfferCallout: View {
+    @EnvironmentObject var model: AppModel
+    let offer: MicrophoneOffer
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: offer.device.transport == .bluetooth ? "headphones" : "mic.badge.plus").foregroundStyle(Studio.copper).frame(width: 18)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Nouveau micro disponible : \(offer.device.name)").font(.system(size: Studio.Size.body, weight: .semibold))
+                Text(MicrophoneText.offer(offer)).font(.system(size: Studio.Size.body)).foregroundStyle(Studio.muted).fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 8) {
+                    Button("Basculer") { model.acceptMicrophoneOffer() }.buttonStyle(StudioButtonStyle(primary: true, compact: true))
+                    Button(offer.current.map { String(localized: "Garder \($0)") } ?? String(localized: "Garder le micro actuel")) { model.declineMicrophoneOffer() }
+                        .buttonStyle(StudioButtonStyle(compact: true))
+                }.disabled(model.isSwitchingMicrophone)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14).background(Studio.surface, in: RoundedRectangle(cornerRadius: 7))
+        .overlay(alignment: .leading) { UnevenRoundedRectangle(topLeadingRadius: 7, bottomLeadingRadius: 7).fill(Studio.copper).frame(width: 3) }
+        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Studio.line))
+        .accessibilityElement(children: .contain)
     }
 }
 struct SpeakerEditor: View {

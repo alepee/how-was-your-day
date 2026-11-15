@@ -188,6 +188,13 @@ import HWYDCore
         model.toggleCapturePause()
         settle { !model.isCapturePaused }
         render(NotepadWindow().environmentObject(model), size: .init(width: 500, height: 650), to: directory.appendingPathComponent("studio-notepad.png"))
+        // AirPods connect and become the system default input: the capture only offers them.
+        let airpods = MicrophoneDevice(uid: "preview.airpods", name: "AirPods de Camille", transport: .bluetooth) // l10n:ignore
+        Task { await capture.offer(airpods) }
+        settle { model.microphoneOffer != nil }
+        render(RootView().environmentObject(model), size: .init(width: 1080, height: 980), to: directory.appendingPathComponent("studio-capture-microphone-offer.png"))
+        render(NotepadWindow().environmentObject(model), size: .init(width: 500, height: 650), to: directory.appendingPathComponent("studio-notepad-microphone-offer.png"))
+        model.declineMicrophoneOffer()
         render(SpeakerEditor().environmentObject(model), size: .init(width: 600, height: 360), to: directory.appendingPathComponent("studio-speaker.png"))
         render(MenuContentView().environmentObject(model), size: .init(width: 340, height: 350), to: directory.appendingPathComponent("studio-menu.png"))
         model.calendar.enabled = true

@@ -289,6 +289,38 @@
         }
       }
     },
+    "%@ n’a pas pu démarrer (%@). L’enregistrement continue sur %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ could not start (%2$@). Recording continues on %3$@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ n’a pas pu démarrer (%2$@). L’enregistrement continue sur %3$@."
+          }
+        }
+      }
+    },
+    "%@ n’est plus branché.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is no longer connected."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ n’est plus branché."
+          }
+        }
+      }
+    },
     "%@ n’est plus exclue. Mémorisez sa voix depuis une session pour la reconnaître à nouveau.": {
       "localizations": {
         "en": {
@@ -1565,6 +1597,38 @@
         }
       }
     },
+    "Aucun micro": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No microphone"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun micro"
+          }
+        }
+      }
+    },
+    "Aucun micro n’a pu redémarrer : %@. La session a été arrêtée, l’audio est conservé.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No microphone could restart: %@. The session was stopped; its audio is kept."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun micro n’a pu redémarrer : %@. La session a été arrêtée, l’audio est conservé."
+          }
+        }
+      }
+    },
     "Aucun microphone disponible.": {
       "localizations": {
         "en": {
@@ -1593,6 +1657,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Aucun passage attribué à cette voix."
+          }
+        }
+      }
+    },
+    "Aucune capture en cours.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No capture is running."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune capture en cours."
           }
         }
       }
@@ -1837,6 +1917,38 @@
         }
       }
     },
+    "Basculer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Basculer"
+          }
+        }
+      }
+    },
+    "Basculer l’enregistrement sur ce micro ?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch the recording to this microphone?"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Basculer l’enregistrement sur ce micro ?"
+          }
+        }
+      }
+    },
     "Brouillon de votre agent, à relire": {
       "localizations": {
         "en": {
@@ -1977,6 +2089,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Calendriers et rappels"
+          }
+        }
+      }
+    },
+    "Casque Bluetooth": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bluetooth headset"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Casque Bluetooth"
+          }
+        }
+      }
+    },
+    "Ce micro n’a pas pu démarrer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This microphone could not start."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce micro n’a pas pu démarrer."
+          }
+        }
+      }
+    },
+    "Ce micro n’est plus branché.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This microphone is no longer connected."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce micro n’est plus branché."
           }
         }
       }
@@ -3981,6 +4141,38 @@
         }
       }
     },
+    "Garder %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Garder %@"
+          }
+        }
+      }
+    },
+    "Garder le micro actuel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep the current microphone"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Garder le micro actuel"
+          }
+        }
+      }
+    },
     "Google Calendar passe par macOS : ajoutez votre compte Google dans l’app Calendrier → Ajouter un compte, puis autorisez HWYD. Les comptes Apple et Outlook synchronisés sont aussi disponibles. Aucun événement n’est modifié.": {
       "localizations": {
         "en": {
@@ -4477,6 +4669,22 @@
         }
       }
     },
+    "La capture n’a pas pu repartir après un changement de sortie audio : %@. La session a été arrêtée, l’audio est conservé.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The capture could not restart after the audio output changed: %@. The session was stopped; its audio is kept."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La capture n’a pas pu repartir après un changement de sortie audio : %@. La session a été arrêtée, l’audio est conservé."
+          }
+        }
+      }
+    },
     "La clé n’a pas été enregistrée.": {
       "localizations": {
         "en": {
@@ -4585,22 +4793,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "La prochaine conversation commence ici."
-          }
-        }
-      }
-    },
-    "La route audio a changé. La session a été arrêtée pour préserver les pistes. Relancez une session avec le nouveau périphérique.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The audio route changed. The session was stopped to preserve the tracks. Start a new session with the new device."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La route audio a changé. La session a été arrêtée pour préserver les pistes. Relancez une session avec le nouveau périphérique."
           }
         }
       }
@@ -4921,6 +5113,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Le helper ne répond pas."
+          }
+        }
+      }
+    },
+    "Le micro %@ n’est plus disponible et aucun autre micro n’est branché. La session est interrompue, l’audio est conservé. Reprenez-la une fois un micro branché.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The microphone %@ is no longer available and no other microphone is connected. The session is interrupted; its audio is kept. Resume it once a microphone is connected."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le micro %@ n’est plus disponible et aucun autre micro n’est branché. La session est interrompue, l’audio est conservé. Reprenez-la une fois un micro branché."
+          }
+        }
+      }
+    },
+    "Le micro %@ n’est plus disponible. L’enregistrement continue sur %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The microphone %1$@ is no longer available. Recording continues on %2$@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le micro %1$@ n’est plus disponible. L’enregistrement continue sur %2$@."
+          }
+        }
+      }
+    },
+    "Le micro enregistré pendant toute la session. Par défaut, le dernier choisi s’il est branché, sinon l’entrée par défaut du Mac. Vous pourrez en changer pendant l’enregistrement.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The microphone recorded for the whole session. By default, the last one you chose if it is connected, otherwise the Mac’s default input. You can change it while recording."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le micro enregistré pendant toute la session. Par défaut, le dernier choisi s’il est branché, sinon l’entrée par défaut du Mac. Vous pourrez en changer pendant l’enregistrement."
           }
         }
       }
@@ -5869,6 +6109,54 @@
         }
       }
     },
+    "Micro changé": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microphone changed"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Micro changé"
+          }
+        }
+      }
+    },
+    "Micro du Mac": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac microphone"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Micro du Mac"
+          }
+        }
+      }
+    },
+    "Micro enregistré": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded microphone"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Micro enregistré"
+          }
+        }
+      }
+    },
     "Micro · voix non attribuée": {
       "localizations": {
         "en": {
@@ -6521,6 +6809,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Notifications non autorisées dans macOS"
+          }
+        }
+      }
+    },
+    "Nouveau micro disponible : %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New microphone available: %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nouveau micro disponible : %@"
           }
         }
       }
@@ -7353,38 +7657,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Reprendre l’enregistrement dans la même session"
-          }
-        }
-      }
-    },
-    "Reprise de la capture": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Resuming the recording"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reprise de la capture"
-          }
-        }
-      }
-    },
-    "Reprise du micro": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Resuming the mic"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reprise du micro"
           }
         }
       }
@@ -9005,6 +9277,22 @@
         }
       }
     },
+    "Un changement de micro est déjà en cours.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A microphone change is already in progress."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un changement de micro est déjà en cours."
+          }
+        }
+      }
+    },
     "Un passage ou une étape dépasse le budget de traitement borné. La synthèse n’a pas été enregistrée. Un contexte serveur plus grand ne supprime pas cette limite.": {
       "localizations": {
         "en": {
@@ -9241,6 +9529,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Utiliser ce dossier"
+          }
+        }
+      }
+    },
+    "Utiliser le micro de ce casque le fait passer en mode appel : le son que vous entendez sera de moindre qualité.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Using this headset’s microphone switches it to call mode: the sound you hear will be of lower quality."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utiliser le micro de ce casque le fait passer en mode appel : le son que vous entendez sera de moindre qualité."
           }
         }
       }
@@ -9802,22 +10106,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "la piste Système"
-          }
-        }
-      }
-    },
-    "le micro": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "the mic"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "le micro"
           }
         }
       }

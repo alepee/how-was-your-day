@@ -15,16 +15,21 @@ import HWYDCore
 struct CaptureSource {
     /// Simulated audio: never transcribed, the session is an example.
     let isSimulated: Bool
+    /// The inputs the setup screen offers before a capture starts.
+    let microphones: any MicrophoneCatalog
     let make: @MainActor () throws -> any AudioCapture
 
-    /// Core Audio, writing where `audio` says. Only the installed app's own data uses it.
-    static func coreAudio(_ audio: any AudioLocator) -> CaptureSource { CaptureSource(isSimulated: false) { CoreAudioCapture(audio: audio) } }
-    static func simulated(_ make: @escaping @MainActor () -> any AudioCapture = { SimulatedCapture() }) -> CaptureSource {
-        CaptureSource(isSimulated: true, make: make)
+    /// Core Audio, writing where `audio` says, and its input devices. Only the installed app's own data uses it.
+    @MainActor static func coreAudio(_ audio: any AudioLocator, microphones: any MicrophoneCatalog) -> CaptureSource {
+        CaptureSource(isSimulated: false, microphones: microphones) { CoreAudioCapture(audio: audio) }
+    }
+    /// Fictional inputs and audio: no device is opened, not even listed.
+    @MainActor static func simulated(microphones: any MicrophoneCatalog = FixedMicrophones(), _ make: @escaping @MainActor () -> any AudioCapture = { SimulatedCapture() }) -> CaptureSource {
+        CaptureSource(isSimulated: true, microphones: microphones, make: make)
     }
     /// Refuses every start with the reason: no store, or a model that must never open the microphone.
-    static func unavailable(_ reason: String) -> CaptureSource {
-        CaptureSource(isSimulated: false) { throw CaptureFailure(message: reason) }
+    @MainActor static func unavailable(_ reason: String) -> CaptureSource {
+        CaptureSource(isSimulated: false, microphones: FixedMicrophones(MicrophoneList())) { throw CaptureFailure(message: reason) }
     }
 }
 
@@ -125,7 +130,8 @@ struct CaptureSource {
         var startupError: String?
         do {
             let store = try SessionStore(directory: directory)
-            user.store = store; user.audio = store.audio; user.library = library(over: store, sweepsFiles: true); user.capture = .coreAudio(store.audio)
+            user.store = store; user.audio = store.audio; user.library = library(over: store, sweepsFiles: true)
+            user.capture = .coreAudio(store.audio, microphones: CoreAudioMicrophones())
         } catch { startupError = String(localized: "Impossible d’ouvrir les données locales : \(error.localizedDescription)") }
         return AppEnvironment(dataDirectory: directory, preferences: preferences, helpers: helpers, agentDiscovery: LoginShellAgentDiscovery(),
                               secrets: secrets, usesSystem: true, appliesAppearance: true, user: user, startsWithExamples: examples, startupError: startupError)

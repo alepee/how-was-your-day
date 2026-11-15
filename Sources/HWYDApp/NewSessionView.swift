@@ -40,6 +40,15 @@ struct NewSessionView: View {
                         ForEach(model.sessionLanguageChoices, id: \.self) { choice in Text(SessionLanguageLabel.title(choice)).tag(choice) }
                     }.labelsHidden().fixedSize()
                 }
+                if !model.setupMicrophones.devices.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 6) {
+                            Eyebrow(text: String(localized: "Micro"))
+                            HelpButton(text: String(localized: "Le micro enregistré pendant toute la session. Par défaut, le dernier choisi s’il est branché, sinon l’entrée par défaut du Mac. Vous pourrez en changer pendant l’enregistrement."))
+                        }
+                        MicrophonePicker(devices: model.setupMicrophones.devices, selection: model.setupMicrophone) { model.newSessionMicrophone = $0 }
+                    }
+                }
                 HStack(spacing: 10) {
                     Button(action: start) {
                         Label(model.isStarting ? "Préparation…" : model.isDemoMode ? "Simuler l’enregistrement" : "Démarrer l’enregistrement", systemImage: "record.circle")
@@ -51,7 +60,9 @@ struct NewSessionView: View {
         }
         .onAppear { nameFocused = true }
     }
-    private func start() { model.startCapture(kind: model.newSessionKind, title: model.newSessionTitle, language: model.newSessionLanguage) }
+    private func start() {
+        model.startCapture(kind: model.newSessionKind, title: model.newSessionTitle, language: model.newSessionLanguage, microphone: model.newSessionMicrophone)
+    }
     private func kindTile(_ kind: SessionKind) -> some View {
         let selected = model.newSessionKind == kind
         return Button { model.newSessionKind = kind } label: {
@@ -71,6 +82,28 @@ struct NewSessionView: View {
     static func placeholder(_ kind: SessionKind) -> String {
         let time = Date().formatted(date: .omitted, time: .shortened)
         return kind == .adHoc ? String(localized: "Session du \(time)") : String(localized: "\(kind.label) du \(time)")
+    }
+}
+
+/// A menu of the inputs present, the selected one ticked.
+struct MicrophonePicker: View {
+    let devices: [MicrophoneDevice]
+    let selection: String?
+    var disabled = false
+    let choose: (String) -> Void
+    var body: some View {
+        Picker("Micro", selection: Binding(get: { selection ?? "" }, set: { if !$0.isEmpty { choose($0) } })) {
+            if selection == nil { Text("Aucun micro").tag("") }
+            ForEach(devices) { device in Label(device.name, systemImage: MicrophonePicker.symbol(device.transport)).tag(device.uid) }
+        }.labelsHidden().fixedSize().disabled(disabled)
+    }
+    static func symbol(_ transport: MicrophoneTransport) -> String {
+        switch transport {
+        case .builtIn: "laptopcomputer"
+        case .bluetooth: "headphones"
+        case .usb: "cable.connector"
+        case .virtual, .other: "mic"
+        }
     }
 }
 
