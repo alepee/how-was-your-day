@@ -10,8 +10,12 @@ Entries describe what a user observes. The detailed release notes published on G
 ## [Unreleased]
 
 ### Added
+- Choose the microphone a session records, on the setup screen and while recording. HWYD remembers your last choice and uses the Mac's default input when that microphone is not connected. When macOS switches its default input during a recording (AirPods connecting, for example), HWYD asks first, with a notification offering « Basculer » or « Garder … » and the same question in the capture screen; not answering keeps the current microphone. For a Bluetooth headset, it warns that its microphone switches it to call mode. If the microphone in use is unplugged, recording continues on the default input and HWYD tells you; with no microphone left, the session stops as interrupted and can be resumed. Exports and `hwyd-mcp` give the session's first microphone and each change.
 - « Reprendre l’enregistrement », in a session's header and its right-click menu, records the rest of a session you stopped or that was interrupted, up to 24 hours after it ended. The new audio follows the earlier audio, notes taken now follow the earlier ones, and the transcript marks « Reprise à … » where recording resumed. When recording stops, the whole session is transcribed again: corrections to its transcript are lost (you are asked to confirm first), and an existing summary is kept and marked as made from an earlier transcript. JSON exports and `hwyd-mcp` give where and when recording resumed.
 - Right-clicking a session, in the library or among the recent sessions of the sidebar, opens it, generates or regenerates its summary without opening it (or cancels a summary running or waiting), and deletes it. Deleting is unavailable while work runs or waits on the session.
+
+### Changed
+- Changing the audio output device during a recording no longer stops the session.
 
 ## [0.14.0] - 2026-11-14
 

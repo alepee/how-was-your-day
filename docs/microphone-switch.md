@@ -1,12 +1,12 @@
 # Switching the microphone during a recording
 
-Status: agreed, not implemented. Depends on [session resume](session-resume.md) for the capture boundary model.
+Status: implemented; the three hardware spikes below are still open and are checked by hand (see « Implementation notes »). Depends on [session resume](session-resume.md) for the capture boundary model.
 
 The user chooses the microphone a session records, and can change it while recording. The capture never changes microphone silently: either the user asked for it, or the system imposed it and the user is told.
 
-## Today
+## Before this feature
 
-`CoreAudioCapture` records the system default input, read once at start. Any change of the default input or output device is a `CaptureFault.routeChanged`: the session stops (interrupted, audio kept). Connecting AirPods during a meeting therefore ends the session.
+`CoreAudioCapture` recorded the system default input, read once at start. Any change of the default input or output device was a `CaptureFault.routeChanged`: the session stopped (interrupted, audio kept). Connecting AirPods during a meeting therefore ended the session.
 
 ## Principles
 
@@ -113,3 +113,12 @@ Exports and MCP: `capture_boundaries` (`offset_us`, `at`, `reason`, `microphone`
 - Audio timeline: no gap, notes aligned, one boundary per switch with its reason and microphone; chunk files continue their sequence.
 - Echo canceller reset at boundaries.
 - Synthetic: `SimulatedCapture` covers offers, switches and disappearance; no microphone opened in `--demo`, `--snapshot`, `--self-test`, `--ui-test`, `--asr-test`.
+
+## Implementation notes
+
+- **Port.** As specified, with two additions: `microphone` returns a `MicrophoneDevice` (not only its name), and `microphoneLost(MicrophoneDevice)` is an event. The adapter does not pick the replacement itself: it reports the loss with the stream stopped, and `CaptureSession` switches to the default input (`forced`) or stops with `noMicrophone`, so the whole policy lives in the session.
+- **Before a capture.** The setup screen needs the inputs before any capture exists, so `CaptureSource` carries a `MicrophoneCatalog` (`CoreAudioMicrophones` in the installed app, `FixedMicrophones` elsewhere). The remembered microphone is the last one the user chose in a picker or accepted; a forced switch does not change it, and a capture started from the shortcut or a calendar reminder uses it too.
+- **Offer in the app.** The pending offer shows in the capture screen (and the detached notepad), not as a toast: the system notification already reaches the user wherever they are, and a second in-app copy would ask twice.
+- **Pause.** A switch while paused rebuilds the graph without starting it, records the boundary at the paused time, and the clock stays frozen.
+- **Output change.** Handled defensively until spike 1 is run: the tap and the graph are rebuilt on the same microphone, framed by `restarting` / `restarted(gap:)`, with no boundary.
+- **Notifications.** One `UNUserNotificationCenter` delegate (`SystemNotifications`) now serves the calendar reminders and the microphone notices; clearing reminders no longer removes the microphone notices. The permission to notify is asked when a real capture starts, if not asked before. When it is refused, the offer still shows in the capture screen.
