@@ -35,7 +35,7 @@ Title, kind, calendar context and transcription language are unchanged.
 `Recording` gains two fields, both optional so earlier sessions decode unchanged:
 
 - `endedAt: Date?`: wall-clock time the last capture of the session stopped. Set by `CaptureSession.stop`. A session ended by a crash keeps the `endedAt` of its previous stop, if any.
-- `boundaries: [CaptureBoundary]?`, with `CaptureBoundary { offset: Double; at: Date; reason: CaptureBoundaryReason; microphone: String? }`: where on the session's timeline (recorded seconds) the capture changed, the wall-clock time, why, and the name of the input device used from there on when the capture can tell (`AudioCapture.microphone`). `CaptureBoundaryReason` is `resumed`, `user`, `accepted` or `forced`. Only `resumed` is produced by this feature; the other three are reserved for changing the microphone during a recording, so a later feature adds to the same list instead of a second one.
+- `boundaries: [CaptureBoundary]?`, with `CaptureBoundary { offset: Double; at: Date; reason: CaptureBoundaryReason; microphone: String? }`: where on the session's timeline (recorded seconds) the capture changed, the wall-clock time, why, and the name of the input device used from there on when the capture can tell (`AudioCapture.microphone`). `CaptureBoundaryReason` is `resumed`, `user`, `accepted` or `forced`. Only `resumed` is produced by this feature; the other three are produced by [switching the microphone](microphone-switch.md) during a recording, in the same list.
 
 `SessionStore` keeps each session as an encoded JSON payload (`ui_recordings`), so no migration is needed. `RecordingMerge` merges both fields with the capture part, like `audioChunks` and `duration`.
 

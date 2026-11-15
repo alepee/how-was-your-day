@@ -105,9 +105,16 @@
           "type": "string",
           "pattern": "^hwyd://session/[0-9a-f-]{36}$"
         },
+        "microphone": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Name of the microphone the session started on, or null when unknown (sessions recorded before microphone selection existed). Later changes are in capture_boundaries."
+        },
         "capture_boundaries": {
           "type": "array",
-          "description": "Where the capture changed, oldest first: offset_us on the session timeline, at in wall-clock time, reason (resumed: recording resumed after the session had ended; user, accepted, forced: reserved for microphone changes, not produced yet), microphone: input device used from there on, or null. Empty when the capture never changed.",
+          "description": "Where the capture changed, oldest first: offset_us on the session timeline, at in wall-clock time, reason (resumed: recording resumed after the session had ended; user: the user chose another microphone; accepted: the user accepted the microphone the system proposed; forced: the microphone in use disappeared and the system default input took over), microphone: input device used from there on, or null. Empty when the capture never changed.",
           "items": {
             "type": "object",
             "properties": {
@@ -158,7 +165,8 @@
         "echo_assessed_segments",
         "echo_suspect_segments",
         "source",
-        "capture_boundaries"
+        "capture_boundaries",
+        "microphone"
       ],
       "additionalProperties": false
     },

@@ -5,7 +5,7 @@ import CryptoKit
 @preconcurrency import UserNotifications
 import HWYDCore
 
-@MainActor final class CalendarIntegration: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
+@MainActor final class CalendarIntegration: ObservableObject {
     @Published var enabled: Bool
     @Published var reminders: Bool
     @Published var leadMinutes: Int
@@ -19,6 +19,7 @@ import HWYDCore
     /// Called with the event and whether to open its video link, or nil to only show the app.
     var onAction: ((CalendarContext?, Bool) -> Void)?
     private let settings: SettingsStore
+    private let notifications: SystemNotifications?
     private let allowed: Bool
     private var active = false
     private var eventStore: EKEventStore?
@@ -28,17 +29,18 @@ import HWYDCore
     private var revision = 0
     private var center: UNUserNotificationCenter { .current() }
     static let prefix = "hwyd.meeting."
+    static let testID = "hwyd.test"
     struct CalendarChoice: Identifiable { var id: String; var title: String; var account: String }
 
-    init(settings: SettingsStore, allowed: Bool = false) {
-        self.settings = settings; self.allowed = allowed
+    /// - Parameter notifications: where reminders are answered; nil unless `allowed`.
+    init(settings: SettingsStore, allowed: Bool = false, notifications: SystemNotifications? = nil) {
+        self.settings = settings; self.allowed = allowed; self.notifications = notifications
         enabled = allowed && settings.value(.calendarEnabled)
         reminders = allowed && settings.value(.calendarReminders)
         let lead = settings.value(.calendarLeadMinutes)
         leadMinutes = [0, 1, 5, 10, 15].contains(lead) ? lead : SettingKey<Int>.calendarLeadMinutes.defaultValue
         excludedKeywords = settings.value(.calendarExclusions) ?? String(localized: "RH, entretien, médical")
         selectedCalendars = Set(settings.value(.calendarSelection))
-        super.init()
     }
     func start() {
         guard allowed, !active else { return }
@@ -46,14 +48,15 @@ import HWYDCore
         // Legacy clicks suppressed an occurrence even after its recording was deleted.
         // Calendar reminders are independent of capture history.
         settings.remove(.calendarHandled)
-        center.delegate = self
         let join = UNNotificationAction(identifier: "join-record", title: String(localized: "Rejoindre et enregistrer"), options: [.foreground])
         let record = UNNotificationAction(identifier: "record", title: String(localized: "Enregistrer la réunion"), options: [.foreground])
         let recordOnly = UNNotificationAction(identifier: "record", title: String(localized: "Enregistrer sans rejoindre"), options: [.foreground])
-        center.setNotificationCategories([
+        let answer: SystemNotifications.Handler = { [weak self] action, userInfo in self?.answer(action, meetingID: userInfo["meetingID"] as? String) }
+        notifications?.register([
             UNNotificationCategory(identifier: "meeting-online", actions: [join, recordOnly], intentIdentifiers: []),
             UNNotificationCategory(identifier: "meeting-room", actions: [record], intentIdentifiers: [])
-        ])
+        ], handler: answer)
+        notifications?.fallback = answer
         timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.refresh() }
         }
@@ -100,9 +103,15 @@ import HWYDCore
             saveSettings(); await refresh()
         } catch { notificationStatus = error.localizedDescription }
     }
+    /// Every scheduled reminder, and the calendar's delivered notifications only: the capture's
+    /// microphone notices are shown at once and stay.
     private func clearReminders() {
+        let center = center
         center.removeAllPendingNotificationRequests()
-        center.removeAllDeliveredNotifications()
+        Task {
+            let delivered = await center.deliveredNotifications().map(\.request.identifier)
+            center.removeDeliveredNotifications(withIdentifiers: delivered.filter { $0.hasPrefix(Self.prefix) || $0 == Self.testID })
+        }
     }
     private func events(now: Date) -> [CalendarContext] {
         guard enabled, EKEventStore.authorizationStatus(for: .event) == .fullAccess else { return [] }
@@ -174,7 +183,7 @@ import HWYDCore
         content.body = String(localized: "Les rappels sont prêts. Ce test ne démarre aucun enregistrement.")
         content.sound = .default
         do {
-            try await center.add(UNNotificationRequest(identifier: "hwyd.test", content: content,
+            try await center.add(UNNotificationRequest(identifier: Self.testID, content: content,
                 trigger: UNTimeIntervalNotificationTrigger(timeInterval: 3, repeats: false)))
             notificationStatus = String(localized: "Rappel de test envoyé pour dans 3 secondes.")
         } catch { notificationStatus = String(localized: "Test impossible : \(error.localizedDescription)") }
@@ -190,13 +199,8 @@ import HWYDCore
         // Opening or recording an event does not dismiss its future calendar reminder.
         onAction?(event, join)
     }
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
-        let id = response.notification.request.content.userInfo["meetingID"] as? String
-        let action = response.actionIdentifier
-        await MainActor.run {
-            if ["join-record", "record"].contains(action), let id { self.activate(id, join: action == "join-record") }
-            else if action == UNNotificationDefaultActionIdentifier { self.onAction?(nil, false) }
-        }
+    private func answer(_ action: String, meetingID id: String?) {
+        if ["join-record", "record"].contains(action), let id { activate(id, join: action == "join-record") }
+        else if action == UNNotificationDefaultActionIdentifier { onAction?(nil, false) }
     }
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions { [.banner, .sound] }
 }

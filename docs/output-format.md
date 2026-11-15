@@ -34,11 +34,12 @@ summary_version: null
 date: "2026-10-23"
 started_at: "2026-10-23T08:00:00Z"
 ended_at: "2026-10-23T08:30:00Z"
-capture_boundaries:  # present only when the capture changed (recording resumed)
+capture_boundaries:  # present only when the capture changed (recording resumed, microphone changed)
   - offset_us: 1200000000
     at: "2026-10-23T08:20:00Z"
-    reason: resumed  # user, accepted, forced: reserved for microphone changes, not produced yet
+    reason: resumed  # or user (chosen), accepted (offer accepted), forced (microphone removed)
     microphone: "MacBook Pro Microphone"  # or null when unknown
+microphone: "MacBook Pro Microphone"  # first microphone of the session; absent when unknown
 timezone: "Europe/Paris"
 duration_us: 1800000000
 title: "Point produit"

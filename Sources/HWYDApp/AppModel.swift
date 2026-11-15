@@ -38,7 +38,7 @@ final class AppModel: ObservableObject {
     /// Runs the capture: its clock, pause, end and what follows it. The properties below show its state.
     private(set) lazy var captureSession = CaptureSession(notifier: notifier, transcribe: { [weak self] id in
         await self?.enqueued { [weak self] in await self?.requestTranscription(id) ?? .refused(.unavailable("")) } ?? .refused(.unavailable(""))
-    }, now: environment.clock)
+    }, now: environment.clock, settings: { [weak self] in self?.workspace.settings })
     @Published private(set) var activeCaptureID: UUID? { didSet { updateBusy() } }
     @Published private(set) var elapsed: Double = 0
     /// The active capture is paused: no audio is captured and the clock is frozen.
@@ -136,6 +136,16 @@ final class AppModel: ObservableObject {
     }
     /// Language chosen on the setup screen for the next session.
     @Published var newSessionLanguage = SpeechLanguage.automatic
+    /// UID of the microphone chosen on the setup screen; nil follows the system default input.
+    @Published var newSessionMicrophone: String?
+    /// The inputs the setup screen offers, from the workspace's capture.
+    @Published private(set) var setupMicrophones = MicrophoneList()
+    private var setupMicrophoneChanges: AnyCancellable?
+    /// The running capture's microphone, the inputs it sees, and a microphone the system proposed.
+    @Published private(set) var captureMicrophone: MicrophoneDevice?
+    @Published private(set) var captureMicrophones = MicrophoneList()
+    @Published private(set) var microphoneOffer: MicrophoneOffer?
+    @Published private(set) var isSwitchingMicrophone = false
     /// One locale per language, as reported by Apple Speech on this Mac.
     @Published var installedSpeechLocales: [String] = []
     @Published var supportedSpeechLocales: [String] = []
@@ -200,6 +210,10 @@ final class AppModel: ObservableObject {
     private var preferences: SettingsStore { environment.preferences }
     private var appliesAppearance: Bool { environment.appliesAppearance }
     let calendar: CalendarIntegration
+    /// System notifications, for the installed app only.
+    let systemNotifications: SystemNotifications
+    /// Offers of a new microphone and forced switches, as system notifications.
+    let microphoneAlerts: MicrophoneAlerts
     /// Paths to `hwyd-pipeline` and `hwyd-mcp`.
     var helpers: HelperLocator { environment.helpers }
     var dataDirectory: URL { environment.dataDirectory }
@@ -218,7 +232,9 @@ final class AppModel: ObservableObject {
         toastCenter = environment.toasts; notifier = environment.notifier ?? environment.toasts
         let preferences = environment.preferences
         workspace = environment.startsWithExamples ? environment.examples() : environment.user
-        calendar = CalendarIntegration(settings: preferences, allowed: environment.usesSystem)
+        systemNotifications = SystemNotifications(allowed: environment.usesSystem)
+        microphoneAlerts = MicrophoneAlerts(notifications: systemNotifications)
+        calendar = CalendarIntegration(settings: preferences, allowed: environment.usesSystem, notifications: systemNotifications)
         coordinator = environment.coordinator
         // Previews, demos and tests never touch the keychain nor start a process to find agents.
         summarySettings = SummarySettings(store: preferences, usesSystem: environment.usesSystem, notifier: notifier, discovery: environment.agentDiscovery,
@@ -263,8 +279,14 @@ final class AppModel: ObservableObject {
         }
         captureChanges = [
             captureSession.$phase.sink { [weak self] in self?.showCapture($0) },
-            captureSession.$levels.sink { [weak self] in self?.micLevel = $0.mic; self?.systemLevel = $0.system }
+            captureSession.$levels.sink { [weak self] in self?.micLevel = $0.mic; self?.systemLevel = $0.system },
+            captureSession.$microphone.sink { [weak self] in self?.captureMicrophone = $0 },
+            captureSession.$microphones.sink { [weak self] in self?.captureMicrophones = $0 },
+            captureSession.$offer.sink { [weak self] in self?.microphoneOffer = $0 },
+            captureSession.$isSwitchingMicrophone.sink { [weak self] in self?.isSwitchingMicrophone = $0 }
         ]
+        microphoneAlerts.follow(captureSession) { [weak self] in self?.showWindow?() }
+        followSetupMicrophones()
         captureSession.onEnd = { [weak self] in self?.showCaptureEnd($0) }
         if environment.user.store != nil {
             let changes = environment.user.library.changes
@@ -336,6 +358,7 @@ final class AppModel: ObservableObject {
     }
     private func use(_ next: Workspace) {
         workspace = next
+        followSetupMicrophones()
         // Summary settings changed among the examples are neither saved nor checked against the keychain.
         summarySettings.isDemo = next.isExamples
     }
@@ -456,15 +479,18 @@ final class AppModel: ObservableObject {
         if let active = activeCapture { select(active); showWindow?(); return }
         showSettings = false; stopPlayback(); selectedID = nil
         newSessionTitle = ""; newSessionLanguage = SpeechLanguage.automatic
+        newSessionMicrophone = captureSession.preferredMicrophone(in: workspace.capture.microphones.current)
         showNewSession = true
         refreshSpeechLanguages(); showWindow?()
     }
     /// Starts recording. A calendar meeting provides its own kind and title; otherwise the
     /// setup screen does, and an empty name falls back to the kind and time.
     @discardableResult
-    func startCapture(meeting: CalendarContext? = nil, kind: SessionKind? = nil, title: String? = nil, language: String? = nil, reveal: Bool = true) -> Task<Void, Never> {
+    func startCapture(meeting: CalendarContext? = nil, kind: SessionKind? = nil, title: String? = nil, language: String? = nil,
+                      microphone: String? = nil, reveal: Bool = true) -> Task<Void, Never> {
         guard activeCaptureID == nil, !isStarting else { if reveal { showWindow?() }; return Task {} }
-        let request = CaptureRequest(kind: kind ?? .adHoc, title: title, meeting: meeting, language: language)
+        // Without the setup screen (shortcut, calendar), the session records the remembered microphone, if present.
+        let request = CaptureRequest(kind: kind ?? .adHoc, title: title, meeting: meeting, language: language, microphone: microphone)
         showSettings = false; showNewSession = false
         stopPlayback(); isStarting = true
         let workspace = workspace
@@ -540,6 +566,25 @@ final class AppModel: ObservableObject {
         }
         return true
     }
+    private func followSetupMicrophones() {
+        setupMicrophoneChanges = workspace.capture.microphones.changes.sink { [weak self] list in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.setupMicrophones = list
+                // A chosen microphone that was unplugged falls back to the default input; without
+                // a choice, the session's preferred one shows as soon as it is listed.
+                if list.device(self.newSessionMicrophone) == nil { self.newSessionMicrophone = self.captureSession.preferredMicrophone(in: list) }
+            }
+        }
+    }
+    /// The main window shows the running capture (RootView), where a microphone offer is answered.
+    var showsCaptureScreen: Bool { !showSettings && !showNewSession && activeCaptureID != nil && selectedID == activeCaptureID }
+    /// The microphone the setup screen shows as selected: the one chosen, else the default input.
+    var setupMicrophone: String? { newSessionMicrophone ?? setupMicrophones.defaultInput }
+    /// Records another microphone from now on; remembered for the next sessions.
+    func chooseMicrophone(_ uid: String) { Task { await captureSession.chooseMicrophone(uid) } }
+    func acceptMicrophoneOffer() { Task { await captureSession.acceptOffer() } }
+    func declineMicrophoneOffer() { captureSession.declineOffer() }
     /// The Mac is going to sleep: the session ends with what was recorded.
     func systemWillSleep() { Task { await captureSession.systemWillSleep() } }
     /// Mirrors the capture's phase in the published state the views read.

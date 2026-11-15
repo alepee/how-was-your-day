@@ -53,6 +53,8 @@ import HWYDCore
                 FileHandle.standardOutput.write(Data("Synthetic resumed capture: numbering, timeline and recovery: PASS\n".utf8))
                 try CoreAudioCapture.verifySyntheticSplitCapture(audio: DataDirectoryAudio(directory: directory))
                 FileHandle.standardOutput.write(Data("Synthetic split-clock capture: PASS\n".utf8))
+                try CoreAudioCapture.verifySyntheticSwitch(audio: DataDirectoryAudio(directory: directory))
+                FileHandle.standardOutput.write(Data("Synthetic microphone switch: combined, split and back, one timeline: PASS\n".utf8))
                 exit(0)
             } catch { FileHandle.standardError.write(Data("\(error)\n".utf8)); exit(1) }
         case .snapshot(let directory): Snapshotter.run(into: directory); NSApp.terminate(nil); return
@@ -77,6 +79,12 @@ import HWYDCore
             }
         }
         if ownsSystem {
+            model.systemNotifications.claim()
+            model.microphoneAlerts.isShownInApp = { [weak self, weak model] in
+                guard let self, let model, NSApp.isActive, model.microphoneOffer != nil else { return false }
+                let capture = self.mainWindow?.isVisible == true && model.showsCaptureScreen
+                return capture || self.notepad?.isVisible == true
+            }
             model.calendar.start()
             AppRoot.updater.start(isBusy: { [weak model] in model?.isBusy ?? false },
                                   busyChanges: model.$isBusy.removeDuplicates().map { _ in () }.eraseToAnyPublisher())

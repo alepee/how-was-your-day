@@ -8,12 +8,19 @@ struct CaptureFailure: LocalizedError {
     let message: String
     var errorDescription: String? { message }
 }
-/// The Core Audio adapter of `AudioCapture`: a process tap and the microphone, in one aggregate
-/// device or on two clocks, written as CAF chunks by `AudioWriter`. HAL calls, the health checks
-/// and the restarts of the microphone stream run on the actor's own serial queue, never on the
-/// main thread: starting or restarting a tap aggregate can block for about a second.
+/// The Core Audio adapter of `AudioCapture`: a process tap and the chosen microphone, in one
+/// aggregate device or on two clocks, written as CAF chunks by `AudioWriter`. HAL calls, the health
+/// checks, the device listeners and the rebuilds of the graph run on the actor's own serial queue,
+/// never on the main thread: starting or restarting a tap aggregate can block for about a second.
 ///
-/// The realtime IOProc (`HWYDRealtime`) only copies into a ring; the writer drains it on its own queue.
+/// The capture detects the devices; the session decides. A new system default input is reported as
+/// an offer, a microphone that disappears as lost, and the graph is rebuilt on the microphone the
+/// session asks for. A change of the default output device rebuilds the graph on the same
+/// microphone, silently, framed by `restarting` and `restarted(gap:)`.
+///
+/// The realtime IOProc (`HWYDRealtime`) only copies into a ring; the writer drains it on its own
+/// queue. Rings are allocated and released here, never in the callback, and only once the IOProc
+/// that fills them is destroyed.
 actor CoreAudioCapture: AudioCapture {
     private let queue = DispatchSerialQueue(label: "dev.lepee.hwyd.capture", qos: .userInitiated)
     nonisolated var unownedExecutor: UnownedSerialExecutor { queue.asUnownedSerialExecutor() }
@@ -21,52 +28,65 @@ actor CoreAudioCapture: AudioCapture {
     nonisolated let events: AsyncStream<CaptureEvent>
     private let continuation: AsyncStream<CaptureEvent>.Continuation
     private let audio: any AudioLocator
+    private var session = UUID()
+    /// Each graph gets its own aggregate UID.
+    private var generation = 0
     private var tap: AudioObjectID = 0
+    private var tapUID = ""
     /// Microphone plus tap on one clock, or the tap alone when the microphone runs on its own clock.
     private var aggregate: AudioObjectID = 0
     private var ioProc: AudioDeviceIOProcID?
     private var ring: OpaquePointer?
     /// Split mode only: the microphone device runs its own IOProc into its own ring.
+    private var micDevice: AudioObjectID = 0
     private var micProc: AudioDeviceIOProcID?
     private var micRing: OpaquePointer?
     private var writer: AudioWriter?
     private var lockFD: Int32 = -1
-    private var initialInput: AudioObjectID = 0
-    private var initialOutput: AudioObjectID = 0
+    /// The microphone recorded, the devices as last reported and what changes mean (`CaptureDevices`).
+    private var devices: CaptureDevices?
+    var microphone: MicrophoneDevice? { devices?.microphone }
+    var microphones: MicrophoneList { devices?.reported ?? MicrophoneList() }
     /// Paused: the devices are stopped, so neither the microphone nor system audio is captured.
     private var isPaused = false
+    /// One device check or rebuild at a time; notifications meanwhile check again after it.
+    private var gate = DeviceCheckGate()
+    /// The graph was built but has not delivered yet: it was built while paused, or paused before
+    /// its first buffers. Resuming waits for them, as a switch does.
+    private var awaitingAudio = false
+    /// When the stream stopped delivering, in `systemUptime` seconds, for a restart, a rebuild or a
+    /// lost microphone.
+    private var stillSince: TimeInterval?
     /// Restarts the microphone stream once another app opened the input after the capture started.
     private var claimWatch: MicrophoneClaimWatch?
     private var lastClaimPoll: TimeInterval = 0
     /// Checks levels, health and microphone claims five times per second while recording.
     private var monitor: Task<Void, Never>?
+    /// Listens to the devices and the default input and output, and to the microphone in use.
+    private var watch: DeviceWatch?
+    private var alive: DeviceWatch?
+    /// Waits for device notifications to settle. Only the wait is ever cancelled, never a check.
+    private var settle: Task<Void, Never>?
+    private var settleIsImmediate = false
     /// A fault was reported: the session stops the capture, nothing else is checked.
     private var faulted = false
-    /// Name of the input device recorded, once started.
-    private(set) var microphone: String?
 
     /// - Parameter audio: where each session's chunks go (`audio/<session>` under the store's directory).
     init(audio: any AudioLocator) {
         self.audio = audio
         (events, continuation) = AsyncStream.makeStream(of: CaptureEvent.self)
     }
+    private static var uptime: TimeInterval { ProcessInfo.processInfo.systemUptime }
     /// The fault that must stop the session, if any.
     private func fault() -> CaptureFault? {
-        if let status = writer?.status() {
-            if let error = status.error { return CaptureFault(.writer, message: error) }
-            if !isPaused, let lastPacket = status.lastPacket, ProcessInfo.processInfo.systemUptime - lastPacket > 3 {
-                return CaptureFault(.stalled, message: String(localized: "Le périphérique ne fournit plus de données audio. La session a été arrêtée."))
-            }
-        }
-        if aggregate != 0 {
-            // The graph is not rebuilt on a new route: the session stops, so that each track keeps its device.
-            if (try? scalar(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultInputDevice, as: AudioObjectID.self)) != initialInput || (try? scalar(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultOutputDevice, as: AudioObjectID.self)) != initialOutput {
-                return CaptureFault(.routeChanged, message: String(localized: "La route audio a changé. La session a été arrêtée pour préserver les pistes. Relancez une session avec le nouveau périphérique."))
-            }
+        guard let status = writer?.status() else { return nil }
+        if let error = status.error { return CaptureFault(.writer, message: error) }
+        if !isPaused, let lastPacket = status.lastPacket, Self.uptime - lastPacket > 3 {
+            return CaptureFault(.stalled, message: String(localized: "Le périphérique ne fournit plus de données audio. La session a été arrêtée."))
         }
         return nil
     }
-    func start(session id: UUID, continuing start: CaptureContinuation) async throws {
+    func start(session id: UUID, continuing start: CaptureContinuation, microphone uid: String?) async throws {
         let granted = await AVCaptureDevice.requestAccess(for: .audio)
         guard granted else { throw CaptureFailure(message: String(localized: "L’accès au micro est refusé. Autorisez HWYD dans Réglages Système > Confidentialité et sécurité > Microphone.")) }
         lockFD = open(audio.captureLockFile.path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
@@ -75,110 +95,56 @@ actor CoreAudioCapture: AudioCapture {
             throw CaptureFailure(message: String(localized: "Une autre instance de HWYD enregistre déjà une session."))
         }
         do {
-            initialInput = try scalar(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultInputDevice, as: AudioObjectID.self)
-            initialOutput = try scalar(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultOutputDevice, as: AudioObjectID.self)
-            guard initialInput != 0 else { throw CaptureFailure(message: String(localized: "Aucun microphone disponible.")) }
-            let inputUID = try string(initialInput, kAudioDevicePropertyDeviceUID)
-            let deviceName = try? string(initialInput, kAudioObjectPropertyName)
-            microphone = deviceName
-            let micName = deviceName ?? String(localized: "le micro")
-            let micStreams = try streams(initialInput)
-            guard micStreams.count == 1 else { throw CaptureFailure(message: String(localized: "Ce prototype prend en charge les microphones à un seul flux d’entrée. Sélectionnez le micro du Mac.")) }
-            let micFormat = try format(micStreams[0])
-            let micChannels = micFormat.mChannelsPerFrame
-            var processAddress = address(kAudioHardwarePropertyTranslatePIDToProcessObject)
-            var pid = getpid(), process: AudioObjectID = 0, size = UInt32(MemoryLayout<AudioObjectID>.size)
-            let processResult = AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &processAddress, UInt32(MemoryLayout<pid_t>.size), &pid, &size, &process)
-            let description = CATapDescription(stereoGlobalTapButExcludeProcesses: processResult == noErr && process != 0 ? [process] : [])
-            description.name = "HWYD System Audio"; description.isPrivate = true; description.muteBehavior = .unmuted
-            try check(AudioHardwareCreateProcessTap(description, &tap), String(localized: "Création du tap audio système"))
-            let tapRate = try scalar(tap, kAudioTapPropertyFormat, as: AudioStreamBasicDescription.self).mSampleRate
-            let inputs: [CaptureInput]
-            if micFormat.mSampleRate == tapRate {
-                let composition: [String: Any] = [
-                    kAudioAggregateDeviceNameKey: "HWYD Capture",
-                    kAudioAggregateDeviceUIDKey: "dev.lepee.hwyd.capture.\(id.uuidString)",
-                    kAudioAggregateDeviceIsPrivateKey: true,
-                    kAudioAggregateDeviceIsStackedKey: false,
-                    kAudioAggregateDeviceMainSubDeviceKey: inputUID,
-                    kAudioAggregateDeviceSubDeviceListKey: [[kAudioSubDeviceUIDKey: inputUID]],
-                    kAudioAggregateDeviceTapListKey: [[kAudioSubTapUIDKey: description.uuid.uuidString, kAudioSubTapDriftCompensationKey: true]],
-                    // Do not wait for a tapped app to play: room conversations must start immediately.
-                    kAudioAggregateDeviceTapAutoStartKey: false
-                ]
-                try check(AudioHardwareCreateAggregateDevice(composition as CFDictionary, &aggregate), String(localized: "Création du périphérique agrégé"))
-                let aggregateStreams = try streams(aggregate)
-                guard aggregateStreams.count == 2 else { throw CaptureFailure(message: String(localized: "Le graphe audio n’expose pas les deux flux attendus. La capture est annulée, sans piste partielle.")) }
-                let formats = try aggregateStreams.map { try format($0) }
-                // The explicitly ordered subdevice list precedes the tap. Verify its stream layout.
-                let starts = try aggregateStreams.map { try scalar($0, kAudioStreamPropertyStartingChannel, as: UInt32.self) }
-                try validateLayout(starts: starts, formats: formats, micChannels: micChannels, micName: micName)
-                guard let created = HWYDRingCreate(micChannels + 2) else { throw CaptureFailure(message: String(localized: "Mémoire insuffisante pour préparer la capture.")) }
-                ring = created
-                inputs = [CaptureInput(ring: created, channels: Int(micChannels + 2), sampleRate: formats[0].mSampleRate, layout: .combined(micChannels: Int(micChannels)))]
-            } else {
-                // A Bluetooth headset in call mode (HFP) runs its microphone at 16 or 24 kHz while system audio stays at 48 kHz.
-                // An aggregate only offers the rates its subdevice supports and does not resample, so each source keeps
-                // its own device clock. The writer aligns both tracks on host time and compensates their drift.
-                let composition: [String: Any] = [
-                    kAudioAggregateDeviceNameKey: "HWYD System Capture",
-                    kAudioAggregateDeviceUIDKey: "dev.lepee.hwyd.system.\(id.uuidString)",
-                    kAudioAggregateDeviceIsPrivateKey: true,
-                    kAudioAggregateDeviceIsStackedKey: false,
-                    kAudioAggregateDeviceTapListKey: [[kAudioSubTapUIDKey: description.uuid.uuidString, kAudioSubTapDriftCompensationKey: false]],
-                    kAudioAggregateDeviceTapAutoStartKey: false
-                ]
-                try check(AudioHardwareCreateAggregateDevice(composition as CFDictionary, &aggregate), String(localized: "Création du périphérique agrégé"))
-                let systemStreams = try streams(aggregate)
-                guard systemStreams.count == 1 else { throw CaptureFailure(message: String(localized: "Le graphe audio n’expose pas le flux système attendu (\(systemStreams.count) flux). La capture est annulée, sans piste partielle.")) }
-                let systemFormat = try format(systemStreams[0])
-                try validateSplitLayout(mic: micFormat, system: systemFormat, micName: micName)
-                guard let systemRing = HWYDRingCreate(2) else { throw CaptureFailure(message: String(localized: "Mémoire insuffisante pour préparer la capture.")) }
-                ring = systemRing
-                guard let createdMicRing = HWYDRingCreate(micChannels) else { throw CaptureFailure(message: String(localized: "Mémoire insuffisante pour préparer la capture.")) }
-                micRing = createdMicRing
-                inputs = [
-                    CaptureInput(ring: createdMicRing, channels: Int(micChannels), sampleRate: micFormat.mSampleRate, layout: .mic),
-                    CaptureInput(ring: systemRing, channels: 2, sampleRate: systemFormat.mSampleRate, layout: .system)
-                ]
-            }
+            session = id
+            let list = HAL.microphones(), output = HAL.defaultOutput
+            // The chosen microphone, else the system default input, else the first recordable one
+            // (the default input may be an aggregate or a virtual device the capture cannot record).
+            guard let device = list.device(uid) ?? list.defaultDevice ?? list.devices.first else { throw CaptureFailure(message: String(localized: "Aucun microphone disponible.")) }
+            try createTap()
+            let inputs = try buildGraph(on: device)
             let folder = try audio.sessionFolder(for: id)
             // A resumed session's files are never written over, even one its chunks do not list.
             writer = AudioWriter(inputs: inputs, folder: folder, startFrames: start.offsetFrames,
                                  firstSequence: max(start.firstSequence, CaptureContinuation.firstFreeSequence(in: folder.url)))
             // Drain before the devices start: starting a tap aggregate can block for about a second.
             writer?.start()
-            try check(AudioDeviceCreateIOProcID(aggregate, HWYDIOProc, UnsafeMutableRawPointer(ring), &ioProc), String(localized: "Préparation de la capture"))
-            if let micRing { try check(AudioDeviceCreateIOProcID(initialInput, HWYDIOProc, UnsafeMutableRawPointer(micRing), &micProc), String(localized: "Préparation du micro")) }
-            try check(AudioDeviceStart(aggregate, ioProc), String(localized: "Démarrage de la capture"))
-            if let micProc { try check(AudioDeviceStart(initialInput, micProc), String(localized: "Démarrage du micro")) }
-            let deadline = ContinuousClock.now.advanced(by: .seconds(5))
-            while writer?.status().lastPacket == nil {
-                if let error = writer?.status().error { throw CaptureFailure(message: error) }
-                guard ContinuousClock.now < deadline else {
-                    throw CaptureFailure(message: String(localized: "Le périphérique audio a démarré mais aucun buffer n’est reçu. Vérifiez les permissions micro et audio système, puis réessayez."))
-                }
-                try await Task.sleep(for: .milliseconds(50))
-            }
+            try startDevices()
+            try await waitForAudio(seconds: 5)
+            devices = CaptureDevices(list: list, output: output, microphone: device)
             claimWatch = MicrophoneClaimWatch(readers: inputReaders())
+            watch = HAL.watchDevices(on: queue) { [weak self] in Task { await self?.devicesChanged() } }
         } catch { _ = teardown(); continuation.finish(); throw error }
         startMonitor()
     }
     /// Stops the devices without ending the session. Buffered audio is written first.
     /// The audio timeline skips the pause: chunks continue where the last frame ended.
     func pause() {
-        guard !isPaused, let ioProc, aggregate != 0 else { return }
-        AudioDeviceStop(aggregate, ioProc)
-        if let micProc { AudioDeviceStop(initialInput, micProc) }
-        writer?.pause()
+        guard !isPaused, writer != nil else { return }
+        // A restart in progress ends here for the session clock: the pause is not part of its gap.
+        restarted()
+        halt()
         isPaused = true
     }
-    func resume() throws {
-        guard isPaused, let ioProc, aggregate != 0 else { return }
-        writer?.resume()
-        try check(AudioDeviceStart(aggregate, ioProc), String(localized: "Reprise de la capture"))
-        if let micProc { try check(AudioDeviceStart(initialInput, micProc), String(localized: "Reprise du micro")) }
+    func resume() async throws {
+        guard isPaused, let writer else { return }
         isPaused = false
+        // Nothing to start until the session switched: the stream still stands still.
+        if devices?.isLost == true { continuation.yield(.restarting); stillSince = Self.uptime; return }
+        if awaitingAudio {
+            // A graph built during the pause may be a Bluetooth headset still switching to call
+            // mode: wait for its first buffers as a switch does, before the session clock runs.
+            writer.rearm()
+            do {
+                try startDevices()
+                if try await waitForAudio(seconds: 8) == .flowing { awaitingAudio = false }
+            } catch {
+                if self.writer != nil { halt(); isPaused = true }
+                throw error
+            }
+        } else {
+            writer.resume()
+            do { try startDevices() } catch { isPaused = true; throw error }
+        }
         claimWatch?.reset(readers: inputReaders())
     }
     func stop() -> CapturedAudio {
@@ -186,6 +152,263 @@ actor CoreAudioCapture: AudioCapture {
         continuation.finish()
         return audio
     }
+    /// Stops the devices and writes what their rings hold.
+    private func halt() {
+        stopDevices()
+        writer?.pause()
+    }
+
+    // MARK: Microphone
+
+    func switchMicrophone(to uid: String, reason: MicrophoneSwitchReason) async throws {
+        guard writer != nil, !faulted, let state = devices else { throw CaptureFailure(message: String(localized: "Aucune capture en cours.")) }
+        // Read without moving what the checks compare with: a change seen here first is still
+        // reported, and offered, by the next check.
+        guard let target = HAL.microphones().device(uid) else { throw CaptureFailure(message: String(localized: "Ce micro n’est plus branché.")) }
+        guard gate.begin() else { throw CaptureFailure(message: String(localized: "Un changement de micro est déjà en cours.")) }
+        defer { if gate.end() { devicesChanged() } }
+        let previous = state.microphone, wasLost = state.isLost
+        // The output changed while the microphone was lost: the tap is built again with the new microphone.
+        let newTap = state.outputChanged
+        if !isPaused, !wasLost { continuation.yield(.restarting); stillSince = Self.uptime }
+        do {
+            try await rebuild(on: target, newTap: newTap)
+            devices?.switched(to: target, newTap: newTap)
+            // The stream runs again first, so the session dates the boundary on its corrected clock.
+            restarted()
+            continuation.yield(.microphoneSwitched(target, reason: reason))
+        } catch {
+            // Stopped meanwhile: nothing is left to go back to.
+            guard writer != nil else { throw error }
+            // Back to the previous microphone if it is still there, once.
+            if !wasLost, let previous, HAL.device(uid: previous.uid) != 0, (try? await rebuild(on: previous, newTap: false)) != nil {
+                restarted()
+                throw CaptureFailure(message: String(localized: "\(target.name) n’a pas pu démarrer (\(error.localizedDescription)). L’enregistrement continue sur \(previous.name)."))
+            }
+            guard writer != nil else { throw error }
+            report(CaptureFault(.restart, message: String(localized: "Aucun micro n’a pu redémarrer : \(error.localizedDescription). La session a été arrêtée, l’audio est conservé.")))
+            throw error
+        }
+    }
+    /// The stream runs again, unless the capture is paused: the session clock skips the gap.
+    private func restarted() {
+        defer { stillSince = nil }
+        guard !isPaused, let stillSince else { return }
+        continuation.yield(.restarted(gap: max(0, Self.uptime - stillSince)))
+    }
+    /// Device notifications come in bursts (AirPods change the input, then the output): they are
+    /// checked once they settle, 500 ms after the last one. The microphone in use that stops being
+    /// alive is checked at once. A check or rebuild in progress is never interrupted: it checks
+    /// again when it ends.
+    private func devicesChanged(after delay: Duration = .milliseconds(500)) {
+        guard writer != nil, !faulted, gate.notified() else { return }
+        // A check already due at once covers this change too.
+        if delay != .zero, settleIsImmediate { return }
+        settle?.cancel()
+        settleIsImmediate = delay == .zero
+        settle = Task { [weak self] in
+            if delay != .zero { try? await Task.sleep(for: delay) }
+            guard !Task.isCancelled else { return }
+            await self?.settled()
+        }
+    }
+    private func settled() async {
+        settleIsImmediate = false
+        guard writer != nil, !faulted, gate.begin() else { return }
+        await checkDevices()
+        if gate.end() { devicesChanged() }
+    }
+    /// One look at the devices; the gate is held by the caller.
+    private func checkDevices() async {
+        guard writer != nil, !faulted, var state = devices else { return }
+        let alive = state.microphone.map { HAL.isAlive(HAL.device(uid: $0.uid)) } ?? true
+        let actions = state.check(list: HAL.microphones(), output: HAL.defaultOutput, microphoneAlive: alive)
+        devices = state
+        for action in actions {
+            guard writer != nil, !faulted else { return }
+            switch action {
+            case .report(let list): continuation.yield(.microphonesChanged(list))
+            case .lose(let device): lose(device)
+            case .rebuildForOutput: if let current = devices?.microphone { await rebuildForOutput(on: current) }
+            case .offer(let device): continuation.yield(.microphoneOffered(device))
+            }
+        }
+    }
+    /// The microphone in use disappeared: its devices stop, what the rings hold is written, and
+    /// buffers lost as it went away are not a writer failure. The stream stood still since the
+    /// microphone's last buffer, not since now: in split mode system audio kept coming, and what it
+    /// holds beyond the microphone is dropped, so the session clock skips that time too.
+    private func lose(_ device: MicrophoneDevice) {
+        let lastPacket = writer?.lastPacket(track: 0)
+        stopDevices()
+        writer?.detach(forgivingDrops: true)
+        if !isPaused { continuation.yield(.restarting); stillSince = min(Self.uptime, lastPacket ?? Self.uptime) }
+        continuation.yield(.microphoneLost(device))
+    }
+    /// Whether a global tap follows a new output device on its own is not established: the tap and
+    /// the graph are built again on the same microphone, which costs a short gap and no boundary.
+    private func rebuildForOutput(on device: MicrophoneDevice) async {
+        if !isPaused { continuation.yield(.restarting); stillSince = Self.uptime }
+        do {
+            try await rebuild(on: device, newTap: true)
+            devices?.tapRebuilt()
+            restarted()
+        } catch {
+            guard writer != nil else { return }
+            report(CaptureFault(.restart, message: String(localized: "La capture n’a pas pu repartir après un changement de sortie audio : \(error.localizedDescription). La session a été arrêtée, l’audio est conservé.")))
+        }
+    }
+
+    // MARK: Graph
+
+    private func createTap() throws {
+        var processAddress = HAL.address(kAudioHardwarePropertyTranslatePIDToProcessObject)
+        var pid = getpid(), process: AudioObjectID = 0, size = UInt32(MemoryLayout<AudioObjectID>.size)
+        let processResult = AudioObjectGetPropertyData(HAL.system, &processAddress, UInt32(MemoryLayout<pid_t>.size), &pid, &size, &process)
+        let description = CATapDescription(stereoGlobalTapButExcludeProcesses: processResult == noErr && process != 0 ? [process] : [])
+        description.name = "HWYD System Audio"; description.isPrivate = true; description.muteBehavior = .unmuted
+        try HAL.check(AudioHardwareCreateProcessTap(description, &tap), String(localized: "Création du tap audio système"))
+        tapUID = description.uuid.uuidString
+    }
+    /// Builds the aggregate and the IOProcs for `device`, without starting them, and allocates
+    /// their rings. Combined when the microphone runs at the tap's rate, split otherwise.
+    private func buildGraph(on device: MicrophoneDevice) throws -> [CaptureInput] {
+        let input = HAL.device(uid: device.uid)
+        guard input != 0 else { throw CaptureFailure(message: String(localized: "\(device.name) n’est plus branché.")) }
+        let micName = device.name
+        let micStreams = try HAL.streams(input)
+        guard micStreams.count == 1 else { throw CaptureFailure(message: String(localized: "Ce prototype prend en charge les microphones à un seul flux d’entrée. Sélectionnez le micro du Mac.")) }
+        let micFormat = try HAL.format(micStreams[0])
+        let micChannels = micFormat.mChannelsPerFrame
+        let tapRate = try HAL.scalar(tap, kAudioTapPropertyFormat, as: AudioStreamBasicDescription.self).mSampleRate
+        generation += 1
+        let inputs: [CaptureInput]
+        if micFormat.mSampleRate == tapRate {
+            let composition: [String: Any] = [
+                kAudioAggregateDeviceNameKey: "HWYD Capture",
+                kAudioAggregateDeviceUIDKey: "\(HAL.ownPrefix)capture.\(session.uuidString).\(generation)",
+                kAudioAggregateDeviceIsPrivateKey: true,
+                kAudioAggregateDeviceIsStackedKey: false,
+                kAudioAggregateDeviceMainSubDeviceKey: device.uid,
+                kAudioAggregateDeviceSubDeviceListKey: [[kAudioSubDeviceUIDKey: device.uid]],
+                kAudioAggregateDeviceTapListKey: [[kAudioSubTapUIDKey: tapUID, kAudioSubTapDriftCompensationKey: true]],
+                // Do not wait for a tapped app to play: room conversations must start immediately.
+                kAudioAggregateDeviceTapAutoStartKey: false
+            ]
+            try HAL.check(AudioHardwareCreateAggregateDevice(composition as CFDictionary, &aggregate), String(localized: "Création du périphérique agrégé"))
+            let aggregateStreams = try HAL.streams(aggregate)
+            guard aggregateStreams.count == 2 else { throw CaptureFailure(message: String(localized: "Le graphe audio n’expose pas les deux flux attendus. La capture est annulée, sans piste partielle.")) }
+            let formats = try aggregateStreams.map { try HAL.format($0) }
+            // The explicitly ordered subdevice list precedes the tap. Verify its stream layout.
+            let starts = try aggregateStreams.map { try HAL.scalar($0, kAudioStreamPropertyStartingChannel, as: UInt32.self) }
+            try validateLayout(starts: starts, formats: formats, micChannels: micChannels, micName: micName)
+            guard let created = HWYDRingCreate(micChannels + 2) else { throw CaptureFailure(message: String(localized: "Mémoire insuffisante pour préparer la capture.")) }
+            ring = created
+            inputs = [CaptureInput(ring: created, channels: Int(micChannels + 2), sampleRate: formats[0].mSampleRate, layout: .combined(micChannels: Int(micChannels)))]
+        } else {
+            // A Bluetooth headset in call mode (HFP) runs its microphone at 16 or 24 kHz while system audio stays at 48 kHz.
+            // An aggregate only offers the rates its subdevice supports and does not resample, so each source keeps
+            // its own device clock. The writer aligns both tracks on host time and compensates their drift.
+            let composition: [String: Any] = [
+                kAudioAggregateDeviceNameKey: "HWYD System Capture",
+                kAudioAggregateDeviceUIDKey: "\(HAL.ownPrefix)system.\(session.uuidString).\(generation)",
+                kAudioAggregateDeviceIsPrivateKey: true,
+                kAudioAggregateDeviceIsStackedKey: false,
+                kAudioAggregateDeviceTapListKey: [[kAudioSubTapUIDKey: tapUID, kAudioSubTapDriftCompensationKey: false]],
+                kAudioAggregateDeviceTapAutoStartKey: false
+            ]
+            try HAL.check(AudioHardwareCreateAggregateDevice(composition as CFDictionary, &aggregate), String(localized: "Création du périphérique agrégé"))
+            let systemStreams = try HAL.streams(aggregate)
+            guard systemStreams.count == 1 else { throw CaptureFailure(message: String(localized: "Le graphe audio n’expose pas le flux système attendu (\(systemStreams.count) flux). La capture est annulée, sans piste partielle.")) }
+            let systemFormat = try HAL.format(systemStreams[0])
+            try validateSplitLayout(mic: micFormat, system: systemFormat, micName: micName)
+            guard let systemRing = HWYDRingCreate(2) else { throw CaptureFailure(message: String(localized: "Mémoire insuffisante pour préparer la capture.")) }
+            ring = systemRing
+            guard let createdMicRing = HWYDRingCreate(micChannels) else { throw CaptureFailure(message: String(localized: "Mémoire insuffisante pour préparer la capture.")) }
+            micRing = createdMicRing
+            micDevice = input
+            inputs = [
+                CaptureInput(ring: createdMicRing, channels: Int(micChannels), sampleRate: micFormat.mSampleRate, layout: .mic),
+                CaptureInput(ring: systemRing, channels: 2, sampleRate: systemFormat.mSampleRate, layout: .system)
+            ]
+        }
+        try HAL.check(AudioDeviceCreateIOProcID(aggregate, HWYDIOProc, UnsafeMutableRawPointer(ring), &ioProc), String(localized: "Préparation de la capture"))
+        if let micRing { try HAL.check(AudioDeviceCreateIOProcID(micDevice, HWYDIOProc, UnsafeMutableRawPointer(micRing), &micProc), String(localized: "Préparation du micro")) }
+        alive = DeviceWatch(listeners: [(input, HAL.address(kAudioDevicePropertyDeviceIsAlive))], queue: queue) { [weak self] in Task { await self?.devicesChanged(after: .zero) } }
+        return inputs
+    }
+    private func startDevices() throws {
+        guard let ioProc, aggregate != 0 else { return }
+        try HAL.check(AudioDeviceStart(aggregate, ioProc), String(localized: "Démarrage de la capture"))
+        if let micProc { try HAL.check(AudioDeviceStart(micDevice, micProc), String(localized: "Démarrage du micro")) }
+    }
+    /// Once this returns, the IOProcs no longer run: a device that disappeared just reports an error.
+    private func stopDevices() {
+        if let ioProc, aggregate != 0 { AudioDeviceStop(aggregate, ioProc) }
+        if let micProc, micDevice != 0 { AudioDeviceStop(micDevice, micProc) }
+    }
+    /// Stops and destroys the IOProcs and the aggregate. The rings stay until the writer let go of them.
+    private func destroyGraph() {
+        stopDevices()
+        alive?.cancel(); alive = nil
+        if let ioProc, aggregate != 0 { AudioDeviceDestroyIOProcID(aggregate, ioProc) }
+        if let micProc, micDevice != 0 { AudioDeviceDestroyIOProcID(micDevice, micProc) }
+        ioProc = nil; micProc = nil; micDevice = 0
+        if aggregate != 0 { AudioHardwareDestroyAggregateDevice(aggregate); aggregate = 0 }
+    }
+    private func releaseRings() {
+        if let ring { HWYDRingDestroy(ring); self.ring = nil }
+        if let micRing { HWYDRingDestroy(micRing); self.micRing = nil }
+    }
+    /// Builds the graph again on `device`: the writer writes what the old rings hold, the old graph
+    /// goes, the new one is built in combined or split mode, and the writer reads it on the same
+    /// files and chunk sequence, its clocks anchored again. Started unless paused; a pause or a
+    /// stop while it waits for the first buffers ends the wait, and a resume waits for them.
+    private func rebuild(on device: MicrophoneDevice, newTap: Bool) async throws {
+        guard let writer else { throw CaptureFailure(message: String(localized: "Aucune capture en cours.")) }
+        destroyGraph()
+        writer.detach()
+        releaseRings()
+        if newTap {
+            if tap != 0 { AudioHardwareDestroyProcessTap(tap); tap = 0 }
+            try createTap()
+        }
+        do {
+            let inputs = try buildGraph(on: device)
+            writer.attach(inputs)
+        } catch { destroyGraph(); releaseRings(); throw error }
+        awaitingAudio = true
+        guard !isPaused else { return }
+        try startDevices()
+        // A Bluetooth headset may take more than a second to switch to call mode.
+        let outcome = try await waitForAudio(seconds: 8)
+        guard self.writer != nil else { throw CaptureFailure(message: String(localized: "Aucune capture en cours.")) }
+        guard outcome == .flowing else { return }
+        awaitingAudio = false
+        claimWatch?.reset(readers: inputReaders())
+    }
+    /// Waits for the first buffers of both tracks. Returns early if the capture is paused or
+    /// stopped meanwhile. Only the deadline ends the wait: device notifications never cancel it.
+    @discardableResult
+    private func waitForAudio(seconds: Int) async throws -> AudioWait.Outcome {
+        do {
+            return try await AudioWait.until(.now.advanced(by: .seconds(seconds))) { [weak self] in await self?.probe() ?? .stopped }
+        } catch let failure as AudioWait.Failure {
+            throw CaptureFailure(message: failure.message)
+        } catch {
+            throw CaptureFailure(message: String(localized: "Le périphérique audio a démarré mais aucun buffer n’est reçu. Vérifiez les permissions micro et audio système, puis réessayez."))
+        }
+    }
+    private func probe() -> AudioWait.Probe {
+        guard let writer else { return .stopped }
+        if isPaused { return .paused }
+        let status = writer.status()
+        if let error = status.error { return .failed(error) }
+        return status.lastPacket == nil ? .waiting : .flowing
+    }
+
+    // MARK: Health
+
     private func startMonitor() {
         monitor = Task { [weak self] in
             while !Task.isCancelled {
@@ -195,11 +418,20 @@ actor CoreAudioCapture: AudioCapture {
         }
     }
     /// One monitor pass: levels, then the fault that ends the session, then a microphone claim.
-    private func inspect() {
-        guard let writer, !isPaused, !faulted else { return }
+    /// Lost buffers or a stalled stream first look at the devices: when the microphone in use is
+    /// going away, it is a lost microphone for the session to replace, not a fault.
+    private func inspect() async {
+        guard let writer, !isPaused, !faulted, !gate.isBusy, !awaitingAudio, devices?.isLost != true else { return }
         let status = writer.status()
         continuation.yield(.levels(mic: status.mic, system: status.system))
-        if let fault = fault() { report(fault); return }
+        if let fault = fault() {
+            if gate.begin() {
+                await checkDevices()
+                if gate.end() { devicesChanged() }
+            }
+            guard self.writer != nil, !faulted, devices?.isLost != true else { return }
+            report(fault); return
+        }
         do { try restartIfMicrophoneClaimed() } catch { report(CaptureFault(.restart, message: error.localizedDescription)) }
     }
     private func report(_ fault: CaptureFault) {
@@ -213,30 +445,30 @@ actor CoreAudioCapture: AudioCapture {
     /// is left out of the timeline; the events let the session clock skip it too.
     private func restartIfMicrophoneClaimed() throws {
         guard !isPaused, claimWatch != nil else { return }
-        let now = ProcessInfo.processInfo.systemUptime
+        let now = Self.uptime
         guard now - lastClaimPoll >= 0.5 else { return }
         lastClaimPoll = now
         guard claimWatch?.poll(readers: inputReaders(), now: now) == true else { return }
         continuation.yield(.restarting)
-        let began = ContinuousClock.now
-        pause()
-        try resume()
-        let parts = began.duration(to: .now).components
-        continuation.yield(.restarted(gap: Double(parts.seconds) + Double(parts.attoseconds) / 1e18))
+        stillSince = now
+        halt()
+        writer?.resume()
+        try startDevices()
+        claimWatch?.reset(readers: inputReaders())
+        restarted()
     }
     /// The other processes currently reading audio input, from any device. A meeting app with voice processing
     /// reads through its own aggregate device, so the reader is not filtered on the capture's microphone.
     private func inputReaders() -> Set<Int32> {
-        var prop = address(kAudioHardwarePropertyProcessObjectList), size: UInt32 = 0
-        let system = AudioObjectID(kAudioObjectSystemObject)
-        guard AudioObjectGetPropertyDataSize(system, &prop, 0, nil, &size) == noErr, size > 0 else { return [] }
+        var prop = HAL.address(kAudioHardwarePropertyProcessObjectList), size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(HAL.system, &prop, 0, nil, &size) == noErr, size > 0 else { return [] }
         var processes = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
-        guard AudioObjectGetPropertyData(system, &prop, 0, nil, &size, &processes) == noErr else { return [] }
+        guard AudioObjectGetPropertyData(HAL.system, &prop, 0, nil, &size, &processes) == noErr else { return [] }
         let own = getpid()
         var readers: Set<Int32> = []
         for process in processes {
-            guard (try? scalar(process, kAudioProcessPropertyIsRunningInput, as: UInt32.self)) ?? 0 != 0,
-                  let pid = try? scalar(process, kAudioProcessPropertyPID, as: pid_t.self), pid != own else { continue }
+            guard (try? HAL.scalar(process, kAudioProcessPropertyIsRunningInput, as: UInt32.self)) ?? 0 != 0,
+                  let pid = try? HAL.scalar(process, kAudioProcessPropertyPID, as: pid_t.self), pid != own else { continue }
             readers.insert(pid)
         }
         return readers
@@ -244,16 +476,14 @@ actor CoreAudioCapture: AudioCapture {
     /// Stops and releases everything the capture holds, and seals the audio.
     private func teardown() -> CapturedAudio {
         monitor?.cancel(); monitor = nil
-        if let ioProc, aggregate != 0 { AudioDeviceStop(aggregate, ioProc); AudioDeviceDestroyIOProcID(aggregate, ioProc) }
-        if let micProc { AudioDeviceStop(initialInput, micProc); AudioDeviceDestroyIOProcID(initialInput, micProc) }
-        ioProc = nil; micProc = nil
+        settle?.cancel(); settle = nil
+        watch?.cancel(); watch = nil
+        destroyGraph()
         let chunks = writer?.finish() ?? []
         let finalizationError = writer?.status().error
         writer = nil
-        if aggregate != 0 { AudioHardwareDestroyAggregateDevice(aggregate); aggregate = 0 }
         if tap != 0 { AudioHardwareDestroyProcessTap(tap); tap = 0 }
-        if let ring { HWYDRingDestroy(ring); self.ring = nil }
-        if let micRing { HWYDRingDestroy(micRing); self.micRing = nil }
+        releaseRings()
         if lockFD >= 0 { flock(lockFD, LOCK_UN); close(lockFD); lockFD = -1 }
         claimWatch = nil
         return CapturedAudio(chunks: chunks, finalizationError: finalizationError)
@@ -299,36 +529,6 @@ actor CoreAudioCapture: AudioCapture {
         return bytes.allSatisfy({ (0x20...0x7E).contains($0) }) ? String(decoding: bytes, as: UTF8.self) : String(code)
     }
     private func hertz(_ rate: Float64) -> String { rate.rounded() == rate ? "\(Int(rate)) Hz" : "\(rate) Hz" }
-    private func address(_ selector: AudioObjectPropertySelector, scope: AudioObjectPropertyScope = kAudioObjectPropertyScopeGlobal) -> AudioObjectPropertyAddress {
-        .init(mSelector: selector, mScope: scope, mElement: kAudioObjectPropertyElementMain)
-    }
-    private func check(_ status: OSStatus, _ operation: String) throws {
-        if status != noErr { throw CaptureFailure(message: String(localized: "\(operation) impossible (Core Audio \(status)). Vérifiez les permissions audio de HWYD dans Réglages Système.")) }
-    }
-    private func scalar<T>(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector, as type: T.Type) throws -> T {
-        let pointer = UnsafeMutableRawPointer.allocate(byteCount: MemoryLayout<T>.size, alignment: MemoryLayout<T>.alignment)
-        defer { pointer.deallocate() }
-        var prop = address(selector), size = UInt32(MemoryLayout<T>.size)
-        try check(AudioObjectGetPropertyData(object, &prop, 0, nil, &size, pointer), String(localized: "Lecture de la configuration audio"))
-        return pointer.load(as: T.self)
-    }
-    private func string(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector) throws -> String {
-        var prop = address(selector), size = UInt32(MemoryLayout<UnsafeRawPointer?>.size)
-        let storage = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: MemoryLayout<UnsafeRawPointer>.alignment)
-        defer { storage.deallocate() }
-        storage.storeBytes(of: Optional<UnsafeRawPointer>.none, as: Optional<UnsafeRawPointer>.self)
-        try check(AudioObjectGetPropertyData(object, &prop, 0, nil, &size, storage), String(localized: "Lecture du périphérique"))
-        guard let pointer = storage.load(as: Optional<UnsafeRawPointer>.self) else { throw CaptureFailure(message: String(localized: "Identifiant audio manquant.")) }
-        return Unmanaged<CFString>.fromOpaque(pointer).takeRetainedValue() as String
-    }
-    private func streams(_ device: AudioObjectID) throws -> [AudioObjectID] {
-        var prop = address(kAudioDevicePropertyStreams, scope: kAudioDevicePropertyScopeInput), size: UInt32 = 0
-        try check(AudioObjectGetPropertyDataSize(device, &prop, 0, nil, &size), String(localized: "Lecture des pistes"))
-        var result = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
-        try check(AudioObjectGetPropertyData(device, &prop, 0, nil, &size, &result), String(localized: "Lecture des pistes"))
-        return result
-    }
-    private func format(_ stream: AudioObjectID) throws -> AudioStreamBasicDescription { try scalar(stream, kAudioStreamPropertyVirtualFormat, as: AudioStreamBasicDescription.self) }
 }
 
 /// One ring read by the writer. A combined input carries the microphone channels followed by the stereo tap on one
@@ -353,6 +553,10 @@ private struct TrackClock {
 
 /// The writer and AVAudioFile instances are confined to one serial queue.
 /// Only the status snapshot crosses queues, protected by statusLock.
+///
+/// The inputs can change while the files stay: `detach` writes what the rings hold and lets go of
+/// them, `attach` reads new rings, at their own rates and layout, from where the audio stopped.
+/// Like a pause, the time in between is left out of the timeline.
 private final class AudioWriter: @unchecked Sendable {
     static let outputRate = 16000.0
     /// Calibration window, then the residual offset tolerated before one sample is dropped or repeated.
@@ -360,14 +564,15 @@ private final class AudioWriter: @unchecked Sendable {
     private static let toleranceSamples = 32.0
     private let queue = DispatchQueue(label: "dev.lepee.hwyd.audio-writer", qos: .userInitiated)
     private let statusLock = NSLock()
-    private var state: (mic: Float, system: Float, error: String?, lastPackets: [Double?]) = (0, 0, nil, [nil, nil])
-    private let inputs: [CaptureInput]
-    private let split: Bool
+    /// `dropped`: the error is buffers the realtime callback could not queue.
+    private var state: (mic: Float, system: Float, error: String?, dropped: Bool, lastPackets: [Double?]) = (0, 0, nil, false, [nil, nil])
+    private var inputs: [CaptureInput] = []
+    private var split = false
     private let folder: AudioFolder
-    private let buffers: [UnsafeMutablePointer<Float>]
+    private var buffers: [UnsafeMutablePointer<Float>] = []
     private let outputFormat: AVAudioFormat
-    private let inputFormats: [AVAudioFormat]
-    private let converters: [AVAudioConverter]
+    private var inputFormats: [AVAudioFormat] = []
+    private var converters: [AVAudioConverter] = []
     private let ticksPerSecond: Double
     private var pending: [[Float]] = [[], []]
     private var clocks = [TrackClock(), TrackClock()]
@@ -391,25 +596,62 @@ private final class AudioWriter: @unchecked Sendable {
     init(inputs: [CaptureInput], folder: AudioFolder, chunkSeconds: Double = 300, startFrames: Int64 = 0, firstSequence: Int = 0) {
         chunkLimit = Int64(chunkSeconds * Self.outputRate)
         outputFrames = startFrames; sequence = firstSequence
-        self.inputs = inputs
-        split = inputs.count == 2
         self.folder = folder
-        buffers = inputs.map { .allocate(capacity: 4096 * $0.channels) }
         outputFormat = AVAudioFormat(standardFormatWithSampleRate: Self.outputRate, channels: 1)!
-        // Track 0 is the microphone, track 1 system audio, whatever input carries them.
-        let rates = split ? [inputs[0].sampleRate, inputs[1].sampleRate] : [inputs[0].sampleRate, inputs[0].sampleRate]
-        inputFormats = rates.map { AVAudioFormat(standardFormatWithSampleRate: $0, channels: 1)! }
-        converters = inputFormats.map { AVAudioConverter(from: $0, to: AVAudioFormat(standardFormatWithSampleRate: Self.outputRate, channels: 1)!)! }
         var timebase = mach_timebase_info_data_t(); mach_timebase_info(&timebase)
         ticksPerSecond = 1e9 * Double(timebase.denom) / Double(timebase.numer)
+        use(inputs)
     }
     deinit { buffers.forEach { $0.deallocate() } }
+    /// Reads `inputs` from now on. Track 0 is the microphone, track 1 system audio, whatever input carries them.
+    private func use(_ inputs: [CaptureInput]) {
+        buffers.forEach { $0.deallocate() }
+        self.inputs = inputs
+        split = inputs.count == 2
+        buffers = inputs.map { .allocate(capacity: 4096 * $0.channels) }
+        guard let first = inputs.first else { inputFormats = []; converters = []; return }
+        let rates = split ? [inputs[0].sampleRate, inputs[1].sampleRate] : [first.sampleRate, first.sampleRate]
+        inputFormats = rates.map { AVAudioFormat(standardFormatWithSampleRate: $0, channels: 1)! }
+        converters = inputFormats.map { AVAudioConverter(from: $0, to: outputFormat)! }
+    }
+    /// Called once the devices stopped: writes what the rings hold, then reads nothing until
+    /// `attach`. Samples one track holds beyond the other are dropped, as at a pause in split mode.
+    /// `forgivingDrops`: the rings belong to a microphone that disappeared, whose last buffers may
+    /// have been refused by the realtime callback; those losses do not fail the writer. Nothing
+    /// is desynchronized by them: what follows is anchored again.
+    func detach(forgivingDrops: Bool = false) {
+        queue.sync {
+            drain()
+            use([])
+            pending = [[], []]; clocks = [TrackClock(), TrackClock()]; origin = nil
+            statusLock.lock()
+            state.mic = 0; state.system = 0
+            if forgivingDrops, state.dropped { state.error = nil; state.dropped = false }
+            statusLock.unlock()
+        }
+    }
+    /// Reads new rings, before their devices start. Both clocks are anchored again on their first
+    /// buffers; until both tracks deliver, `status().lastPacket` is nil.
+    func attach(_ inputs: [CaptureInput]) {
+        queue.sync {
+            use(inputs)
+            pending = [[], []]; clocks = [TrackClock(), TrackClock()]; origin = nil
+            statusLock.lock(); state.lastPackets = [nil, nil]; statusLock.unlock()
+        }
+    }
     func status() -> (mic: Float, system: Float, error: String?, lastPacket: Double?) {
         statusLock.lock(); defer { statusLock.unlock() }
         // Both tracks must flow: one silent device clock would otherwise stall the other track unnoticed.
         let packets = state.lastPackets.compactMap { $0 }
         return (state.mic, state.system, state.error, packets.count == 2 ? packets.min() : nil)
     }
+    /// When `track` last delivered, in `systemUptime` seconds; nil before its first buffer.
+    func lastPacket(track: Int) -> Double? {
+        statusLock.lock(); defer { statusLock.unlock() }
+        return state.lastPackets[track]
+    }
+    /// Waits for the first buffers of both tracks again: `status().lastPacket` is nil until then.
+    func rearm() { statusLock.lock(); state.lastPackets = [nil, nil]; statusLock.unlock() }
     func start() {
         queue.sync {
             let source = DispatchSource.makeTimerSource(queue: queue)
@@ -444,12 +686,12 @@ private final class AudioWriter: @unchecked Sendable {
         statusLock.lock(); let now = ProcessInfo.processInfo.systemUptime; state.lastPackets = [now, now]; statusLock.unlock()
     }
     func consumeForTest() { queue.sync { drain() } }
-    private func setError(_ message: String) { statusLock.lock(); state.error = message; statusLock.unlock() }
+    private func setError(_ message: String, dropped: Bool = false) { statusLock.lock(); state.error = message; state.dropped = dropped; statusLock.unlock() }
     private func drain() {
         guard status().error == nil else { return }
         for input in inputs where HWYDRingDropped(input.ring) > 0 {
             let reasons = (0..<4).map { String(HWYDRingDropReason(input.ring, UInt32($0))) }.joined(separator: "/")
-            setError(String(localized: "La capture a perdu des buffers audio (\(reasons)). La session est arrêtée pour éviter une désynchronisation silencieuse.")); return
+            setError(String(localized: "La capture a perdu des buffers audio (\(reasons)). La session est arrêtée pour éviter une désynchronisation silencieuse."), dropped: true); return
         }
         do {
             for (index, input) in inputs.enumerated() {
@@ -663,6 +905,80 @@ extension CoreAudioCapture {
         let expected = AudioRecovery.merge(stored: session.audioChunks, recovered: added)
         guard recovered.map(\.relativePath) == expected.map(\.relativePath), zip(recovered, expected).allSatisfy({ abs($0.start - $1.start) < 1e-9 && abs($0.duration - $1.duration) < 1e-9 }) else {
             throw CaptureFailure(message: "Recovery of a resumed session: \(recovered.map { "\($0.relativePath) at \($0.start)" })")
+        }
+    }
+
+    /// Changing microphone mid-session: a 48 kHz microphone on the tap's clock, then a 16 kHz headset on its own
+    /// clock, then the first again. The writer keeps its files: the chunks follow each other on the timeline with one
+    /// numbering, both tracks keep identical bounds, and each part holds its own source's audio.
+    static func verifySyntheticSwitch(audio: any AudioLocator) throws {
+        guard let combinedRing = HWYDRingCreate(3), let micRing = HWYDRingCreate(1), let systemRing = HWYDRingCreate(2), let againRing = HWYDRingCreate(3) else {
+            throw CaptureFailure(message: "Ring allocation")
+        }
+        defer { [combinedRing, micRing, systemRing, againRing].forEach { HWYDRingDestroy($0) } }
+        var timebase = mach_timebase_info_data_t(); mach_timebase_info(&timebase)
+        let ticks = 1e9 * Double(timebase.denom) / Double(timebase.numer)
+        func push(_ ring: OpaquePointer, value: (mic: Float, system: Float)?, channels: Int, frames: Int, at time: Double, mono: Float = 0) {
+            let samples = UnsafeMutablePointer<Float>.allocate(capacity: frames * channels); defer { samples.deallocate() }
+            for f in 0..<frames {
+                if let value { samples[f * channels] = value.mic; for c in 1..<channels { samples[f * channels + c] = value.system } }
+                else { for c in 0..<channels { samples[f * channels + c] = mono } }
+            }
+            var list = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(mNumberChannels: UInt32(channels), mDataByteSize: UInt32(frames * channels * 4), mData: samples))
+            var stamp = AudioTimeStamp(); stamp.mHostTime = UInt64(1_000_000 + time * ticks)
+            var input = stamp, output = stamp
+            _ = withUnsafeMutablePointer(to: &list) { HWYDIOProc(0, &stamp, $0, &input, $0, &output, UnsafeMutableRawPointer(ring)) }
+        }
+        let combined = { (ring: OpaquePointer) in [CaptureInput(ring: ring, channels: 3, sampleRate: 48000, layout: .combined(micChannels: 1))] }
+        let writer = try AudioWriter(inputs: combined(combinedRing), folder: audio.sessionFolder(for: UUID()), chunkSeconds: 0.4)
+        // Built-in microphone, 0.5 s.
+        for block in 0..<50 { push(combinedRing, value: (0.2, 0.6), channels: 3, frames: 480, at: Double(block) * 0.01); writer.consumeForTest() }
+        writer.detach()
+        // Bluetooth headset in call mode: 16 kHz on its own clock, 0.5 s, after a 1 s rebuild.
+        writer.attach([CaptureInput(ring: micRing, channels: 1, sampleRate: 16000, layout: .mic),
+                       CaptureInput(ring: systemRing, channels: 2, sampleRate: 48000, layout: .system)])
+        for block in 0..<25 {
+            let time = 1.5 + Double(block) * 0.02
+            push(micRing, value: nil, channels: 1, frames: 320, at: time, mono: 0.3)
+            push(systemRing, value: nil, channels: 2, frames: 960, at: time, mono: 0.7)
+            writer.consumeForTest()
+        }
+        writer.detach()
+        // Back to the built-in microphone, 0.5 s.
+        writer.attach(combined(againRing))
+        for block in 0..<50 { push(againRing, value: (0.2, 0.6), channels: 3, frames: 480, at: 3 + Double(block) * 0.01); writer.consumeForTest() }
+        let chunks = writer.finish()
+        guard writer.status().error == nil else { throw CaptureFailure(message: "Switch capture failed: \(writer.status().error!)") }
+        var tracks: [[Float]] = []
+        for source in [AudioSource.mic, .system] {
+            let track = chunks.filter { $0.source == source }
+            let numbers = track.compactMap { CaptureContinuation.sequence(ofFile: $0.relativePath) }
+            guard numbers == Array(0..<track.count) else { throw CaptureFailure(message: "Switch capture numbering \(numbers)") }
+            for (earlier, later) in zip(track, track.dropFirst()) where abs(earlier.start + earlier.duration - later.start) > 1e-9 {
+                throw CaptureFailure(message: "Switch capture: \(later.relativePath) starts at \(later.start), not after \(earlier.relativePath)")
+            }
+            var samples: [Float] = []
+            for chunk in track {
+                let file = try AVAudioFile(forReading: audio.url(for: chunk))
+                let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length))!
+                try file.read(into: buffer)
+                samples += UnsafeBufferPointer(start: buffer.floatChannelData![0], count: Int(buffer.frameLength))
+            }
+            tracks.append(samples)
+        }
+        let micChunks = chunks.filter { $0.source == .mic }, systemChunks = chunks.filter { $0.source == .system }
+        guard micChunks.map(\.start) == systemChunks.map(\.start), micChunks.map(\.duration) == systemChunks.map(\.duration) else {
+            throw CaptureFailure(message: "Switch capture: the tracks' chunks differ")
+        }
+        // The rebuilds are left out: about 1.5 s of audio, a few converter frames short.
+        guard tracks[0].count == tracks[1].count, tracks[0].count > 23000, tracks[0].count <= 24000 else {
+            throw CaptureFailure(message: "Switch capture: \(tracks.map(\.count)) samples")
+        }
+        for (time, mic, system) in [(0.25, Float(0.2), Float(0.6)), (0.75, 0.3, 0.7), (1.25, 0.2, 0.6)] {
+            let index = Int(time * 16000)
+            guard abs(tracks[0][index] - mic) < 0.015, abs(tracks[1][index] - system) < 0.015 else {
+                throw CaptureFailure(message: "Switch capture at \(time) s: \(tracks[0][index]) / \(tracks[1][index]), expected \(mic) / \(system)")
+            }
         }
     }
 

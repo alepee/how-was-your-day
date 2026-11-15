@@ -70,15 +70,15 @@ public struct AudioChunk: Codable, Identifiable, Equatable, Sendable {
 public enum CaptureBoundaryReason: String, Codable, Sendable {
     /// Recording resumed in a session that had ended.
     case resumed
-    /// Reserved for changing the microphone during a recording: the user chose another one.
+    /// The user chose another microphone during the recording.
     case user
-    /// Reserved: the user accepted a microphone the system proposed.
+    /// The user accepted a microphone the system proposed.
     case accepted
-    /// Reserved: the microphone changed without a choice (device removed).
+    /// The microphone in use disappeared and the system default input took over.
     case forced
 }
-/// A point of the session's timeline where the capture changed: recording resumed, or (reserved)
-/// another microphone took over. The acoustic path may differ on each side.
+/// A point of the session's timeline where the capture changed: recording resumed, or another
+/// microphone took over. The acoustic path may differ on each side.
 public struct CaptureBoundary: Codable, Equatable, Sendable {
     /// Recorded seconds on the session's timeline where the new audio starts.
     public var offset: Double
@@ -121,9 +121,12 @@ public struct Recording: Codable, Identifiable, Equatable, Sendable {
     public var speechLanguage: String?
     /// Wall-clock time the last capture of the session stopped. Absent in sessions that ended before this field existed.
     public var endedAt: Date?
-    /// Where the capture changed on the session's timeline (recording resumed), oldest first.
-    /// Nil when it never did.
+    /// Where the capture changed on the session's timeline (recording resumed, microphone
+    /// changed), oldest first. Nil when it never did.
     public var boundaries: [CaptureBoundary]?
+    /// Name of the microphone the session started on. Absent in sessions recorded before this
+    /// field existed, and when the capture could not tell.
+    public var microphone: String?
     public init(id: UUID = UUID(), title: String, kind: SessionKind = .adHoc, startedAt: Date = Date(), duration: Double = 0,
                 state: CaptureState = .sealed, notes: String = "", noteEntries: [NoteEntry] = [], speakers: [Speaker] = [],
                 segments: [TranscriptSegment] = [], summary: String? = nil, isDemo: Bool = false) {

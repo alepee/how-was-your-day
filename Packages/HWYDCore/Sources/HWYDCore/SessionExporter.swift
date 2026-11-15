@@ -37,11 +37,13 @@ public enum SessionExporter {
             "segments": item.segments.map { segment in ["id": segment.id.uuidString, "start_us": micros(segment.start), "end_us": micros(segment.end), "track_id": track(segment.source), "speaker_id": nullable(segment.speakerID?.uuidString), "text": segment.text, "confidence": NSNull(), "flags": (segment.words == nil ? ["timing_coarse"] : []) + (ignoredSpeakers.contains(segment.speakerID ?? UUID()) ? ["speaker_ignored"] : []), "words": (segment.words ?? []).enumerated().map { index, word in ["id": uuid(segment.id.uuidString + String(index)), "text": word.text, "start_us": micros(word.start), "end_us": micros(word.end), "confidence": NSNull(), "timing_quality": "word"] as [String: Any] }] as [String: Any] },
             "gaps": [], "notes": ["version": item.notesVersion ?? item.revision, "markdown": item.notes, "entries": item.noteEntries.map { ["id": $0.id.uuidString, "offset_us": micros($0.offset), "text": $0.text] as [String: Any] }],
             "provenance": ["pipeline_version": "hwyd-0.2", "run_id": NSNull(), "asr": [], "diarizer": [], "echo_policy": "not-applied", "alignment_policy": "word-overlap", "identity_policy": "experimental-v2"], "exported_at": exportedAt.ISO8601Format()]
-        // Only once the capture changed (recording resumed): another session exports as it always
-        // did, so a revision published before keeps the same bytes.
+        // Only once the capture changed (recording resumed, microphone changed), and once the
+        // session knows its first microphone: an earlier session exports as it always did, so a
+        // revision published before keeps the same bytes.
         if let boundaries = item.boundaries {
             document["capture_boundaries"] = boundaries.map(captureBoundary)
         }
+        if let microphone = item.microphone { document["microphone"] = microphone }
         return document
     }
     public static func export(_ recording: Recording, to directory: URL) throws {
