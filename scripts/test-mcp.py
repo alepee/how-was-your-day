@@ -53,6 +53,16 @@ try:
     db.execute('update ui_recordings set payload=? where id=?', (json.dumps(dict(recording, boundaries=[{'offset':12.5,'at':0,'reason':'resumed','microphone':'Micro'}])), row[0])); db.commit()
     _, item = c.tool('get_recording', {'id':rid, 'include':'notes'})
     assert item['recording']['capture_boundaries']==[{'offset_us':12500000,'at':'2001-01-01T00:00:00Z','reason':'resumed','microphone':'Micro'}], item['recording']
+    # The marker goes before the first passage after the resume, and only when the resume is in the requested range.
+    segments = [{'id':'00000000-0000-4000-8000-0000000000a1','start':5,'end':6,'source':'mic','text':'Avant la reprise'},
+                {'id':'00000000-0000-4000-8000-0000000000a2','start':20,'end':21,'source':'mic','text':'Après la reprise'}]
+    db.execute('update ui_recordings set payload=? where id=?', (json.dumps(dict(recording, segments=segments, boundaries=[{'offset':12.5,'at':0,'reason':'resumed'}])), row[0])); db.commit()
+    _, item = c.tool('get_recording', {'id':rid, 'include':'transcript'})
+    text = item['artifacts']['transcript']['markdown']
+    assert text.count('Reprise à')==1 and text.index('Avant la reprise') < text.index('[00:00:12] Reprise à') < text.index('Après la reprise'), text
+    for window in ({'from':15}, {'to':10}):
+        _, item = c.tool('get_recording', dict({'id':rid, 'include':'transcript'}, **window))
+        assert 'Reprise à' not in item['artifacts']['transcript']['markdown'], (window, item['artifacts']['transcript'])
     db.execute('update ui_recordings set payload=? where id=?', (json.dumps(recording), row[0])); db.commit()
     _, search = c.tool('search', {'query':'enregistrée'}); assert search['items']
     resource = c.rpc('resources/read', {'uri':f'hwyd://recording/{rid}/notes.md'}); assert 'Note enregistrée' in resource['result']['contents'][0]['text']

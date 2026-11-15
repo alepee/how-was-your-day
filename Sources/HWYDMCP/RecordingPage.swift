@@ -32,8 +32,9 @@ struct RecordingPages {
             return true
         }.sorted { $0.start == $1.start ? $0.id.uuidString < $1.id.uuidString : $0.start < $1.start }
         totalSegments = selected.count
-        // Where recording resumed: the marker line goes with the first selected passage after it.
-        let markers = SessionResume.markers(recording.boundaries, before: selected)
+        // Where recording resumed: a resume inside the requested time range is marked before the
+        // first selected passage at or after it; one outside the range is not shown.
+        let markers = SessionResume.markers(recording.boundaries?.filter { $0.offset >= from && $0.offset < to }, before: selected)
         for name in names {
             if name == "transcript" {
                 for (index, segment) in selected.enumerated() {
