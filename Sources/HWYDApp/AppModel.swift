@@ -479,7 +479,7 @@ final class AppModel: ObservableObject {
         if let active = activeCapture { select(active); showWindow?(); return }
         showSettings = false; stopPlayback(); selectedID = nil
         newSessionTitle = ""; newSessionLanguage = SpeechLanguage.automatic
-        newSessionMicrophone = rememberedMicrophone
+        newSessionMicrophone = captureSession.preferredMicrophone(in: workspace.capture.microphones.current)
         showNewSession = true
         refreshSpeechLanguages(); showWindow?()
     }
@@ -489,8 +489,8 @@ final class AppModel: ObservableObject {
     func startCapture(meeting: CalendarContext? = nil, kind: SessionKind? = nil, title: String? = nil, language: String? = nil,
                       microphone: String? = nil, reveal: Bool = true) -> Task<Void, Never> {
         guard activeCaptureID == nil, !isStarting else { if reveal { showWindow?() }; return Task {} }
-        // Without the setup screen (shortcut, calendar): the remembered microphone, if present.
-        let request = CaptureRequest(kind: kind ?? .adHoc, title: title, meeting: meeting, language: language, microphone: microphone ?? rememberedMicrophone)
+        // Without the setup screen (shortcut, calendar), the session records the remembered microphone, if present.
+        let request = CaptureRequest(kind: kind ?? .adHoc, title: title, meeting: meeting, language: language, microphone: microphone)
         showSettings = false; showNewSession = false
         stopPlayback(); isStarting = true
         let workspace = workspace
@@ -499,7 +499,6 @@ final class AppModel: ObservableObject {
             do {
                 // The root chose the capture: Core Audio for the installed app's own data only.
                 let capture = try workspace.capture.make()
-                if !capture.isSimulated { microphoneAlerts.prepare() }
                 guard try await captureSession.start(request, with: capture, in: workspace.library) != nil else { return }
                 if reveal { showWindow?() }
             } catch { notifier.notify(.error(error.localizedDescription)); if !reveal { showWindow?() } }
@@ -555,8 +554,7 @@ final class AppModel: ObservableObject {
         do {
             // The root chose the capture: Core Audio for the installed app's own data only.
             let capture = try workspace.capture.make()
-            if !capture.isSimulated { microphoneAlerts.prepare() }
-            guard try await captureSession.continueRecording(id, with: capture, in: workspace.library, microphone: rememberedMicrophone) else { return false }
+            guard try await captureSession.continueRecording(id, with: capture, in: workspace.library) else { return false }
         } catch { notifier.notify(.error(error.localizedDescription)); return false }
         // Only once recording runs: a capture that cannot start leaves the session and its
         // transcription as they were. The session is recording now, so a run that ends meanwhile
@@ -568,20 +566,19 @@ final class AppModel: ObservableObject {
         }
         return true
     }
-    /// The last microphone the user chose, when it is connected; nil stands for the system default input.
-    private var rememberedMicrophone: String? {
-        workspace.capture.microphones.current.choice(remembered: workspace.settings.value(.microphone))
-    }
     private func followSetupMicrophones() {
         setupMicrophoneChanges = workspace.capture.microphones.changes.sink { [weak self] list in
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.setupMicrophones = list
-                // A chosen microphone that was unplugged falls back to the default input.
-                if list.device(self.newSessionMicrophone) == nil { self.newSessionMicrophone = nil }
+                // A chosen microphone that was unplugged falls back to the default input; without
+                // a choice, the session's preferred one shows as soon as it is listed.
+                if list.device(self.newSessionMicrophone) == nil { self.newSessionMicrophone = self.captureSession.preferredMicrophone(in: list) }
             }
         }
     }
+    /// The main window shows the running capture (RootView), where a microphone offer is answered.
+    var showsCaptureScreen: Bool { !showSettings && !showNewSession && activeCaptureID != nil && selectedID == activeCaptureID }
     /// The microphone the setup screen shows as selected: the one chosen, else the default input.
     var setupMicrophone: String? { newSessionMicrophone ?? setupMicrophones.defaultInput }
     /// Records another microphone from now on; remembered for the next sessions.

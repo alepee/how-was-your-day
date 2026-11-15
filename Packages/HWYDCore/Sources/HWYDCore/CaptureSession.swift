@@ -96,7 +96,9 @@ public struct CaptureEnding: Equatable, Sendable {
 /// the user chooses another (`chooseMicrophone`), accepts the one the system proposes
 /// (`acceptOffer`), or when it disappears; then the system default input takes over and the user
 /// is told, or the session is interrupted when no input is left. Each change records a boundary
-/// in the session. The last microphone the user chose is remembered in the settings.
+/// in the session. The last microphone the user chose is remembered in the settings, once the
+/// capture records it, and a capture started without a choice records it when it is present.
+/// Changes run one at a time, in the order asked.
 @MainActor
 public final class CaptureSession: ObservableObject {
     @Published public private(set) var phase: CapturePhase = .idle
@@ -108,8 +110,10 @@ public final class CaptureSession: ObservableObject {
     @Published public private(set) var microphone: MicrophoneDevice?
     /// The microphone the system proposed, until the user answers or a newer change replaces it.
     @Published public private(set) var offer: MicrophoneOffer?
-    /// A microphone change is in progress.
+    /// A microphone change is in progress or waits its turn.
     @Published public private(set) var isSwitchingMicrophone = false
+    private var switches = 0 { didSet { isSwitchingMicrophone = switches > 0 } }
+    private var lastSwitch: Task<Void, Never>?
     /// Called for every capture that ended, whatever ended it, before the transcription is requested.
     public var onEnd: ((CaptureEnding) -> Void)?
     /// Called when the microphone in use disappeared and another took over, with the lost one and
@@ -146,15 +150,23 @@ public final class CaptureSession: ObservableObject {
     /// Recorded time of the running capture, in seconds.
     public var elapsed: TimeInterval { clock.elapsed(at: now()) }
 
+    /// The microphone a capture records when none is chosen for it: the last one the user chose.
+    /// The capture records the system default input when it is not present.
+    private var rememberedMicrophone: String? { settings()?.value(.microphone) }
+    /// The microphone a setup screen preselects among `list`: the remembered one when present,
+    /// otherwise nil, which stands for the system default input.
+    public func preferredMicrophone(in list: MicrophoneList) -> String? { list.choice(remembered: rememberedMicrophone) }
+
     /// Starts `capture` and adds its session to `library`. Returns nil when a capture already runs
-    /// or starts. Throws when the capture cannot start; no session is added then.
+    /// or starts. Throws when the capture cannot start; no session is added then. Without a
+    /// microphone in `request`, the remembered one is recorded when present.
     @discardableResult
     public func start(_ request: CaptureRequest, with capture: any AudioCapture, in library: SessionLibrary) async throws -> UUID? {
         guard phase == .idle else { return nil }
         phase = .starting
         let id = UUID()
         let title = request.sessionTitle(startingAt: Date())
-        do { try await capture.start(session: id, continuing: .start, microphone: request.microphone) } catch { phase = .idle; throw error }
+        do { try await capture.start(session: id, continuing: .start, microphone: request.microphone ?? rememberedMicrophone) } catch { phase = .idle; throw error }
         if let chosen = request.microphone { remember(chosen) }
         var item = Recording(id: id, title: title, kind: request.sessionKind, state: .recording, isDemo: capture.isSimulated)
         item.microphone = await capture.microphone?.name
@@ -173,7 +185,7 @@ public final class CaptureSession: ObservableObject {
     /// Returns false when a capture already runs or starts. Throws `ResumeRefusal` when the session
     /// cannot be resumed (`SessionResume.refusal`; work on the session is the caller's to check),
     /// or the capture's error when it cannot start: the session is unchanged then. `microphone` is
-    /// the input to record, nil for the system default input.
+    /// the input to record; nil records the remembered one when present, else the system default input.
     @discardableResult
     public func continueRecording(_ id: UUID, with capture: any AudioCapture, in library: SessionLibrary, microphone: String? = nil) async throws -> Bool {
         guard phase == .idle else { return false }
@@ -183,7 +195,7 @@ public final class CaptureSession: ObservableObject {
         if let refusal = SessionResume.refusal(for: item, now: date(), captureIdle: true) { throw refusal }
         phase = .starting
         let continuation = CaptureContinuation(after: item)
-        do { try await capture.start(session: id, continuing: continuation, microphone: microphone) } catch { phase = .idle; throw error }
+        do { try await capture.start(session: id, continuing: continuation, microphone: microphone ?? rememberedMicrophone) } catch { phase = .idle; throw error }
         // Deleted while the devices started: nothing to record into.
         guard library.recording(id) != nil else {
             _ = await capture.stop(); phase = .idle
@@ -293,55 +305,80 @@ public final class CaptureSession: ObservableObject {
 
     // MARK: Microphone
 
-    /// Records `uid` from now on, the user's choice; the choice is remembered. A failure is
-    /// reported and the capture keeps its microphone.
+    /// Records `uid` from now on, the user's choice; the choice is remembered once the capture
+    /// records it. A failure is reported and the capture keeps its microphone.
     public func chooseMicrophone(_ uid: String) async {
-        guard isRunning, uid != microphone?.uid else { return }
-        remember(uid)
+        guard isRunning, let id = sessionID, uid != microphone?.uid else { return }
         if offer?.device.uid == uid { offer = nil }
-        await switchMicrophone(to: uid, reason: .user)
+        await inTurn { [self] in
+            if await switchMicrophone(to: uid, reason: .user, session: id) { remember(uid) }
+        }
     }
 
-    /// Switches to the microphone the system proposed; it becomes the remembered choice.
+    /// Switches to the microphone the system proposed; it becomes the remembered choice once the
+    /// capture records it.
     public func acceptOffer() async {
-        guard let offer, isRunning else { return }
+        guard let offer, isRunning, let id = sessionID else { return }
         self.offer = nil
-        remember(offer.device.uid)
-        await switchMicrophone(to: offer.device.uid, reason: .accepted)
+        await inTurn { [self] in
+            if await switchMicrophone(to: offer.device.uid, reason: .accepted, session: id) { remember(offer.device.uid) }
+        }
     }
 
     /// Keeps the microphone in use; the offer goes away.
     public func declineOffer() { offer = nil }
 
-    private func switchMicrophone(to uid: String, reason: MicrophoneSwitchReason) async {
-        guard let capture, !isSwitchingMicrophone else { return }
-        isSwitchingMicrophone = true
-        defer { isSwitchingMicrophone = false }
-        do { try await capture.switchMicrophone(to: uid, reason: reason) }
-        catch { if phase.sessionID != nil { notifier.notify(.error(error.localizedDescription)) } }
+    /// Runs `body` once the switches asked before it ended.
+    private func inTurn(_ body: @escaping @MainActor () async -> Void) async {
+        let previous = lastSwitch
+        switches += 1
+        let turn = Task { @MainActor in
+            await previous?.value
+            await body()
+        }
+        lastSwitch = turn
+        await turn.value
+        switches -= 1
+    }
+
+    /// True when the capture of `id` records `uid` now. Skipped when it already does, or when the
+    /// session ended while the switch waited its turn.
+    private func switchMicrophone(to uid: String, reason: MicrophoneSwitchReason, session id: UUID) async -> Bool {
+        guard isRunning, phase.sessionID == id, let capture else { return false }
+        guard await capture.microphone?.uid != uid else { return false }
+        do {
+            try await capture.switchMicrophone(to: uid, reason: reason)
+            return isRunning && phase.sessionID == id
+        } catch {
+            if isRunning, phase.sessionID == id { notifier.notify(.error(error.localizedDescription)) }
+            return false
+        }
     }
 
     /// The microphone in use disappeared: the system default input takes over and the user is told,
-    /// or the session is interrupted, audio kept, when no input is left.
+    /// or the session is interrupted, audio kept, when no input is left. A switch asked before
+    /// runs first, and may have left the lost microphone already.
     private func replace(_ lost: MicrophoneDevice, session id: UUID) async {
-        guard let capture, phase.sessionID == id else { return }
-        let list = await capture.microphones
-        microphones = list
-        if offer?.device.uid == lost.uid { offer = nil }
-        guard let next = list.replacement(for: lost.uid) else {
-            await stop(.failed(CaptureFault(.noMicrophone, message: String(localized: "Le micro \(lost.name) n’est plus disponible et aucun autre micro n’est branché. La session est interrompue, l’audio est conservé. Reprenez-la une fois un micro branché.", bundle: .hwyd))))
-            return
-        }
-        isSwitchingMicrophone = true
-        defer { isSwitchingMicrophone = false }
-        do {
-            try await capture.switchMicrophone(to: next.uid, reason: .forced)
-            guard phase.sessionID == id else { return }
-            notifier.notify(.info(String(localized: "Le micro \(lost.name) n’est plus disponible. L’enregistrement continue sur \(next.name).", bundle: .hwyd)))
-            onForcedSwitch?(lost, next)
-        } catch {
-            // The capture reported its fault too; the first one stops the session.
-            await stop(.failed(CaptureFault(.restart, message: error.localizedDescription)))
+        await inTurn { [self] in
+            guard isRunning, phase.sessionID == id, let capture, await capture.microphone?.uid == lost.uid else { return }
+            let list = await capture.microphones
+            guard isRunning, phase.sessionID == id else { return }
+            microphones = list
+            if offer?.device.uid == lost.uid { offer = nil }
+            guard let next = list.replacement(for: lost.uid) else {
+                await stop(.failed(CaptureFault(.noMicrophone, message: String(localized: "Le micro \(lost.name) n’est plus disponible et aucun autre micro n’est branché. La session est interrompue, l’audio est conservé. Reprenez-la une fois un micro branché.", bundle: .hwyd))))
+                return
+            }
+            do {
+                try await capture.switchMicrophone(to: next.uid, reason: .forced)
+                guard isRunning, phase.sessionID == id else { return }
+                notifier.notify(.info(String(localized: "Le micro \(lost.name) n’est plus disponible. L’enregistrement continue sur \(next.name).", bundle: .hwyd)))
+                onForcedSwitch?(lost, next)
+            } catch {
+                guard isRunning, phase.sessionID == id else { return }
+                // The capture reported its fault too; the first one stops the session.
+                await stop(.failed(CaptureFault(.restart, message: error.localizedDescription)))
+            }
         }
     }
 
@@ -352,11 +389,13 @@ public final class CaptureSession: ObservableObject {
 
     private func resetMicrophones() { microphones = MicrophoneList(); microphone = nil; offer = nil }
 
-    /// Records where the new microphone starts on the session's timeline. The clock stands still
-    /// while the graph is rebuilt, so its time is where the audio resumes.
+    /// Records where the new microphone starts on the session's timeline. The capture reports the
+    /// switch once the stream runs again, after `restarted(gap:)` corrected the clock, or while
+    /// paused with the clock frozen: its time is where the audio resumes.
     private func recordSwitch(to device: MicrophoneDevice, reason: MicrophoneSwitchReason, session id: UUID) {
         microphone = device
-        if offer?.device.uid == device.uid { offer = nil }
+        // An offer that came during the switch keeps the microphone recorded now.
+        if offer?.device.uid == device.uid { offer = nil } else { offer?.current = device.name }
         let boundary = CaptureBoundary(offset: elapsed, at: date(), reason: reason.boundary, microphone: device.name)
         library?.edit(id) { $0.boundaries = ($0.boundaries ?? []) + [boundary] }
     }
