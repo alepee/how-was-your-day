@@ -92,6 +92,15 @@ import HWYDCore
                 try? SummaryPDF.write(copy, to: directory.appendingPathComponent("summary-export-long.pdf"))
             }
             try? SummaryExport.markdown(item)?.write(to: directory.appendingPathComponent("summary-export.md"), atomically: true, encoding: .utf8)
+            // Agent summary with a synthetic context note: the export sheet, and an export that keeps the note but not the details.
+            if var agent = item.summaryProvenance {
+                agent.structured.context = [SummaryContextNote(title: "Projet exemple", text: "Prolonge une décision fictive du mois précédent.", sources: ["notes/exemple.md"])] // l10n:ignore
+                var copy = item; copy.summaryProvenance = agent; copy.summary = agent.structured.markdown
+                render(SummaryExportSheet(recording: copy, format: .pdf) { _ in }, size: .init(width: 440, height: 420), to: directory.appendingPathComponent("studio-summary-export-sheet.png"))
+                let chosen = SummarySection.exportDefault.union([.context]).subtracting([.details])
+                try? SummaryPDF.write(copy, sections: chosen, to: directory.appendingPathComponent("summary-export-context.pdf"))
+                try? SummaryExport.markdown(copy, sections: chosen)?.write(to: directory.appendingPathComponent("summary-export-context.md"), atomically: true, encoding: .utf8)
+            }
         }
         // Toasts come from their own model, so the other scenes show none.
         let toasts = AppModel(environment: .preview(preferences: preferences))

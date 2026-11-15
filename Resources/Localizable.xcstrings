@@ -2285,6 +2285,38 @@
         }
       }
     },
+    "Choisissez les sections du PDF. Le titre, la date et les participants sont toujours inclus.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose the sections of the PDF. The title, date and participants are always included."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisissez les sections du PDF. Le titre, la date et les participants sont toujours inclus."
+          }
+        }
+      }
+    },
+    "Choisissez les sections du fichier Markdown. Le titre, la date et les participants sont toujours inclus.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose the sections of the Markdown file. The title, date and participants are always included."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisissez les sections du fichier Markdown. Le titre, la date et les participants sont toujours inclus."
+          }
+        }
+      }
+    },
     "Choisissez un modèle": {
       "localizations": {
         "en": {
@@ -3785,6 +3817,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Exporter la synthèse"
+          }
+        }
+      }
+    },
+    "Exporter…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exporter…"
           }
         }
       }
@@ -6413,6 +6461,22 @@
         }
       }
     },
+    "Notes tirées de vos propres sources par l’agent, pas de la session. Elles peuvent contenir des informations privées.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notes the agent drew from your own sources, not from the session. They may contain private information."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notes tirées de vos propres sources par l’agent, pas de la session. Elles peuvent contenir des informations privées."
+          }
+        }
+      }
+    },
     "Notifications autorisées": {
       "localizations": {
         "en": {
@@ -6777,6 +6841,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Plan de la synthèse"
+          }
+        }
+      }
+    },
+    "Points clés": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Key points"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Points clés"
           }
         }
       }

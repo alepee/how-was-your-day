@@ -38,8 +38,8 @@ import SwiftUI
         }
     }
 
-    static func write(_ item: Recording, to url: URL) throws {
-        let pages = paginate(blocks(item))
+    static func write(_ item: Recording, sections: Set<SummarySection> = SummarySection.exportDefault, to url: URL) throws {
+        let pages = paginate(blocks(item, sections: sections))
         var box = CGRect(origin: .zero, size: page)
         guard let context = CGContext(url as CFURL, mediaBox: &box, [kCGPDFContextTitle as String: item.title, kCGPDFContextCreator as String: "How Was Your Day"] as CFDictionary) else {
             throw CocoaError(.fileWriteUnknown)
@@ -108,29 +108,31 @@ import SwiftUI
 
     // MARK: Content
 
-    static func blocks(_ item: Recording) -> [Block] {
+    /// The overview is always laid out; the other sections only when chosen.
+    static func blocks(_ item: Recording, sections: Set<SummarySection>) -> [Block] {
         var blocks = [header(item)]
         let segments = { (ids: [UUID]) -> [TranscriptSegment] in
             let wanted = Set(ids)
             return item.segments.filter { wanted.contains($0.id) }.sorted { $0.start < $1.start }
         }
         guard let summary = item.summaryProvenance?.structured, summary.details != nil else {
-            return blocks + legacy(SummaryExport.withoutContext(item.summary ?? ""))
+            return blocks + legacy(SummaryExport.keeping(sections, of: item.summary ?? ""))
         }
-        // Context notes come from the agent's own sources (the user's vault), not from the session:
-        // they can be private and stay out of a document meant to be shared.
-        let details = summary.details ?? []
+        let decisions = sections.contains(.decisions) ? summary.decisions : []
+        let actions = sections.contains(.actions) ? summary.action_items : []
+        let details = sections.contains(.details) ? summary.details ?? [] : []
+        let points = sections.contains(.keyPoints) ? summary.key_points ?? [] : []
+        let context = sections.contains(.context) ? summary.context ?? [] : []
         blocks.append(Block(20) {
             Text(summary.overview).font(.system(size: Size.lead)).lineSpacing(4)
         })
-        let stats = [(summary.decisions.count, "décision", "décisions"), (summary.action_items.count, "action", "actions"), // l10n:ignore
+        let stats = [(decisions.count, "décision", "décisions"), (actions.count, "action", "actions"), // l10n:ignore
                      (details.count, "thème", "thèmes")].filter { $0.0 > 0 } // l10n:ignore
         if !stats.isEmpty {
             blocks.append(Block(12) {
                 HStack(spacing: 6) { ForEach(Array(stats.enumerated()), id: \.offset) { _, stat in Chip(count: stat.0, label: stat.0 == 1 ? stat.1 : stat.2) } }
             })
         }
-        let points = summary.key_points ?? []
         for row in stride(from: 0, to: points.count, by: 2) {
             blocks.append(Block(row == 0 ? 14 : 6) {
                 HStack(alignment: .top, spacing: 6) {
@@ -139,16 +141,16 @@ import SwiftUI
                 }.fixedSize(horizontal: false, vertical: true)
             })
         }
-        if !summary.decisions.isEmpty {
-            blocks.append(Block(24, keepWithNext: true) { SectionTitle(title: "Décisions", count: summary.decisions.count) }) // l10n:ignore
-            for decision in summary.decisions {
+        if !decisions.isEmpty {
+            blocks.append(Block(24, keepWithNext: true) { SectionTitle(title: "Décisions", count: decisions.count) }) // l10n:ignore
+            for decision in decisions {
                 blocks.append(Block(6) { Callout(text: decision.text, segments: segments(decision.evidence_segment_ids)) })
             }
         }
-        if !summary.action_items.isEmpty {
-            let assigned = summary.action_items.contains { !($0.assignee_name ?? "").isEmpty }
-            blocks.append(Block(24, keepWithNext: true) { SectionTitle(title: "Étapes suivantes", count: summary.action_items.count) }) // l10n:ignore
-            for (index, action) in summary.action_items.enumerated() {
+        if !actions.isEmpty {
+            let assigned = actions.contains { !($0.assignee_name ?? "").isEmpty }
+            blocks.append(Block(24, keepWithNext: true) { SectionTitle(title: "Étapes suivantes", count: actions.count) }) // l10n:ignore
+            for (index, action) in actions.enumerated() {
                 var row = Block(0) { ActionRow(action: action, assigned: assigned, segments: segments(action.evidence_segment_ids), divider: index > 0) }
                 row.atPageTop = AnyView(ActionRow(action: action, assigned: assigned, segments: segments(action.evidence_segment_ids), divider: false))
                 blocks.append(row)
@@ -158,6 +160,14 @@ import SwiftUI
             blocks.append(Block(24, keepWithNext: true) { SectionTitle(title: "Détails", count: details.count) }) // l10n:ignore
             for topic in details {
                 blocks.append(card(topic.title, topic.text, segments: segments(topic.evidence_segment_ids)))
+            }
+        }
+        // Context notes come from the agent's own sources, not from the session: they carry the sources instead of passages.
+        if !context.isEmpty {
+            blocks.append(Block(24, keepWithNext: true) { SectionTitle(title: "Contexte", count: context.count) }) // l10n:ignore
+            for note in context {
+                let sources = note.sources.isEmpty ? note.text : note.text + "\nSources : " + note.sources.joined(separator: ", ") // l10n:ignore
+                blocks.append(card(note.title, sources, segments: []))
             }
         }
         return blocks

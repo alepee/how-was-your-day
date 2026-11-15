@@ -6,6 +6,7 @@ struct DetailView: View {
     let recording: Recording
     @State private var confirmReprocessing = false
     @State private var splittingSegment: TranscriptSegment?
+    @State private var exportFormat: SummaryExportFormat?
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 17) {
@@ -61,6 +62,13 @@ struct DetailView: View {
         .sheet(item: $splittingSegment) { segment in
             SegmentSplitView(recordingID: recording.id, segment: segment).environmentObject(model)
         }
+        .sheet(item: $exportFormat) { format in
+            SummaryExportSheet(recording: recording, format: format) { sections in
+                exportFormat = nil
+                // The save panel opens once the sheet is gone.
+                DispatchQueue.main.async { model.exportSummary(format, sections: sections) }
+            }
+        }
         .onChange(of: model.languageChoiceID) { _, _ in openLanguageChoice() }
         .onAppear(perform: openLanguageChoice)
         .confirmationDialog("Remplacer le transcript ?", isPresented: $confirmReprocessing) {
@@ -111,8 +119,8 @@ struct DetailView: View {
                 if model.summaryID == recording.id || queued { Button("Annuler") { model.cancelSummary(of: recording.id) }.buttonStyle(StudioButtonStyle()) }
                 if recording.summary != nil {
                     Menu {
-                        Button("PDF…") { model.exportSummary(.pdf) }
-                        Button("Markdown…") { model.exportSummary(.markdown) }
+                        Button("PDF…") { exportFormat = .pdf }
+                        Button("Markdown…") { exportFormat = .markdown }
                     } label: { Label("Exporter la synthèse", systemImage: "square.and.arrow.up") }
                         .menuStyle(.borderlessButton).fixedSize()
                         .disabled(model.summaryID == recording.id)
