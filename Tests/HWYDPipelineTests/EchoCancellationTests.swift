@@ -64,6 +64,38 @@ final class EchoCancellationTests: XCTestCase {
         XCTAssertGreaterThan(gain, 0.7)
         XCTAssertLessThan(gain, 1.3)
     }
+    /// Recording resumed elsewhere: the echo path changes at 10 s. Each part gets its own
+    /// canceller, the timeline keeps its length, and the new path is cancelled.
+    func testCancellerStartsAgainAtACaptureBoundary() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let count = 16000 * 16, boundary = 16000 * 10 + 77
+        var reference = [Float](repeating: 0, count: count), mic = reference
+        var seed: UInt64 = 7, previous: Float = 0
+        for i in 0..<count {
+            seed = seed &* 6364136223846793005 &+ 1
+            let noise = Float(Int32(truncatingIfNeeded: seed >> 32)) / Float(Int32.max)
+            previous = 0.65 * previous + 0.35 * noise
+            reference[i] = previous * 0.3
+            mic[i] = i < boundary ? (i >= 1600 ? reference[i - 1600] * 0.6 : 0) : (i >= 3100 ? -reference[i - 3100] * 0.4 : 0)
+        }
+        try write(mic, to: root.appendingPathComponent("mic.caf"))
+        try write(reference, to: root.appendingPathComponent("ref.caf"))
+        var ratios: [Double] = []
+        for resets in [[], [Int64(boundary)]] {
+            let output = root.appendingPathComponent("out-\(resets.count).caf")
+            try EchoCancellation.process(microphone: root.appendingPathComponent("mic.caf"), reference: root.appendingPathComponent("ref.caf"), output: output, resets: resets)
+            let cleaned = try read(output)
+            XCTAssertEqual(cleaned.count, count)
+            XCTAssertTrue(cleaned.allSatisfy(\.isFinite))
+            let after = (boundary + 16000 * 3)..<count
+            ratios.append(energy(cleaned, after) / energy(mic, after))
+            XCTAssertLessThan(energy(cleaned, 16000 * 6..<16000 * 9) / energy(mic, 16000 * 6..<16000 * 9), 0.05)
+        }
+        print("Echo residual after a path change: \(ratios[0]) without reset, \(ratios[1]) with")
+        XCTAssertLessThan(ratios[1], 0.05)
+    }
     func testMissingReferenceTailAndSilencePreserveTimeline() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
