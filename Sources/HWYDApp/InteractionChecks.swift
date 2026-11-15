@@ -33,18 +33,21 @@ import HWYDCore
             let environment = AppEnvironment.launch(mode)
             guard mode.isSynthetic, environment.preferences is InMemorySettings, !environment.usesSystem, environment.user.store == nil,
                   environment.secrets is InMemorySecretVault, environment.user.audio == nil, environment.user.capture.isSimulated, environment.examples().capture.isSimulated,
-                  (try environment.user.capture.make()) is SimulatedCapture else {
+                  (try environment.user.capture.make()) is SimulatedCapture,
+                  // Listing inputs reads the hardware: only the installed app does.
+                  !(environment.user.capture.microphones is CoreAudioMicrophones), !(environment.examples().capture.microphones is CoreAudioMicrophones) else {
                 throw CaptureFailure(message: "A synthetic mode reached the user's preferences, data or microphone: \(mode)")
             }
         }
         let checks = try AppEnvironment.synthetic(directory: directory)
         guard checks.preferences is InMemorySettings, !checks.usesSystem, !checks.user.capture.isSimulated,
+              !(checks.user.capture.microphones is CoreAudioMicrophones),
               checks.secrets is InMemorySecretVault, checks.helpers.secrets == .memory, checks.examples().audio == nil,
               (try? checks.user.capture.make()) == nil, checks.examples().transcription.refusal == .examples,
               checks.examples().summarizer(SummaryConfiguration()).refusal == .examples else {
             throw CaptureFailure(message: "The checks' environment can record or process the examples")
         }
-        print("Synthetic environments: in-memory preferences, no user store, no keychain, no microphone: PASS")
+        print("Synthetic environments: in-memory preferences, no user store, no keychain, no microphone, no device listing: PASS")
     }
     /// The summarizer a check puts in place of the configured one, through the environment.
     @MainActor private final class SummarizerSlot { var fixture: (any Summarizer)? }

@@ -59,15 +59,18 @@ enum HAL {
         device != 0 && ((try? scalar(device, kAudioDevicePropertyDeviceIsAlive, as: UInt32.self)) ?? 0) != 0
     }
 
-    /// Every device with an input stream, HWYD's own aggregates left out, and the default input.
+    /// Every input the capture can record, and the default input when it is one of them. HWYD's
+    /// own aggregates are left out, and so is any device the graph would refuse, so that neither a
+    /// picker nor a forced switch lands on one: an aggregate (it cannot be nested in the capture's),
+    /// more than one input stream, more than 14 channels (the combined graph adds the two of system
+    /// audio, up to 16), or a format other than 32-bit float PCM.
     static func microphones() -> MicrophoneList {
         var prop = address(kAudioHardwarePropertyDevices), size: UInt32 = 0
         guard AudioObjectGetPropertyDataSize(system, &prop, 0, nil, &size) == noErr, size > 0 else { return MicrophoneList() }
         var ids = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
         guard AudioObjectGetPropertyData(system, &prop, 0, nil, &size, &ids) == noErr else { return MicrophoneList() }
         let devices: [MicrophoneDevice] = ids.compactMap { id in
-            guard let uid = try? string(id, kAudioDevicePropertyDeviceUID), !uid.hasPrefix(ownPrefix),
-                  let inputs = try? streams(id), !inputs.isEmpty else { return nil }
+            guard let uid = try? string(id, kAudioDevicePropertyDeviceUID), !uid.hasPrefix(ownPrefix), isRecordable(id) else { return nil }
             let name = (try? string(id, kAudioObjectPropertyName)) ?? uid
             return MicrophoneDevice(uid: uid, name: name, transport: transport(id))
         }
@@ -75,12 +78,19 @@ enum HAL {
         let defaultUID = input == 0 ? nil : try? string(input, kAudioDevicePropertyDeviceUID)
         return MicrophoneList(devices: devices, defaultInput: devices.contains { $0.uid == defaultUID } ? defaultUID : nil)
     }
+    /// What `CoreAudioCapture.buildGraph` accepts as a microphone.
+    private static func isRecordable(_ device: AudioObjectID) -> Bool {
+        guard (try? scalar(device, kAudioDevicePropertyTransportType, as: UInt32.self)) != kAudioDeviceTransportTypeAggregate,
+              let inputs = try? streams(device), inputs.count == 1, let format = try? format(inputs[0]) else { return false }
+        return format.mFormatID == kAudioFormatLinearPCM && format.mBitsPerChannel == 32 && format.mFormatFlags & kAudioFormatFlagIsFloat != 0
+            && (1...14).contains(format.mChannelsPerFrame)
+    }
     private static func transport(_ device: AudioObjectID) -> MicrophoneTransport {
         switch (try? scalar(device, kAudioDevicePropertyTransportType, as: UInt32.self)) ?? 0 {
         case kAudioDeviceTransportTypeBuiltIn: .builtIn
         case kAudioDeviceTransportTypeUSB: .usb
         case kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE: .bluetooth
-        case kAudioDeviceTransportTypeVirtual, kAudioDeviceTransportTypeAggregate: .virtual
+        case kAudioDeviceTransportTypeVirtual: .virtual
         default: .other
         }
     }
@@ -118,18 +128,40 @@ final class DeviceWatch: @unchecked Sendable {
 }
 
 /// The inputs before a capture starts, for the setup screen: Core Audio's devices and default
-/// input, read again whenever they change. Never opens a device.
+/// input, read again once their changes settle. Never opens a device. The HAL is read on a queue
+/// of its own, never on the main thread: a read can block while a device is being created, such as
+/// the capture's own aggregate during a rebuild. The list is empty until the first read is in.
 @MainActor final class CoreAudioMicrophones: MicrophoneCatalog {
     private let subject = CurrentValueSubject<MicrophoneList, Never>(MicrophoneList())
-    private var watch: DeviceWatch?
+    private let reader = Reader()
 
     init() {
-        subject.send(HAL.microphones())
-        watch = HAL.watchDevices(on: .main) { [weak self] in
-            MainActor.assumeIsolated { self?.refresh() }
+        reader.start { [weak self] list in
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.subject.send(list) } }
         }
     }
     var current: MicrophoneList { subject.value }
     var changes: AnyPublisher<MicrophoneList, Never> { subject.removeDuplicates().eraseToAnyPublisher() }
-    private func refresh() { subject.send(HAL.microphones()) }
+
+    /// Reads the HAL on its own queue, 250 ms after the last of a burst of notifications.
+    /// Its state is only touched on that queue.
+    private final class Reader: @unchecked Sendable {
+        private let queue = DispatchQueue(label: "dev.lepee.hwyd.microphones", qos: .utility)
+        private var watch: DeviceWatch?
+        private var pending: DispatchWorkItem?
+
+        func start(_ deliver: @escaping @Sendable (MicrophoneList) -> Void) {
+            queue.async { [weak self] in
+                guard let self else { return }
+                watch = HAL.watchDevices(on: queue) { [weak self] in self?.schedule(deliver) }
+                deliver(HAL.microphones())
+            }
+        }
+        private func schedule(_ deliver: @escaping @Sendable (MicrophoneList) -> Void) {
+            pending?.cancel()
+            let read = DispatchWorkItem { deliver(HAL.microphones()) }
+            pending = read
+            queue.asyncAfter(deadline: .now() + .milliseconds(250), execute: read)
+        }
+    }
 }
