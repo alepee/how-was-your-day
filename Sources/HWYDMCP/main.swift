@@ -48,7 +48,7 @@ actor MCPService {
     func setHandoff(_ value: SummaryHandoff?) { handoff = value }
     func metadata(_ r: Recording) -> [String: Any] {
         ["id": r.id.uuidString, "source": "hwyd://session/" + r.id.uuidString.lowercased(), "revision": r.revision, "title": r.title, "kind": r.kind.rawValue, "started_at": r.startedAt.ISO8601Format(), "duration_us": Int64(r.duration * 1e6), "status": r.state == .recording ? "capturing" : r.transcriptState == .ready ? "complete" : "partial", "echo_cancellation_engine": nullable(r.transcription?.echoCancellationEngine), "echo_assessed_segments": r.segments.filter { $0.echoSuspect != nil }.count, "echo_suspect_segments": r.segments.filter { $0.echoSuspect == true }.count, "participants": r.participants.map { ["id": ($0.personID ?? $0.id).uuidString, "name": $0.label, "alias": NSNull(), "status": "named"] as [String: Any] },
-         "capture_boundaries": (r.boundaries ?? []).map(SessionExporter.captureBoundary)]
+         "capture_boundaries": (r.boundaries ?? []).map(SessionExporter.captureBoundary), "microphone": nullable(r.microphone)]
     }
     func cursor(_ method: String, _ hash: String, _ seq: Int, _ offset: Int) throws -> String {
         let data = try JSONEncoder().encode(Cursor(method: method, filter: hash, sequence: seq, offset: offset, expires: Date().timeIntervalSince1970 + 900))

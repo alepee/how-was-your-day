@@ -28,7 +28,7 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
 
 `RecordingMetadata` est la projection MCP stable de l'enregistrement. `get_recording` renvoie les artefacts en Markdown, ou le transcript structuré avec `format: structured`. Les numéros de version et les volumes sont explicites. Aucun score ASR n’est inventé : `confidence` vaut `null` lorsqu’il n’est pas disponible.
 
-`capture_boundaries` lists where the capture changed on the session timeline, oldest first, empty when it never did: `offset_us`, `at` (wall clock), `reason` and `microphone` (input device used from there on, or `null`). Only `resumed` (recording resumed after the session had ended) is produced today; `user`, `accepted` and `forced` are reserved for microphone changes during a recording. In Markdown, the transcript carries a `**[HH:MM:SS] Reprise à HH:MM**` line before the first passage after each resume.
+`capture_boundaries` lists where the capture changed on the session timeline, oldest first, empty when it never did: `offset_us`, `at` (wall clock), `reason` and `microphone` (input device used from there on, or `null`). `resumed`: recording resumed after the session had ended; `user`: the user chose another microphone; `accepted`: the user accepted the microphone the system proposed; `forced`: the microphone in use disappeared and the system default input took over. `microphone` (top level) names the microphone the session started on, or `null` for sessions recorded before it was stored. Only `resumed` boundaries show a marker in the transcript. In Markdown, the transcript carries a `**[HH:MM:SS] Reprise à HH:MM**` line before the first passage after each resume.
 
 ```json
 {
@@ -151,6 +151,9 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
             "required": ["offset_us", "at", "reason", "microphone"],
             "additionalProperties": false
           }
+        },
+        "microphone": {
+          "type": ["string", "null"]
         }
       },
       "required": [
@@ -166,7 +169,8 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
         "echo_assessed_segments",
         "echo_suspect_segments",
         "source",
-        "capture_boundaries"
+        "capture_boundaries",
+        "microphone"
       ],
       "additionalProperties": false
     },
