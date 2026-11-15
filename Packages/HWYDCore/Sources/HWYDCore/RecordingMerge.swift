@@ -41,7 +41,7 @@ extension Recording {
         take(.calendar, \.calendarContext) { $0.calendarContext = $1.calendarContext }
         take(.capture, CaptureParts.init) {
             $0.state = $1.state; $0.duration = $1.duration; $0.audioChunks = $1.audioChunks
-            $0.endedAt = $1.endedAt; $0.boundaries = $1.boundaries
+            $0.endedAt = $1.endedAt; $0.boundaries = $1.boundaries; $0.microphone = $1.microphone
         }
         take(.transcript, TranscriptParts.init) {
             $0.speakers = $1.speakers; $0.absorbedSpeakers = $1.absorbedSpeakers; $0.segments = $1.segments
@@ -64,9 +64,10 @@ extension Recording {
 }
 
 private struct CaptureParts: Equatable {
-    var state: CaptureState, duration: Double, chunks: [AudioChunk], endedAt: Date?, boundaries: [CaptureBoundary]?
+    var state: CaptureState, duration: Double, chunks: [AudioChunk], endedAt: Date?, boundaries: [CaptureBoundary]?, microphone: String?
     init(_ item: Recording) {
         state = item.state; duration = item.duration; chunks = item.audioChunks; endedAt = item.endedAt; boundaries = item.boundaries
+        microphone = item.microphone
     }
 }
 private struct SummaryParts: Equatable { var text: String?; var provenance: SummaryProvenance? }

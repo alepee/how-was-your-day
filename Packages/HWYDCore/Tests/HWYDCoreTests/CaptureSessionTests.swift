@@ -8,8 +8,10 @@ private actor UnresumableCapture: AudioCapture {
     nonisolated let events: AsyncStream<CaptureEvent>
     private let continuation: AsyncStream<CaptureEvent>.Continuation
     init() { (events, continuation) = AsyncStream.makeStream(of: CaptureEvent.self) }
-    func start(session id: UUID, continuing continuation: CaptureContinuation) async throws {}
-    nonisolated let microphone: String? = nil
+    func start(session id: UUID, continuing continuation: CaptureContinuation, microphone: String?) async throws {}
+    nonisolated let microphone: MicrophoneDevice? = nil
+    nonisolated let microphones = MicrophoneList()
+    func switchMicrophone(to uid: String, reason: MicrophoneSwitchReason) async throws {}
     func pause() async {}
     func resume() async throws { throw Failure() }
     func stop() async -> CapturedAudio { continuation.finish(); return CapturedAudio() }
@@ -178,7 +180,7 @@ final class CaptureSessionTests: XCTestCase {
         let idStarted = try await capture.start(CaptureRequest(), with: device, in: library)
         let id = try XCTUnwrap(idStarted)
         time += 3
-        let fault = CaptureFault(.routeChanged, message: "route")
+        let fault = CaptureFault(.stalled, message: "route")
         device.emit(.failed(fault))
         await waitUntil { capture.phase == .idle && !transcriptions.isEmpty }
         XCTAssertEqual(endings.map(\.cause), [.failed(fault)])
@@ -230,5 +232,237 @@ final class CaptureSessionTests: XCTestCase {
         XCTAssertTrue(stopped); XCTAssertEqual(capture.phase, .idle)
         XCTAssertEqual(library.recording(id)?.state, .recording)
         XCTAssertTrue(notifier.notices.isEmpty)
+    }
+}
+
+/// The microphone is a choice: offers, switches, a microphone that disappears.
+@MainActor
+final class CaptureMicrophoneTests: XCTestCase {
+    private var time: TimeInterval = 100
+    private var wall = Date(timeIntervalSince1970: 1_800_000_000)
+    private var transcriptions: [UUID] = []
+    private let notifier = RecordingNotifier()
+    private let settings = InMemorySettings()
+    private let builtIn = MicrophoneDevice(uid: "builtin", name: "Micro du Mac", transport: .builtIn)
+    private let usb = MicrophoneDevice(uid: "usb", name: "Yeti", transport: .usb)
+    private let airpods = MicrophoneDevice(uid: "airpods", name: "AirPods", transport: .bluetooth)
+    private let chunk = AudioChunk(source: .mic, relativePath: "audio/x/mic-000000.caf", start: 0, duration: 5)
+
+    private func session() -> CaptureSession {
+        CaptureSession(notifier: notifier, transcribe: { [unowned self] id in transcriptions.append(id); return .accepted },
+                       now: { [unowned self] in time }, date: { [unowned self] in wall }, settings: { [unowned self] in settings })
+    }
+    private func device(_ devices: [MicrophoneDevice]? = nil, gap: TimeInterval = 0) -> SimulatedCapture {
+        SimulatedCapture(animatesLevels: false, simulated: false, audio: CapturedAudio(chunks: [chunk]),
+                         microphones: MicrophoneList(devices: devices ?? [builtIn, usb], defaultInput: "builtin"), switchGap: gap)
+    }
+    private func waitUntil(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async {
+        for _ in 0..<1000 where !condition() { try? await Task.sleep(for: .milliseconds(1)) }
+        XCTAssertTrue(condition(), "condition not met in time", file: file, line: line)
+    }
+    private func start(_ capture: CaptureSession, _ device: SimulatedCapture, in library: SessionLibrary, microphone: String? = nil) async throws -> UUID {
+        let id = try await capture.start(CaptureRequest(microphone: microphone), with: device, in: library)
+        return try XCTUnwrap(id)
+    }
+
+    func testStartsOnTheChosenMicrophoneAndRemembersIt() async throws {
+        let capture = session(), library = SessionLibrary(volatile: []), device = device()
+        let id = try await start(capture, device, in: library, microphone: "usb")
+        let recorded = await device.microphoneUID
+        XCTAssertEqual(recorded, "usb")
+        XCTAssertEqual(capture.microphone, usb); XCTAssertEqual(capture.microphones.devices, [builtIn, usb])
+        XCTAssertEqual(settings.value(.microphone), "usb")
+        XCTAssertEqual(library.recording(id)?.microphone, "Yeti")
+        XCTAssertNil(library.recording(id)?.boundaries, "the first microphone is no boundary")
+    }
+
+    func testTheSystemDefaultInputIsUsedWithoutAChoiceAndNotRemembered() async throws {
+        let capture = session(), library = SessionLibrary(volatile: []), device = device()
+        let id = try await start(capture, device, in: library)
+        XCTAssertEqual(capture.microphone, builtIn)
+        XCTAssertNil(settings.value(.microphone))
+        XCTAssertEqual(library.recording(id)?.microphone, "Micro du Mac")
+    }
+
+    func testRememberedMicrophoneFallsBackToTheDefaultInputWhenAbsent() {
+        let list = MicrophoneList(devices: [builtIn, usb], defaultInput: "builtin")
+        XCTAssertEqual(list.choice(remembered: "usb"), "usb")
+        XCTAssertNil(list.choice(remembered: "airpods"), "absent: the system default input")
+        XCTAssertNil(list.choice(remembered: nil))
+    }
+
+    func testANewDefaultInputIsOnlyOffered() async throws {
+        let capture = session(), library = SessionLibrary(volatile: []), device = device()
+        let id = try await start(capture, device, in: library)
+        await device.offer(airpods)
+        await waitUntil { capture.offer != nil }
+        XCTAssertEqual(capture.offer?.device, airpods); XCTAssertEqual(capture.offer?.current, "Micro du Mac")
+        // No answer: nothing changes.
+        time += 30
+        let switches = await device.switches
+        XCTAssertTrue(switches.isEmpty)
+        XCTAssertEqual(capture.microphone, builtIn); XCTAssertNil(library.recording(id)?.boundaries)
+        XCTAssertEqual(capture.phase, .recording(id))
+    }
+
+    func testAcceptingTheOfferSwitchesAndRecordsABoundary() async throws {
+        let capture = session(), library = SessionLibrary(volatile: []), device = device()
+        let id = try await start(capture, device, in: library)
+        time += 12
+        await device.offer(airpods)
+        await waitUntil { capture.offer != nil }
+        await capture.acceptOffer()
+        await waitUntil { capture.microphone == airpods }
+        let switches = await device.switches
+        XCTAssertEqual(switches.map(\.uid), ["airpods"]); XCTAssertEqual(switches.map(\.reason), [.accepted])
+        XCTAssertNil(capture.offer)
+        XCTAssertEqual(library.recording(id)?.boundaries, [CaptureBoundary(offset: 12, at: wall, reason: .accepted, microphone: "AirPods")])
+        XCTAssertEqual(settings.value(.microphone), "airpods")
+    }
+
+    func testDecliningKeepsTheMicrophone() async throws {
+        let capture = session(), library = SessionLibrary(volatile: []), device = device()
+        let id = try await start(capture, device, in: library)
+        await device.offer(airpods)
+        await waitUntil { capture.offer != nil }
+        capture.declineOffer()
+        XCTAssertNil(capture.offer)
+        await capture.acceptOffer()
+        let switches = await device.switches
+        XCTAssertTrue(switches.isEmpty, "nothing left to accept")
+        XCTAssertEqual(capture.microphone, builtIn); XCTAssertNil(library.recording(id)?.boundaries)
+        XCTAssertNil(settings.value(.microphone))
+    }
+
+    func testANewerChangeReplacesThePendingOffer() async throws {
+        let capture = session(), library = SessionLibrary(volatile: []), device = device()
+        _ = try await start(capture, device, in: library)
+        await device.offer(airpods)
+        await waitUntil { capture.offer?.device == airpods }
+        let first = try XCTUnwrap(capture.offer?.id)
+        await device.offer(usb)
+        await waitUntil { capture.offer?.device == usb }
+        XCTAssertNotEqual(capture.offer?.id, first)
+        // The system goes back to the microphone in use: nothing left to offer.
+        await device.offer(builtIn)
+        await waitUntil { capture.offer == nil }
+    }
+
+    func testAnOfferWhoseDeviceLeavesIsWithdrawn() async throws {
+        let capture = session(), library = SessionLibrary(volatile: []), device = device()
+        _ = try await start(capture, device, in: library)
+        await device.offer(airpods)
+        await waitUntil { capture.offer != nil }
+        await device.remove("airpods")
+        await waitUntil { capture.offer == nil }
+        XCTAssertEqual(capture.microphone, builtIn)
+    }
+
+    func testChoosingAnotherMicrophoneSwitchesAtOnce() async throws {
+        let capture = session(), library = SessionLibrary(volatile: []), device = device()
+        let id = try await start(capture, device, in: library)
+        time += 4
+        await capture.chooseMicrophone("usb")
+        await waitUntil { capture.microphone == usb }
+        let switches = await device.switches
+        XCTAssertEqual(switches.map(\.reason), [.user])
+        XCTAssertEqual(library.recording(id)?.boundaries, [CaptureBoundary(offset: 4, at: wall, reason: .user, microphone: "Yeti")])
+        XCTAssertEqual(settings.value(.microphone), "usb")
+        await capture.chooseMicrophone("usb")
+        let again = await device.switches
+        XCTAssertEqual(again.count, 1, "already in use")
+    }
+
+    func testAFailedChoiceKeepsTheMicrophoneAndSaysSo() async throws {
+        let capture = session(), library = SessionLibrary(volatile: []), device = device()
+        let id = try await start(capture, device, in: library)
+        await device.failSwitches(to: "usb")
+        await capture.chooseMicrophone("usb")
+        XCTAssertEqual(capture.microphone, builtIn); XCTAssertNil(library.recording(id)?.boundaries)
+        XCTAssertEqual(notifier.notices.last?.style, .error)
+        XCTAssertEqual(capture.phase, .recording(id))
+    }
+
+    func testAMicrophoneThatDisappearsGivesWayToTheDefaultInputAndTheUserIsTold() async throws {
+        let capture = session(), library = SessionLibrary(volatile: []), device = device()
+        var forced: [(MicrophoneDevice, MicrophoneDevice)] = []
+        capture.onForcedSwitch = { forced.append(($0, $1)) }
+        let id = try await start(capture, device, in: library, microphone: "usb")
+        time += 20
+        await device.remove("usb")
+        await waitUntil { capture.microphone == builtIn }
+        let switches = await device.switches
+        XCTAssertEqual(switches.map(\.uid), ["builtin"]); XCTAssertEqual(switches.map(\.reason), [.forced])
+        XCTAssertEqual(library.recording(id)?.boundaries, [CaptureBoundary(offset: 20, at: wall, reason: .forced, microphone: "Micro du Mac")])
+        await waitUntil { !forced.isEmpty }
+        XCTAssertEqual(forced.map(\.0), [usb]); XCTAssertEqual(forced.map(\.1), [builtIn])
+        XCTAssertEqual(notifier.messages.last, String(localized: "Le micro Yeti n’est plus disponible. L’enregistrement continue sur Micro du Mac.", bundle: .hwyd))
+        XCTAssertEqual(settings.value(.microphone), "usb", "a forced switch is no choice")
+        XCTAssertEqual(capture.phase, .recording(id))
+    }
+
+    func testNoMicrophoneLeftInterruptsTheSessionAndKeepsItsAudio() async throws {
+        let capture = session(), library = SessionLibrary(volatile: []), device = device([builtIn])
+        var endings: [CaptureEnding] = []
+        capture.onEnd = { endings.append($0) }
+        let id = try await start(capture, device, in: library)
+        time += 7
+        await device.remove("builtin")
+        await waitUntil { capture.phase == .idle }
+        guard case .failed(let fault) = endings.first?.cause else { return XCTFail("the session stops on a fault") }
+        XCTAssertEqual(fault.kind, .noMicrophone)
+        let item = try XCTUnwrap(library.recording(id))
+        XCTAssertEqual(item.state, .interrupted); XCTAssertEqual(item.audioChunks, [chunk])
+        XCTAssertEqual(item.duration, 7, accuracy: 1e-9, "the clock froze when the microphone left")
+        await waitUntil { transcriptions == [id] }
+        XCTAssertNil(SessionResume.refusal(for: item, now: wall, captureIdle: true), "it can be resumed")
+    }
+
+    func testTheClockSkipsTheSwitchAndBoundariesFollowTheTimeline() async throws {
+        let capture = session(), library = SessionLibrary(volatile: []), device = device(gap: 0.8)
+        let id = try await start(capture, device, in: library)
+        time += 10
+        await capture.chooseMicrophone("usb")
+        await waitUntil { capture.microphone == usb }
+        // The rebuild took 0.8 s that the clock had not counted yet: the clock skips them.
+        XCTAssertEqual(capture.elapsed, 10 - 0.8, accuracy: 1e-9)
+        time += 5.8
+        await capture.pause()
+        time += 30
+        await capture.chooseMicrophone("builtin")
+        await waitUntil { capture.microphone == builtIn }
+        XCTAssertEqual(capture.elapsed, 15, accuracy: 1e-9, "a switch while paused leaves the paused clock alone")
+        await capture.resume()
+        time += 5
+        await capture.stop()
+        let item = try XCTUnwrap(library.recording(id))
+        XCTAssertEqual(item.boundaries?.map(\.reason), [.user, .user])
+        let offsets = item.boundaries?.map(\.offset) ?? []
+        XCTAssertEqual(offsets.count, 2)
+        for (offset, expected) in zip(offsets, [10.0, 15]) { XCTAssertEqual(offset, expected, accuracy: 1e-9) }
+        XCTAssertEqual(item.duration, 20, accuracy: 1e-9)
+        // The echo canceller starts again at each switch, as at a resume.
+        let locales = SpeechLocales(installed: ["fr-FR"], supported: ["fr-FR"])
+        XCTAssertEqual(TranscriptionRequest(session: item, diarize: false, locales: locales).echoResets, offsets)
+        // No marker in the transcript for a microphone change.
+        XCTAssertTrue(SessionResume.markers(item.boundaries, before: [TranscriptSegment(start: 16, end: 17, speakerID: nil, source: .mic, text: "x")]).isEmpty)
+    }
+
+    func testResumingRecordsOnTheGivenMicrophone() async throws {
+        let capture = session(), device = device()
+        var item = Recording(title: "Point", duration: 5, state: .sealed)
+        item.audioChunks = [chunk]; item.endedAt = wall.addingTimeInterval(-60); item.microphone = "Micro du Mac"
+        let library = SessionLibrary(volatile: [item])
+        let started = try await capture.continueRecording(item.id, with: device, in: library, microphone: "usb")
+        XCTAssertTrue(started)
+        XCTAssertEqual(library.recording(item.id)?.boundaries?.last?.microphone, "Yeti")
+        XCTAssertEqual(library.recording(item.id)?.microphone, "Micro du Mac", "the first microphone stays")
+    }
+
+    func testExportsNameTheFirstMicrophoneOnlyWhenKnown() throws {
+        var item = Recording(title: "Point", duration: 5)
+        XCTAssertNil(try SessionExporter.document(item)["microphone"])
+        item.microphone = "Yeti"
+        XCTAssertEqual(try SessionExporter.document(item)["microphone"] as? String, "Yeti")
     }
 }
