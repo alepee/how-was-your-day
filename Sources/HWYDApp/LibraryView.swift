@@ -51,10 +51,29 @@ struct LibraryView: View {
     private func section(_ title: String, items: [Recording]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack { Eyebrow(text: title); Spacer(); Text("\(items.count) session(s)").font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted) }.padding(.bottom, 3)
-            ForEach(items) { item in SessionRow(recording: item).onTapGesture { model.select(item) }.contextMenu {
-                Button("Ouvrir") { model.select(item) }
-                if item.id != model.activeCaptureID { Button("Supprimer…", role: .destructive) { model.deleteCandidate = item } }
-            } }
+            ForEach(items) { item in SessionRow(recording: item).onTapGesture { model.select(item) }.contextMenu { SessionContextMenu(item: item) } }
+        }
+    }
+}
+/// Right-click actions on a session, shared by the library and the sidebar.
+struct SessionContextMenu: View {
+    @EnvironmentObject var model: AppModel
+    let item: Recording
+    var body: some View {
+        Button("Ouvrir") { model.select(item) }
+        if !item.isDemo, item.id != model.activeCaptureID {
+            if model.summaryID == item.id || model.work.isQueued(.summary(session: item.id)) {
+                Button("Annuler la synthèse") { model.cancelSummary(of: item.id) }
+            } else {
+                Button(item.summary == nil ? "Générer une synthèse" : "Régénérer la synthèse") { model.generateSummary(item.id) }
+                    .disabled(!model.summaryAvailability.isReady || item.segments.isEmpty)
+            }
+        }
+        if item.id != model.activeCaptureID {
+            Divider()
+            // Work running or waiting on the session blocks its deletion.
+            Button("Supprimer…", role: .destructive) { model.deleteCandidate = item }
+                .disabled(!model.work.jobs(for: item.id).isEmpty)
         }
     }
 }
