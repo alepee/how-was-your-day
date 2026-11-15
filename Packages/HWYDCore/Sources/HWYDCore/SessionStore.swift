@@ -144,8 +144,8 @@ public actor SessionStore: RecordingRepository {
         let interrupted = try all().filter { $0.state == .recording }
         for var item in interrupted {
             item.state = .interrupted
-            item.audioChunks = try AudioRecovery.recover(in: directory, recordingID: item.id)
-            item.duration = item.audioChunks.map { $0.start + $0.duration }.max() ?? item.duration
+            item.audioChunks = AudioRecovery.merge(stored: item.audioChunks, recovered: try AudioRecovery.recover(in: directory, recordingID: item.id))
+            item.duration = max(item.duration, item.audioChunks.map { $0.start + $0.duration }.max() ?? 0)
             _ = try save(item)
         }
         return interrupted.count

@@ -19,6 +19,7 @@ extension TranscriptionRequest {
                 preferredLanguages: [String] = Locale.preferredLanguages) {
         self.init(recordingID: session.id, locale: language ?? session.speechLanguage ?? SpeechLanguage.defaultLocale,
                   chunks: session.audioChunks, diarize: diarize)
+        echoResets = session.boundaries.map { $0.map(\.offset) }
         self = resolvingLanguages(locales, preferredLanguages: preferredLanguages)
     }
 }

@@ -3,6 +3,14 @@ import Foundation
 
 /// Called only while the store's capture lock is held. Original partial files remain untouched.
 public enum AudioRecovery {
+    /// The audio of a session found recording after a crash: the chunks it already held (a
+    /// resumed session holds those of its earlier captures) and those recovered from its folder,
+    /// in timeline order. A file both list keeps the stored chunk and its id.
+    public static func merge(stored: [AudioChunk], recovered: [AudioChunk]) -> [AudioChunk] {
+        let known = Set(stored.map(\.relativePath))
+        return (stored + recovered.filter { !known.contains($0.relativePath) })
+            .sorted { $0.start == $1.start ? $0.source.rawValue < $1.source.rawValue : $0.start < $1.start }
+    }
     public static func recover(in root: URL, recordingID: UUID) throws -> [AudioChunk] {
         let relative = DataDirectoryAudio.relativeFolder(for: recordingID)
         let directory = root.appendingPathComponent(relative)

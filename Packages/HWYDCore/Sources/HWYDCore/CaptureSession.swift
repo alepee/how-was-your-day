@@ -76,6 +76,9 @@ public struct CaptureEnding: Equatable, Sendable {
 ///
 /// After a capture with audio, the session's transcription is requested at once and waits its
 /// turn behind other work. A simulation is never transcribed.
+///
+/// Recording can also continue in a session that ended (`continueRecording`): the new audio and
+/// the clock follow what the session already holds, and the resume is recorded in it.
 @MainActor
 public final class CaptureSession: ObservableObject {
     @Published public private(set) var phase: CapturePhase = .idle
@@ -87,6 +90,7 @@ public final class CaptureSession: ObservableObject {
     private let notifier: any UserNotifier
     private let transcribe: @MainActor (UUID) async -> WorkDecision
     private let now: @MainActor () -> TimeInterval
+    private let date: @MainActor () -> Date
     private var capture: (any AudioCapture)?
     private var library: SessionLibrary?
     private var listener: Task<Void, Never>?
@@ -97,9 +101,11 @@ public final class CaptureSession: ObservableObject {
     /// - Parameters:
     ///   - transcribe: requests a session's transcription; the decision says whether it starts or waits.
     ///   - now: a monotonic time in seconds.
+    ///   - date: the wall-clock time, recorded when a capture resumes or stops.
     public init(notifier: any UserNotifier, transcribe: @escaping @MainActor (UUID) async -> WorkDecision,
-                now: @escaping @MainActor () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
-        self.notifier = notifier; self.transcribe = transcribe; self.now = now
+                now: @escaping @MainActor () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+                date: @escaping @MainActor () -> Date = { Date() }) {
+        self.notifier = notifier; self.transcribe = transcribe; self.now = now; self.date = date
     }
 
     public var sessionID: UUID? { phase.sessionID }
@@ -116,19 +122,54 @@ public final class CaptureSession: ObservableObject {
         phase = .starting
         let id = UUID()
         let title = request.sessionTitle(startingAt: Date())
-        do { try await capture.start(session: id) } catch { phase = .idle; throw error }
-        self.capture = capture; self.library = library
+        do { try await capture.start(session: id, continuing: .start) } catch { phase = .idle; throw error }
         var item = Recording(id: id, title: title, kind: request.sessionKind, state: .recording, isDemo: capture.isSimulated)
         if !capture.isSimulated { item.calendarContext = request.meeting; item.speechLanguage = request.language ?? SpeechLanguage.automatic }
         library.insert(item)
-        clock = SessionClock(); clock.run(at: now()); restartFrozenAt = nil
+        await begin(id, capture: capture, in: library, at: 0)
+        return id
+    }
+
+    /// Resumes recording in `id`, a session that ended, whether stopped or interrupted. The new
+    /// chunks follow the earlier audio on the session's timeline and are numbered after its files;
+    /// the clock starts at the session's recorded time, so new notes follow the earlier ones. The
+    /// session records a `resumed` boundary (`Recording.boundaries`) with the microphone the capture
+    /// names; title, kind, calendar and language stay.
+    ///
+    /// Returns false when a capture already runs or starts. Throws `ResumeRefusal` when the session
+    /// cannot be resumed (`SessionResume.refusal`; work on the session is the caller's to check),
+    /// or the capture's error when it cannot start: the session is unchanged then.
+    @discardableResult
+    public func continueRecording(_ id: UUID, with capture: any AudioCapture, in library: SessionLibrary) async throws -> Bool {
+        guard phase == .idle else { return false }
+        guard let item = library.recording(id) else { throw StoreError.notFound }
+        // A simulation never records into a session: its audio does not exist.
+        if capture.isSimulated { throw ResumeRefusal.example }
+        if let refusal = SessionResume.refusal(for: item, now: date(), captureIdle: true) { throw refusal }
+        phase = .starting
+        let continuation = CaptureContinuation(after: item)
+        do { try await capture.start(session: id, continuing: continuation) } catch { phase = .idle; throw error }
+        // Deleted while the devices started: nothing to record into.
+        guard library.recording(id) != nil else {
+            _ = await capture.stop(); phase = .idle
+            throw StoreError.notFound
+        }
+        let boundary = CaptureBoundary(offset: continuation.offset, at: date(), reason: .resumed, microphone: await capture.microphone)
+        library.edit(id) { $0.state = .recording; $0.boundaries = ($0.boundaries ?? []) + [boundary] }
+        await begin(id, capture: capture, in: library, at: continuation.offset)
+        return true
+    }
+
+    /// The capture of `id` runs: the clock starts at `offset`, events are heard, the session is saved.
+    private func begin(_ id: UUID, capture: any AudioCapture, in library: SessionLibrary, at offset: TimeInterval) async {
+        self.capture = capture; self.library = library
+        clock = SessionClock(); clock.shift(by: offset); clock.run(at: now()); restartFrozenAt = nil
         phase = .recording(id)
         let events = capture.events
         listener = Task { [weak self] in
             for await event in events { self?.handle(event, session: id) }
         }
         if !capture.isSimulated { await library.flush() }
-        return id
     }
 
     /// Stops the devices; the clock and the audio timeline skip the pause. A restart in progress
@@ -152,8 +193,9 @@ public final class CaptureSession: ObservableObject {
     }
 
     /// Ends the capture: the session is sealed, or interrupted after a fault, with the audio
-    /// recorded so far. Then its transcription is requested, unless it holds no audio or is a
-    /// simulation. Returns nil when no capture runs or it is already stopping.
+    /// recorded so far added to what it held, and the time it ended. Then its transcription is
+    /// requested, unless it holds no audio or is a simulation. Returns nil when no capture runs or
+    /// it is already stopping.
     @discardableResult
     public func stop(_ cause: CaptureStop = .requested) async -> CaptureEnding? {
         guard let id = phase.sessionID, phase != .stopping(id), let capture, let library else { return nil }
@@ -164,7 +206,13 @@ public final class CaptureSession: ObservableObject {
         let audio = await capture.stop()
         self.capture = nil; self.library = nil
         let interrupted = audio.finalizationError != nil || { if case .failed = cause { true } else { false } }()
-        library.edit(id) { $0.duration = duration; $0.state = interrupted ? .interrupted : .sealed; $0.audioChunks = audio.chunks }
+        let endedAt = date()
+        library.edit(id) {
+            $0.duration = duration; $0.state = interrupted ? .interrupted : .sealed; $0.endedAt = endedAt
+            // A resumed session keeps its earlier audio.
+            $0.audioChunks += audio.chunks
+        }
+        let hasAudio = !(library.recording(id)?.audioChunks ?? audio.chunks).isEmpty
         phase = .idle
         clock = SessionClock()
         if let error = audio.finalizationError { notifier.notify(.error(error)) }
@@ -173,7 +221,8 @@ public final class CaptureSession: ObservableObject {
         if case .failed(let fault) = cause { notifier.notify(.error(fault.message)) }
         let ending = CaptureEnding(sessionID: id, cause: cause, finalizationError: audio.finalizationError)
         onEnd?(ending)
-        if !capture.isSimulated, !audio.chunks.isEmpty {
+        // A resumed session is transcribed again as a whole, even when this capture received nothing.
+        if !capture.isSimulated, hasAudio {
             // Waits its turn behind other work; the window may be closed, so say which.
             switch await transcribe(id) {
             case .accepted: notifier.notify(.info(String(localized: "Audio et notes conservés. La transcription locale va démarrer.", bundle: .hwyd)))

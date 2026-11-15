@@ -65,8 +65,7 @@ import Foundation
 
     private func eligible(_ item: Recording) -> Bool {
         guard let since = enabledSince else { return false }
-        let ended = item.startedAt.addingTimeInterval(item.duration)
-        return ended >= since && item.isReadyForSummary && requested[item.id] != item.transcriptVersion
+        return item.endDate >= since && item.isReadyForSummary && requested[item.id] != item.transcriptVersion
     }
 
     private func consider(_ item: Recording) {

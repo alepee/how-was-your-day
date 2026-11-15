@@ -66,6 +66,31 @@ public struct AudioChunk: Codable, Identifiable, Equatable, Sendable {
         self.id = id; self.source = source; self.relativePath = relativePath; self.start = start; self.duration = duration
     }
 }
+/// Why the capture changed at a boundary.
+public enum CaptureBoundaryReason: String, Codable, Sendable {
+    /// Recording resumed in a session that had ended.
+    case resumed
+    /// Reserved for changing the microphone during a recording: the user chose another one.
+    case user
+    /// Reserved: the user accepted a microphone the system proposed.
+    case accepted
+    /// Reserved: the microphone changed without a choice (device removed).
+    case forced
+}
+/// A point of the session's timeline where the capture changed: recording resumed, or (reserved)
+/// another microphone took over. The acoustic path may differ on each side.
+public struct CaptureBoundary: Codable, Equatable, Sendable {
+    /// Recorded seconds on the session's timeline where the new audio starts.
+    public var offset: Double
+    /// Wall-clock time of the boundary.
+    public var at: Date
+    public var reason: CaptureBoundaryReason
+    /// Name of the input device used from this boundary on, when the capture could tell.
+    public var microphone: String?
+    public init(offset: Double, at: Date, reason: CaptureBoundaryReason, microphone: String? = nil) {
+        self.offset = offset; self.at = at; self.reason = reason; self.microphone = microphone
+    }
+}
 public struct Recording: Codable, Identifiable, Equatable, Sendable {
     public var id: UUID
     public var title: String
@@ -94,6 +119,11 @@ public struct Recording: Codable, Identifiable, Equatable, Sendable {
     /// Transcription language requested for this session: a locale or `SpeechLanguage.automatic`.
     /// Absent in sessions recorded before 0.11.0, which were transcribed in French.
     public var speechLanguage: String?
+    /// Wall-clock time the last capture of the session stopped. Absent in sessions that ended before this field existed.
+    public var endedAt: Date?
+    /// Where the capture changed on the session's timeline (recording resumed), oldest first.
+    /// Nil when it never did.
+    public var boundaries: [CaptureBoundary]?
     public init(id: UUID = UUID(), title: String, kind: SessionKind = .adHoc, startedAt: Date = Date(), duration: Double = 0,
                 state: CaptureState = .sealed, notes: String = "", noteEntries: [NoteEntry] = [], speakers: [Speaker] = [],
                 segments: [TranscriptSegment] = [], summary: String? = nil, isDemo: Bool = false) {
@@ -103,6 +133,9 @@ public struct Recording: Codable, Identifiable, Equatable, Sendable {
         self.summary = summary; self.transcriptState = segments.isEmpty ? .unavailable : .ready
         self.audioChunks = []; self.consentAnnounced = false; self.isDemo = isDemo
     }
+    /// When the session ended: the stop of its last capture, else its start plus its recorded
+    /// duration, which leaves pauses out and can be earlier than the real end.
+    public var endDate: Date { endedAt ?? startedAt.addingTimeInterval(duration) }
     /// One representative per confirmed person, while preserving all acoustic clusters.
     /// Unlinked names remain distinct: equal labels do not prove equal identity.
     public var participants: [Speaker] {
