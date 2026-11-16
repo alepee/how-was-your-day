@@ -93,9 +93,12 @@ public struct SummarizerEnvironment: Sendable {
     public var mcpExecutable: URL
     /// Reads the API key of a hosted provider. Called only when a summary runs.
     public var apiKey: @Sendable (SummaryService) throws -> String?
+    /// Language summaries are written in: the user's language preference.
+    public var language: SummaryLanguage
 
-    public init(dataDirectory: URL, mcpExecutable: URL, apiKey: @escaping @Sendable (SummaryService) throws -> String?) {
-        self.dataDirectory = dataDirectory; self.mcpExecutable = mcpExecutable; self.apiKey = apiKey
+    public init(dataDirectory: URL, mcpExecutable: URL, language: SummaryLanguage = .current,
+                apiKey: @escaping @Sendable (SummaryService) throws -> String?) {
+        self.dataDirectory = dataDirectory; self.mcpExecutable = mcpExecutable; self.language = language; self.apiKey = apiKey
     }
 
     func cacheDirectory(for recording: Recording) -> URL {
@@ -163,7 +166,8 @@ public struct LocalSummarizer: Summarizer {
 
     public func summarize(_ recording: Recording, progress: @escaping @Sendable (SummaryProgress) async -> Void) async throws -> SummaryProvenance {
         guard let url else { throw SummaryUnavailability.localServerNotConfigured }
-        let provider = try LocalLLMProvider(endpoint: url, model: model, reasoningEffort: reasoningDisabled ? "none" : nil)
+        let provider = try LocalLLMProvider(endpoint: url, model: model, reasoningEffort: reasoningDisabled ? "none" : nil,
+                                            outputLanguage: environment.language)
         return try await SummaryPipeline.run(recording, provider: provider, model: model,
             inputCharacterLimit: inputCharacterLimit,
             cacheDirectory: environment.cacheDirectory(for: recording), reuseCache: recording.summary == nil,
@@ -199,7 +203,7 @@ public struct HostedSummarizer: Summarizer {
     public func summarize(_ recording: Recording, progress: @escaping @Sendable (SummaryProgress) async -> Void) async throws -> SummaryProvenance {
         try requireReady()
         guard let key = try environment.apiKey(service), !key.isEmpty else { throw SummaryUnavailability.apiKeyMissing(service) }
-        let provider = try RemoteLLMProvider(service: service, model: model, apiKey: key)
+        let provider = try RemoteLLMProvider(service: service, model: model, apiKey: key, outputLanguage: environment.language)
         return try await SummaryPipeline.run(recording, provider: provider, model: provider.model,
             inputCharacterLimit: provider.requestCharacterCeiling,
             cacheDirectory: environment.cacheDirectory(for: recording), reuseCache: recording.summary == nil,
@@ -229,6 +233,6 @@ public struct AgentSummarizer: Summarizer {
     public func summarize(_ recording: Recording, progress: @escaping @Sendable (SummaryProgress) async -> Void) async throws -> SummaryProvenance {
         try requireReady()
         return try await ACPSummaryAgent.run(recording, command: command, workingDirectory: workingDirectory,
-            mcpExecutable: environment.mcpExecutable, storeDirectory: environment.dataDirectory, progress: progress)
+            mcpExecutable: environment.mcpExecutable, storeDirectory: environment.dataDirectory, language: environment.language, progress: progress)
     }
 }

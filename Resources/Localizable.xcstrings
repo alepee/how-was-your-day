@@ -4973,6 +4973,54 @@
         }
       }
     },
+    "Langue de HWYD": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HWYD language"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Langue de HWYD"
+          }
+        }
+      }
+    },
+    "Langue de l’interface et de ce que HWYD rédige : synthèses et leurs exports, noms donnés aux nouvelles voix. Les synthèses déjà rédigées gardent leur langue. La langue de transcription reste celle de chaque session. S’applique au prochain lancement.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Language of the interface and of what HWYD writes: summaries and their exports, names given to new voices. Summaries already written keep their language. The transcription language stays that of each session. Applies at the next launch."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Langue de l’interface et de ce que HWYD rédige : synthèses et leurs exports, noms donnés aux nouvelles voix. Les synthèses déjà rédigées gardent leur langue. La langue de transcription reste celle de chaque session. S’applique au prochain lancement."
+          }
+        }
+      }
+    },
+    "Langue du système": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System language"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Langue du système"
+          }
+        }
+      }
+    },
     "Langue installée : %@. La transcription reste locale.": {
       "localizations": {
         "en": {
@@ -7565,6 +7613,38 @@
         }
       }
     },
+    "Relancer maintenant": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relaunch now"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relancer maintenant"
+          }
+        }
+      }
+    },
+    "Relancer pour appliquer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relaunch to apply"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relancer pour appliquer"
+          }
+        }
+      }
+    },
     "Remplacer le transcript ?": {
       "localizations": {
         "en": {
@@ -9401,6 +9481,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Une capture est déjà en cours."
+          }
+        }
+      }
+    },
+    "Une capture ou un traitement en cours empêche la relance. Vos notes et modifications sont enregistrées avant.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A capture or processing in progress prevents relaunching. Your notes and edits are saved first."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une capture ou un traitement en cours empêche la relance. Vos notes et modifications sont enregistrées avant."
           }
         }
       }

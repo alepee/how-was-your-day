@@ -4,20 +4,14 @@ import Foundation
 public enum SummarySection: String, CaseIterable, Hashable, Sendable {
     case overview, keyPoints, decisions, actions, details, context
 
-    /// Level-2 heading of the section in the summary Markdown. Key points are level-3 headings under the overview.
-    public var heading: String? {
-        switch self {
-        case .overview: "Résumé" // l10n:ignore
-        case .keyPoints: nil
-        case .decisions: "Décisions" // l10n:ignore
-        case .actions: "Étapes suivantes" // l10n:ignore
-        case .details: "Détails" // l10n:ignore
-        case .context: "Contexte" // l10n:ignore
-        }
-    }
+    /// Level-2 heading of the section in a French summary. Key points are level-3 headings under the overview.
+    public var heading: String? { heading(in: .french) }
+    /// Level-2 heading of the section in a summary written in `language`.
+    public func heading(in language: SummaryLanguage) -> String? { SummaryVocabulary(language).heading(self) }
 
+    /// Recognizes a heading in any summary language: a summary keeps its language when the user changes theirs.
     init?(heading: String) {
-        guard let section = Self.allCases.first(where: { $0.heading == heading }) else { return nil }
+        guard let section = Self.allCases.first(where: { section in SummaryLanguage.allCases.contains { section.heading(in: $0) == heading } }) else { return nil }
         self = section
     }
 
@@ -28,23 +22,24 @@ public enum SummarySection: String, CaseIterable, Hashable, Sendable {
 
 /// The summary of one session as a standalone document: title, date, participants, then the summary.
 /// The header is always exported; the user chooses the sections of the summary, and the overview always stays.
-/// Exported text stays in French, like the summary itself (see docs/localization.md).
+/// Exported text is in the language the summary was written in (see docs/localization.md).
 public enum SummaryExport {
     /// Markdown document, or nil when the session has no summary.
     public static func markdown(_ item: Recording, sections: Set<SummarySection> = SummarySection.exportDefault) -> String? {
         guard let summary = item.summary.map({ keeping(sections, of: $0) })?.trimmingCharacters(in: .whitespacesAndNewlines), !summary.isEmpty else { return nil }
+        let words = vocabulary(item)
         var header = "# " + item.title + "\n\n" + metadata(item)
         if let provenance = item.summaryProvenance {
-            header += "\n\n_Synthèse générée par " + provenance.model + " le " + date(provenance.generatedAt) + ", à relire._" // l10n:ignore
+            header += "\n\n_" + words.generated(by: provenance.model, on: words.date(provenance.generatedAt), review: true) + "_"
         } else {
-            header += "\n\n_Synthèse générée par un modèle, à relire._" // l10n:ignore
+            header += "\n\n_" + words.generatedByModel + "_"
         }
-        if item.summaryIsStale { header += "\n\n_" + staleNotice + "_" }
+        if item.summaryIsStale { header += "\n\n_" + words.staleNotice + "_" }
         return header + "\n\n" + summary + "\n"
     }
 
-    /// Said with a summary made from an earlier transcript, like the `stale` status of JSON and MCP.
-    public static let staleNotice = "Le transcript a changé depuis cette synthèse." // l10n:ignore
+    /// Words of the session's summary document, in the summary's own language.
+    public static func vocabulary(_ item: Recording) -> SummaryVocabulary { SummaryVocabulary(item.summaryProvenance?.summaryLanguage ?? .french) }
 
     /// The sections present in the session's summary, in reading order.
     public static func sections(_ item: Recording) -> [SummarySection] {
@@ -81,16 +76,14 @@ public enum SummaryExport {
     /// File name without extension, safe for the Finder.
     public static func fileName(_ item: Recording) -> String {
         let title = item.title.components(separatedBy: CharacterSet(charactersIn: "/:\\\n\r\t")).joined(separator: "-").trimmingCharacters(in: .whitespaces)
-        return (title.isEmpty ? "Session" : title) + " - synthèse" // l10n:ignore
+        return (title.isEmpty ? "Session" : title) + vocabulary(item).fileSuffix
     }
 
     static func metadata(_ item: Recording) -> String {
-        var parts = [date(item.startedAt), "\(max(1, Int(item.duration / 60))) min"]
+        let words = vocabulary(item)
+        var parts = [words.date(item.startedAt), "\(max(1, Int(item.duration / 60))) min"]
         let names = item.participants.map(\.label)
-        if !names.isEmpty { parts.append("Participants : " + names.joined(separator: ", ")) } // l10n:ignore
+        if !names.isEmpty { parts.append(words.participants + names.joined(separator: ", ")) }
         return parts.joined(separator: " · ")
-    }
-    static func date(_ value: Date) -> String {
-        value.formatted(Date.FormatStyle(date: .long, time: .shortened).locale(Locale(identifier: "fr_FR")))
     }
 }

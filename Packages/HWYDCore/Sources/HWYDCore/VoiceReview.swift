@@ -127,7 +127,7 @@ extension Recording {
         if voice.confirmed, let t = speakers.firstIndex(where: { $0.id == speakerID }), speakers[t].confirmed,
            speakers[t].label == voice.label, speakers[t].personID == voice.personID {
             speakers[t].confirmed = false; speakers[t].personID = nil; speakers[t].proposedIdentity = nil
-            speakers[t].label = "Voix à nommer" // l10n:ignore (stored label, see docs/localization.md)
+            speakers[t].label = SummaryLanguage.current.voiceToName
         }
         speakers.append(voice)
         transcriptVersion += 1

@@ -1,6 +1,14 @@
 # Localization
 
-The app UI is available in French (development language) and English. It follows the macOS language order: English when English comes before French, French otherwise (including any other language). Changing the language per app in System Settings › General › Language & Region also works.
+The app UI is available in French (development language) and English. Settings › General › HWYD language offers System language, Français and English (`AppLanguage`). The choice is written as `AppleLanguages` in the app's own defaults domain, the value System Settings › General › Language & Region writes for a per-app language, so both stay in sync. It applies at the next launch; the settings offer to relaunch. With System language, the app follows the macOS language order: English when English comes before French, French otherwise (including any other language).
+
+## Output language
+
+What HWYD writes follows the same resolved language (`SummaryLanguage.current`, from `HWYDLocalization.current`):
+
+- Summaries: the provider's `outputLanguage`. English output runs every stage with English prompts and has its own prompt version (`summary-v7-grounded-writing+english`, `agent-summary-v1+english`). The provenance records the language (`language`, absent and read as French for earlier summaries). Changing the preference does not rewrite existing summaries.
+- Summary Markdown, its export and PDF use the words of the summary's own language (`SummaryVocabulary`). Section headings are recognized in both languages.
+- Labels given to new voices ("Voix 3" / "Voice 3", "Voix à nommer" / "Voice to name") and the examples. Stored labels keep the language they were written in.
 
 ## Source of truth
 
@@ -31,7 +39,7 @@ Check both languages with `--snapshot <dir> -AppleLanguages '(en)'` and `'(fr)'`
 
 ## Not translated
 
-- Data: demo content, transcripts, notes, session titles, summaries and their Markdown, stored default speaker labels ("Voix 1", "Voix à nommer").
-- Model-facing text: summary prompts, the summary schema, rows sent to models ("Voix non identifiée"), and the summary validation reasons, which are also returned to ACP agents.
+- Data: transcripts, notes, session titles and stored summaries (they keep the language they were written in).
+- The summary validation reasons, which are also returned to ACP agents, stay in French.
 - Exported files (`SessionExporter`, `RecordingText`), MCP tool schema and protocol text, diagnostic and log lines, `--self-test` output.
 - Speech recognition locale: chosen per session or detected per track, independent of the UI language.

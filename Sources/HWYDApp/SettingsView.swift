@@ -81,6 +81,18 @@ struct SettingsView: View {
     @ViewBuilder private var content: some View {
         switch model.settingsCategory {
         case .general:
+            section(String(localized: "Langue"), symbol: "globe") {
+                row(String(localized: "Langue de HWYD"), help: String(localized: "Langue de l’interface et de ce que HWYD rédige : synthèses et leurs exports, noms donnés aux nouvelles voix. Les synthèses déjà rédigées gardent leur langue. La langue de transcription reste celle de chaque session. S’applique au prochain lancement.")) {
+                    Picker("Langue de HWYD", selection: $model.appLanguage) {
+                        ForEach(AppLanguage.allCases) { language in Text(language.title).tag(language) }
+                    }.labelsHidden().frame(width: 220)
+                }
+                if model.languageNeedsRelaunch {
+                    row(String(localized: "Relancer pour appliquer"), help: String(localized: "Une capture ou un traitement en cours empêche la relance. Vos notes et modifications sont enregistrées avant.")) {
+                        Button("Relancer maintenant") { model.relaunchForLanguage() }.disabled(model.isBusy)
+                    }
+                }
+            }
             section(String(localized: "Apparence"), symbol: "circle.lefthalf.filled") {
                 row(String(localized: "Thème")) {
                     Picker("Thème", selection: $model.appearancePreference) {
