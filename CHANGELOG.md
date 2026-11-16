@@ -9,6 +9,15 @@ Entries describe what a user observes. The detailed release notes published on G
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-16
+
+### Added
+- Settings › General › « Langue de HWYD » (system language, Français, English) sets the interface, summaries and their exports, labels given to new voices and the examples. It applies at the next launch; Settings offer to relaunch. English summaries use English prompts at every stage and record their language; summaries already written keep theirs. Session exports, the MCP protocol and validation reasons sent to models are not translated. English summary quality is not benchmarked yet.
+- Before recording a session with other people (any kind but a voice memo), the new session screen asks you to declare them informed and agreeing; « Démarrer » stays disabled until you do, and a dated stamp marks the declaration. The menu bar applies the same rule. The session and its JSON export record the declaration and its time (`consent_announced_at`). HWYD records your declaration, it does not collect consent from the participants, and the declaration is not consent to voice enrollment. The global shortcut and meeting reminders still start directly.
+
+### Changed
+- The new session screen is a centred card: name as title, kind as chips, microphone and language as menus, and its own actions.
+
 ## [0.15.0] - 2026-11-15
 
 ### Added
@@ -213,7 +222,8 @@ Entries describe what a user observes. The detailed release notes published on G
 ### Added
 - First experimental release for Apple Silicon and macOS 26+: separate microphone and system audio recording, local French transcription, optional diarization, notes and speaker corrections, optional local summaries, calendar reminders, Markdown/JSON exports and a standalone MCP server.
 
-[Unreleased]: https://github.com/alepee/how-was-your-day/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/alepee/how-was-your-day/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/alepee/how-was-your-day/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/alepee/how-was-your-day/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/alepee/how-was-your-day/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/alepee/how-was-your-day/compare/v0.12.1...v0.13.0
