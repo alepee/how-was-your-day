@@ -1,87 +1,190 @@
 import SwiftUI
 import HWYDCore
 
-/// Set up a session before recording: its kind and an optional name. Nothing is captured until
-/// the user presses the start button.
+/// Set up a session before recording: its name, kind, microphone and language, then the
+/// declaration that the people present are informed and agree, which stamps the session.
+/// Nothing is captured until the user presses the start button.
 struct NewSessionView: View {
     @EnvironmentObject var model: AppModel
     @FocusState private var nameFocused: Bool
-    private let columns = [GridItem(.adaptive(minimum: 140), spacing: 10)]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The stamp's tilt, drawn again at each declaration so no two look alike.
+    @State private var stampAngle = -10.0
+    private var stampDate: Date? { model.newSessionKind.involvesOthers ? model.newSessionConsentAt : nil }
+    /// A card centred in the pane, holding its own actions, so a large window frames it
+    /// instead of stretching it.
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                VStack(alignment: .leading, spacing: 9) {
-                    Eyebrow(text: String(localized: "Nouvelle session"))
-                    Text("Que voulez-vous enregistrer ?").font(.system(size: Studio.Size.title, weight: .semibold)).tracking(-0.7)
-                }
-                VStack(alignment: .leading, spacing: 10) {
-                    Eyebrow(text: String(localized: "Type"))
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
-                        ForEach(SessionKind.allCases, id: \.self) { kind in kindTile(kind) }
-                    }
-                }
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 6) {
-                        Eyebrow(text: String(localized: "Nom"))
-                        HelpButton(text: String(localized: "Facultatif. Sans nom, la session s’appelle d’après son type et l’heure de début. Vous pourrez le changer ensuite."))
-                    }
-                    TextField("Nom", text: $model.newSessionTitle, prompt: Text(NewSessionView.placeholder(model.newSessionKind)).foregroundStyle(Studio.muted))
-                        .textFieldStyle(.plain).font(.system(size: Studio.Size.heading))
-                        .padding(12).background(Studio.inset, in: RoundedRectangle(cornerRadius: 7))
-                        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Studio.line))
-                        .focused($nameFocused).onSubmit(start).frame(maxWidth: 520)
-                }
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 6) {
-                        Eyebrow(text: String(localized: "Langue"))
-                        HelpButton(text: String(localized: "En détection automatique, HWYD choisit la langue de chaque piste parmi les langues installées, d’après le début de l’enregistrement. Choisissez une langue pour l’imposer aux deux pistes. Vous pourrez retranscrire dans une autre langue."))
-                    }
-                    Picker("Langue", selection: $model.newSessionLanguage) {
-                        ForEach(model.sessionLanguageChoices, id: \.self) { choice in Text(SessionLanguageLabel.title(choice)).tag(choice) }
-                    }.labelsHidden().fixedSize()
-                }
-                if !model.setupMicrophones.devices.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 6) {
-                            Eyebrow(text: String(localized: "Micro"))
-                            HelpButton(text: String(localized: "Le micro enregistré pendant toute la session. Par défaut, le dernier choisi s’il est branché, sinon l’entrée par défaut du Mac. Vous pourrez en changer pendant l’enregistrement."))
-                        }
-                        MicrophonePicker(devices: model.setupMicrophones.devices, selection: model.setupMicrophone) { model.newSessionMicrophone = $0 }
-                    }
-                }
-                HStack(spacing: 10) {
-                    Button(action: start) {
-                        Label(model.isStarting ? "Préparation…" : model.isDemoMode ? "Simuler l’enregistrement" : "Démarrer l’enregistrement", systemImage: "record.circle")
-                    }.buttonStyle(StudioButtonStyle(primary: true, destructive: true)).disabled(model.isStarting)
-                        .keyboardShortcut(.defaultAction)
-                    Button("Annuler") { model.library() }.buttonStyle(StudioButtonStyle()).keyboardShortcut(.cancelAction)
-                }
-            }.frame(maxWidth: 820, alignment: .leading).padding(30).frame(maxWidth: .infinity, alignment: .leading)
+        GeometryReader { proxy in
+            ScrollView {
+                card.frame(maxWidth: 720).padding(.horizontal, 48).padding(.vertical, 56)
+                    .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+            }
         }
         .onAppear { nameFocused = true }
+        .onChange(of: model.newSessionConsentAt) { _, date in
+            guard date != nil else { return }
+            stampAngle = -Double.random(in: 5...16)
+            if !reduceMotion { StampImpact.feel() }
+        }
     }
-    private func start() {
-        model.startCapture(kind: model.newSessionKind, title: model.newSessionTitle, language: model.newSessionLanguage, microphone: model.newSessionMicrophone)
+    private var card: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 22) {
+                Eyebrow(text: String(localized: "Nouvelle session"))
+                header
+                FlowRow(spacing: 8) { ForEach(SessionKind.allCases, id: \.self) { kind in kindChip(kind) } }
+                HStack(spacing: 10) {
+                    if !model.setupMicrophones.devices.isEmpty { microphoneMenu }
+                    languageMenu
+                }
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 36).padding(.top, 32).padding(.bottom, 30)
+            actions
+        }
+        .background(Studio.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Studio.line))
+        // The stamp lands across the card's corner, over the title.
+        .overlay(alignment: .topTrailing) {
+            ZStack {
+                if let date = stampDate {
+                    ConsentStamp(date: date).rotationEffect(.degrees(stampAngle))
+                        .transition(.stamp(reduceMotion: reduceMotion))
+                }
+            }
+            .frame(width: 140, height: 140).offset(x: 34, y: -26).allowsHitTesting(false)
+            .animation(.spring(response: 0.34, dampingFraction: 0.55), value: stampDate)
+        }
     }
-    private func kindTile(_ kind: SessionKind) -> some View {
+    /// The name, as the card's title.
+    private var header: some View {
+        TextField("Nom", text: $model.newSessionTitle, prompt: Text(NewSessionView.placeholder(model.newSessionKind)).foregroundStyle(Studio.muted))
+            .textFieldStyle(.plain).font(.system(size: Studio.Size.title, weight: .semibold)).tracking(-0.7)
+            .focused($nameFocused).onSubmit { model.startNewSession() }
+            .help(String(localized: "Facultatif. Sans nom, la session s’appelle d’après son type et l’heure de début. Vous pourrez le changer ensuite."))
+            .padding(.trailing, 96).padding(.bottom, 10)
+            .overlay(alignment: .bottom) { Rectangle().fill(Studio.line).frame(height: 1) }
+    }
+    private func kindChip(_ kind: SessionKind) -> some View {
         let selected = model.newSessionKind == kind
         return Button { model.newSessionKind = kind } label: {
-            HStack(spacing: 10) {
-                Image(systemName: kind.symbol).font(.system(size: Studio.Size.heading)).frame(width: 20)
-                Text(kind.label).font(.system(size: Studio.Size.body, weight: selected ? .semibold : .regular))
-                Spacer(minLength: 0)
+            HStack(spacing: 7) {
+                Image(systemName: kind.symbol)
+                Text(kind.label)
             }
-            .padding(.horizontal, 14).padding(.vertical, 12)
-            .foregroundStyle(selected ? Studio.mint : Studio.text)
-            .background(selected ? Studio.mint.opacity(0.1) : Studio.surface, in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(selected ? Studio.mint : Studio.line, lineWidth: selected ? 1.5 : 1))
-            .contentShape(RoundedRectangle(cornerRadius: 8))
+                .font(.system(size: Studio.Size.body, weight: selected ? .semibold : .regular)).fixedSize()
+                .padding(.horizontal, 13).padding(.vertical, 8)
+                .foregroundStyle(selected ? Studio.mint : Studio.text)
+                .background(selected ? Studio.mint.opacity(0.1) : Studio.background, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 17, style: .continuous).strokeBorder(selected ? Studio.mint : Studio.line, lineWidth: selected ? 1.5 : 1))
+                .contentShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
         }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
+    }
+    private var microphoneMenu: some View {
+        let devices = model.setupMicrophones.devices, selected = model.setupMicrophones.device(model.setupMicrophone)
+        return Menu {
+            ForEach(devices) { device in
+                Button { model.newSessionMicrophone = device.uid } label: {
+                    if device.uid == selected?.uid { Label(device.name, systemImage: "checkmark") } else { Text(device.name) }
+                }
+            }
+        } label: {
+            SetupPill(symbol: selected.map { MicrophonePicker.symbol($0.transport) } ?? "mic", title: selected?.name ?? String(localized: "Aucun micro"))
+        }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .help(String(localized: "Le micro enregistré pendant toute la session. Par défaut, le dernier choisi s’il est branché, sinon l’entrée par défaut du Mac. Vous pourrez en changer pendant l’enregistrement."))
+        .accessibilityLabel("Micro")
+    }
+    private var languageMenu: some View {
+        Menu {
+            ForEach(model.sessionLanguageChoices, id: \.self) { choice in
+                Button { model.newSessionLanguage = choice } label: {
+                    if choice == model.newSessionLanguage { Label(SessionLanguageLabel.title(choice), systemImage: "checkmark") } else { Text(SessionLanguageLabel.title(choice)) }
+                }
+            }
+        } label: {
+            SetupPill(symbol: "globe", title: SessionLanguageLabel.title(model.newSessionLanguage))
+        }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .help(String(localized: "En détection automatique, HWYD choisit la langue de chaque piste parmi les langues installées, d’après le début de l’enregistrement. Choisissez une langue pour l’imposer aux deux pistes. Vous pourrez retranscrire dans une autre langue."))
+        .accessibilityLabel("Langue")
+    }
+    /// Cancel, the declaration, then start: in the order they are done.
+    private var actions: some View {
+        HStack(spacing: 18) {
+            Button("Annuler") { model.library() }.buttonStyle(StudioButtonStyle()).keyboardShortcut(.cancelAction)
+            Spacer(minLength: 8)
+            if model.newSessionKind.involvesOthers {
+                Toggle(isOn: $model.newSessionConsent) {
+                    Text("Présents informés et d’accord").font(.system(size: Studio.Size.body))
+                }
+                .toggleStyle(.switch).tint(Studio.copper).controlSize(.small)
+                .help(String(localized: "Informez chaque personne présente avant de démarrer et obtenez son accord. Votre déclaration et son heure sont consignées dans la session et ses exports. Elle ne vaut pas consentement à mémoriser une voix."))
+            }
+            Button { model.startNewSession() } label: {
+                Label(model.isStarting ? "Préparation…" : model.isDemoMode ? "Simuler l’enregistrement" : "Démarrer l’enregistrement", systemImage: "record.circle")
+            }
+            .buttonStyle(StudioButtonStyle(primary: true, destructive: true)).disabled(!model.newSessionCanStart)
+            .keyboardShortcut(.defaultAction)
+            .help(model.newSessionCanStart ? "" : String(localized: "Déclarez d’abord que les personnes présentes sont informées et d’accord."))
+        }
+        .padding(.horizontal, 24).padding(.vertical, 15).background(Studio.inset)
+        .overlay(alignment: .top) { Rectangle().fill(Studio.line).frame(height: 1) }
     }
     /// What the session will be called if no name is typed.
     static func placeholder(_ kind: SessionKind) -> String {
         let time = Date().formatted(date: .omitted, time: .shortened)
         return kind == .adHoc ? String(localized: "Session du \(time)") : String(localized: "\(kind.label) du \(time)")
+    }
+}
+
+/// A setup choice shown as a quiet pill that opens its menu.
+private struct SetupPill: View {
+    let symbol: String
+    let title: String
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: symbol).foregroundStyle(Studio.muted)
+            Text(title).lineLimit(1)
+            Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(Studio.muted)
+        }
+        .font(.system(size: Studio.Size.body)).foregroundStyle(Studio.text)
+        .padding(.horizontal, 11).padding(.vertical, 7)
+        .background(Studio.background, in: RoundedRectangle(cornerRadius: 7))
+        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Studio.line))
+        .contentShape(RoundedRectangle(cornerRadius: 7))
+    }
+}
+
+/// Lays its children out in rows, wrapping when the width runs out.
+struct FlowRow: Layout {
+    var spacing: CGFloat = 8
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = arrange(width: proposal.width ?? .infinity, subviews: subviews)
+        return CGSize(width: rows.map(\.width).max() ?? 0, height: rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(0, rows.count - 1)))
+    }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in arrange(width: bounds.width, subviews: subviews) {
+            var x = bounds.minX
+            for index in row.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+    private struct Row { var indices: [Int] = []; var width: CGFloat = 0; var height: CGFloat = 0 }
+    private func arrange(width: CGFloat, subviews: Subviews) -> [Row] {
+        var rows = [Row()]
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            if !rows[rows.count - 1].indices.isEmpty && rows[rows.count - 1].width + spacing + size.width > width { rows.append(Row()) }
+            let gap = rows[rows.count - 1].indices.isEmpty ? 0 : spacing
+            rows[rows.count - 1].indices.append(index); rows[rows.count - 1].width += gap + size.width
+            rows[rows.count - 1].height = max(rows[rows.count - 1].height, size.height)
+        }
+        return rows
     }
 }
 

@@ -138,6 +138,24 @@ final class AppModel: ObservableObject {
     @Published var newSessionLanguage = SpeechLanguage.automatic
     /// UID of the microphone chosen on the setup screen; nil follows the system default input.
     @Published var newSessionMicrophone: String?
+    /// When the user declared on the setup screen that the people present were told and agree.
+    /// Asked again for every session, never remembered.
+    @Published var newSessionConsentAt: Date?
+    /// The declaration as a switch: on stamps the current time.
+    var newSessionConsent: Bool {
+        get { newSessionConsentAt != nil }
+        set { newSessionConsentAt = newValue ? (newSessionConsentAt ?? Date()) : nil }
+    }
+    /// The setup screen starts a session only once the people present are declared informed,
+    /// unless the kind records no one else.
+    var newSessionCanStart: Bool { !isStarting && (newSessionConsent || !newSessionKind.involvesOthers) }
+    /// Starts the session set up on the setup screen or in the menu, once it can start.
+    @discardableResult
+    func startNewSession() -> Task<Void, Never> {
+        guard newSessionCanStart else { return Task {} }
+        return startCapture(kind: newSessionKind, title: newSessionTitle, language: newSessionLanguage, microphone: newSessionMicrophone,
+                     consentAnnouncedAt: newSessionKind.involvesOthers ? newSessionConsentAt : nil)
+    }
     /// The inputs the setup screen offers, from the workspace's capture.
     @Published private(set) var setupMicrophones = MicrophoneList()
     private var setupMicrophoneChanges: AnyCancellable?
@@ -478,7 +496,7 @@ final class AppModel: ObservableObject {
     func requestNewSession() {
         if let active = activeCapture { select(active); showWindow?(); return }
         showSettings = false; stopPlayback(); selectedID = nil
-        newSessionTitle = ""; newSessionLanguage = SpeechLanguage.automatic
+        newSessionTitle = ""; newSessionLanguage = SpeechLanguage.automatic; newSessionConsentAt = nil
         newSessionMicrophone = captureSession.preferredMicrophone(in: workspace.capture.microphones.current)
         showNewSession = true
         refreshSpeechLanguages(); showWindow?()
@@ -487,10 +505,11 @@ final class AppModel: ObservableObject {
     /// setup screen does, and an empty name falls back to the kind and time.
     @discardableResult
     func startCapture(meeting: CalendarContext? = nil, kind: SessionKind? = nil, title: String? = nil, language: String? = nil,
-                      microphone: String? = nil, reveal: Bool = true) -> Task<Void, Never> {
+                      microphone: String? = nil, consentAnnouncedAt: Date? = nil, reveal: Bool = true) -> Task<Void, Never> {
         guard activeCaptureID == nil, !isStarting else { if reveal { showWindow?() }; return Task {} }
         // Without the setup screen (shortcut, calendar), the session records the remembered microphone, if present.
-        let request = CaptureRequest(kind: kind ?? .adHoc, title: title, meeting: meeting, language: language, microphone: microphone)
+        let request = CaptureRequest(kind: kind ?? .adHoc, title: title, meeting: meeting, language: language, microphone: microphone,
+                                     consentAnnouncedAt: consentAnnouncedAt)
         showSettings = false; showNewSession = false
         stopPlayback(); isStarting = true
         let workspace = workspace

@@ -8,6 +8,8 @@ public enum SessionKind: String, Codable, CaseIterable, Sendable {
     public var symbol: String {
         switch self { case .meeting: "person.2.wave.2"; case .call: "phone"; case .conversation: "bubble.left.and.bubble.right"; case .voiceMemo: "waveform.circle"; case .adHoc: "smallcircle.filled.circle" }
     }
+    /// Whether other people may be recorded, so their consent is asked before the capture starts.
+    public var involvesOthers: Bool { self != .voiceMemo }
 }
 public enum CaptureState: String, Codable, Sendable { case recording, sealed, interrupted, demo }
 public enum ArtifactState: String, Codable, Sendable { case unavailable, pending, ready, failed }
@@ -115,6 +117,9 @@ public struct Recording: Codable, Identifiable, Equatable, Sendable {
     public var transcriptState: ArtifactState
     public var audioChunks: [AudioChunk]
     public var consentAnnounced: Bool
+    /// When the user declared the people present informed and agreeing. Nil when not declared,
+    /// and in sessions declared before this field existed.
+    public var consentAnnouncedAt: Date?
     public var isDemo: Bool
     /// Transcription language requested for this session: a locale or `SpeechLanguage.automatic`.
     /// Absent in sessions recorded before 0.11.0, which were transcribed in French.

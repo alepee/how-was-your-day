@@ -26,7 +26,7 @@ struct CaptureView: View {
                         ForEach(SessionKind.allCases, id: \.self) { Text($0.label).tag($0) }
                     }.labelsHidden().frame(width: 150)
                     Spacer(minLength: 8)
-                    Toggle(isOn: Binding(get: { model.activeCapture?.consentAnnounced ?? false }, set: { value in model.update(recording.id) { $0.consentAnnounced = value } })) {
+                    Toggle(isOn: Binding(get: { model.activeCapture?.consentAnnounced ?? false }, set: { value in model.update(recording.id) { $0.consentAnnounced = value; $0.consentAnnouncedAt = value ? Date() : nil } })) {
                         Text("J’ai informé les personnes présentes").font(.system(size: Studio.Size.body)).foregroundStyle(Studio.muted)
                     }.toggleStyle(.checkbox)
                 }

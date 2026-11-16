@@ -82,6 +82,13 @@ struct RootView: View {
 struct MenuContentView: View {
     @EnvironmentObject var model: AppModel
     @ObservedObject private var updater = AppRoot.updater
+    /// The menu keeps the default language and the remembered microphone, as before the declaration existed.
+    private func startFromMenu() {
+        guard model.newSessionCanStart else { return }
+        model.startCapture(kind: model.newSessionKind, title: model.newSessionTitle,
+                           consentAnnouncedAt: model.newSessionKind.involvesOthers ? model.newSessionConsentAt : nil)
+        model.newSessionConsentAt = nil
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 19) {
             HStack { Image(systemName: "waveform").foregroundStyle(Studio.mint); Text("How Was Your Day").font(.system(size: Studio.Size.body, weight: .semibold)); Spacer() }
@@ -97,8 +104,12 @@ struct MenuContentView: View {
                     ForEach(SessionKind.allCases, id: \.self) { kind in Label(kind.label, systemImage: kind.symbol).tag(kind) }
                 }.labelsHidden()
                 TextField(NewSessionView.placeholder(model.newSessionKind), text: $model.newSessionTitle).textFieldStyle(.roundedBorder)
-                    .onSubmit { model.startCapture(kind: model.newSessionKind, title: model.newSessionTitle) }
-                Button { model.startCapture(kind: model.newSessionKind, title: model.newSessionTitle) } label: { Label(model.isStarting ? "Préparation…" : model.isDemoMode ? "Simuler l’enregistrement" : "Démarrer l’enregistrement", systemImage: "record.circle").frame(maxWidth: .infinity) }.buttonStyle(StudioButtonStyle(primary: true, destructive: true)).disabled(model.isStarting)
+                    .onSubmit(startFromMenu)
+                if model.newSessionKind.involvesOthers {
+                    Toggle(isOn: $model.newSessionConsent) { Text("Présents informés et d’accord").font(.system(size: Studio.Size.body)) }
+                        .toggleStyle(.switch).tint(Studio.copper).controlSize(.small)
+                }
+                Button(action: startFromMenu) { Label(model.isStarting ? "Préparation…" : model.isDemoMode ? "Simuler l’enregistrement" : "Démarrer l’enregistrement", systemImage: "record.circle").frame(maxWidth: .infinity) }.buttonStyle(StudioButtonStyle(primary: true, destructive: true)).disabled(!model.newSessionCanStart)
             }
             Divider().overlay(Studio.line)
             Button { model.library(); model.showWindow?() } label: { Label("Ouvrir les sessions", systemImage: "rectangle.on.rectangle").frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 4).contentShape(Rectangle()) }.buttonStyle(.plain).font(.system(size: Studio.Size.body))
