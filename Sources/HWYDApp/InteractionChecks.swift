@@ -569,6 +569,18 @@ import HWYDCore
         await model.startCapture(kind: .voiceMemo, title: "Idée produit").value // l10n:ignore
         guard model.activeCapture?.title == "Idée produit", model.activeCapture?.kind == .voiceMemo else { throw CaptureFailure(message: "Typed name was not applied") } // l10n:ignore
         await model.stopCapture().value
+        // A session with other people starts only once they are declared informed; the declaration is recorded.
+        model.requestNewSession(); model.newSessionKind = .meeting
+        await model.startNewSession().value
+        guard model.activeCaptureID == nil, model.showNewSession else { throw CaptureFailure(message: "A meeting started without the consent declaration") }
+        model.newSessionConsent = true
+        await model.startNewSession().value
+        guard let declared = model.activeCapture, declared.consentAnnounced, declared.consentAnnouncedAt != nil else {
+            throw CaptureFailure(message: "The consent declaration was not recorded")
+        }
+        await model.stopCapture().value
+        model.requestNewSession(); model.newSessionKind = .voiceMemo
+        guard model.newSessionCanStart else { throw CaptureFailure(message: "A voice memo must start without a consent declaration") }
 
         // A fresh model: its toasts hold none of the capture notices above.
         let shown = AppModel(environment: .preview())

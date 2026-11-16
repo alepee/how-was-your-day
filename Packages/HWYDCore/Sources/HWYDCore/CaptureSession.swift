@@ -12,9 +12,14 @@ public struct CaptureRequest: Equatable, Sendable {
     public var language: String?
     /// UID of the microphone the user chose on the setup screen; nil records the system default input.
     public var microphone: String?
+    /// When the user declared on the setup screen that the people present were told and agree;
+    /// nil when not declared.
+    public var consentAnnouncedAt: Date?
 
-    public init(kind: SessionKind = .adHoc, title: String? = nil, meeting: CalendarContext? = nil, language: String? = nil, microphone: String? = nil) {
+    public init(kind: SessionKind = .adHoc, title: String? = nil, meeting: CalendarContext? = nil, language: String? = nil, microphone: String? = nil,
+                consentAnnouncedAt: Date? = nil) {
         self.kind = kind; self.title = title; self.meeting = meeting; self.language = language; self.microphone = microphone
+        self.consentAnnouncedAt = consentAnnouncedAt
     }
 
     public var sessionKind: SessionKind { meeting == nil ? kind : .meeting }
@@ -172,6 +177,7 @@ public final class CaptureSession: ObservableObject {
         if let chosen = request.microphone { remember(chosen) }
         var item = Recording(id: id, title: title, kind: request.sessionKind, state: .recording, isDemo: capture.isSimulated)
         item.microphone = await capture.microphone?.name
+        item.consentAnnounced = request.consentAnnouncedAt != nil; item.consentAnnouncedAt = request.consentAnnouncedAt
         if !capture.isSimulated { item.calendarContext = request.meeting; item.speechLanguage = request.language ?? SpeechLanguage.automatic }
         library.insert(item)
         await begin(id, capture: capture, in: library, at: 0)

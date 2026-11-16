@@ -51,6 +51,7 @@ track_locales:
   mic: "fr-FR"
   system: "en-US"
 consent_announced: true
+consent_announced_at: "2026-11-16T13:28:41Z"
 participants:
   - id: "123e4567-e89b-42d3-a456-426614174001"
     name: "Camille"
@@ -99,6 +100,7 @@ exported_at: "2026-10-23T08:31:00Z"
 | `calendar` | Objet ci-dessus ou null ; `response` accepted/declined/tentative/pending/unknown |
 | `app` | meet/gather/slack-huddle/in-person/unknown ; signal de contexte, pas attribution de chaque son |
 | `consent_announced` | Déclaration utilisateur d'annonce ; ne signifie pas consentement à l'empreinte |
+| `consent_announced_at` | Heure de cette déclaration (ISO 8601, UTC), null si non déclarée ou déclarée avant que l'heure soit consignée |
 | `locale` | Locale effective du moteur pour la piste micro (ou la seule piste), ou `multilingual` pour un moteur le déclarant |
 | `track_locales` | Locale de chaque piste présente (`mic`, `system`) depuis 0.11.0, la langue étant détectée par piste ; null sans transcript |
 | `summary.status` | disabled/pending/ready/failed/stale ; autres champs null si absent. `stale` : la synthèse est conservée avec ses champs, mais produite à partir d'une version antérieure du transcript (`summary.transcript_version` diffère de `transcript_version`) ; ses références peuvent viser des segments disparus. Les exports Markdown et PDF de la synthèse le signalent par une ligne |

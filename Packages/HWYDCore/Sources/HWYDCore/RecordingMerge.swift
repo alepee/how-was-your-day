@@ -36,7 +36,7 @@ extension Recording {
         take(.kind, \.kind) { $0.kind = $1.kind }
         take(.notes, \.notes) { $0.notes = $1.notes }
         take(.noteEntries, \.noteEntries) { $0.noteEntries = $1.noteEntries }
-        take(.consent, \.consentAnnounced) { $0.consentAnnounced = $1.consentAnnounced }
+        take(.consent, ConsentParts.init) { $0.consentAnnounced = $1.consentAnnounced; $0.consentAnnouncedAt = $1.consentAnnouncedAt }
         take(.language, \.speechLanguage) { $0.speechLanguage = $1.speechLanguage }
         take(.calendar, \.calendarContext) { $0.calendarContext = $1.calendarContext }
         take(.capture, CaptureParts.init) {
@@ -63,6 +63,10 @@ extension Recording {
     }
 }
 
+private struct ConsentParts: Equatable {
+    var announced: Bool, at: Date?
+    init(_ item: Recording) { announced = item.consentAnnounced; at = item.consentAnnouncedAt }
+}
 private struct CaptureParts: Equatable {
     var state: CaptureState, duration: Double, chunks: [AudioChunk], endedAt: Date?, boundaries: [CaptureBoundary]?, microphone: String?
     init(_ item: Recording) {

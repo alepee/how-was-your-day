@@ -69,6 +69,18 @@ final class CaptureSessionTests: XCTestCase {
         XCTAssertEqual(meeting.sessionTitle(startingAt: date), "Point produit")
     }
 
+    func testStartRecordsTheConsentConfirmedOnTheSetupScreen() async throws {
+        let library = SessionLibrary(volatile: [])
+        let declared = Date(timeIntervalSince1970: 1_800_000_000)
+        let confirmed = try await session().start(CaptureRequest(kind: .meeting, consentAnnouncedAt: declared), with: realCapture(), in: library)
+        let item = try XCTUnwrap(library.recording(try XCTUnwrap(confirmed)))
+        XCTAssertTrue(item.consentAnnounced); XCTAssertEqual(item.consentAnnouncedAt, declared)
+        let unconfirmed = try await session().start(CaptureRequest(kind: .call), with: realCapture(), in: library)
+        XCTAssertFalse(try XCTUnwrap(library.recording(try XCTUnwrap(unconfirmed))).consentAnnounced)
+        XCTAssertFalse(SessionKind.voiceMemo.involvesOthers)
+        XCTAssertTrue(SessionKind.allCases.filter { $0 != .voiceMemo }.allSatisfy(\.involvesOthers))
+    }
+
     func testStartAddsTheSessionAndRefusesASecondCapture() async throws {
         let capture = session(), library = SessionLibrary(volatile: [])
         let id = try await capture.start(CaptureRequest(kind: .call, language: "fr-FR"), with: realCapture(), in: library)

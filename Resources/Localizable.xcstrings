@@ -2029,6 +2029,22 @@
         }
       }
     },
+    "CONSENTEMENT RECUEILLI ✦ PERSONNES INFORMÉES ✦ ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CONSENT OBTAINED ✦ PEOPLE INFORMED ✦ "
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CONSENTEMENT RECUEILLI ✦ PERSONNES INFORMÉES ✦ "
+          }
+        }
+      }
+    },
     "Calcul de la forme d’onde…": {
       "localizations": {
         "en": {
@@ -2733,6 +2749,22 @@
         }
       }
     },
+    "Consentement déclaré à %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consent declared at %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consentement déclaré à %@"
+          }
+        }
+      }
+    },
     "Contexte": {
       "localizations": {
         "en": {
@@ -3049,6 +3081,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Décisions"
+          }
+        }
+      }
+    },
+    "Déclarez d’abord que les personnes présentes sont informées et d’accord.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "First declare that the people present are informed and agree."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Déclarez d’abord que les personnes présentes sont informées et d’accord."
           }
         }
       }
@@ -4489,6 +4537,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Indiquez le contexte chargé dans LM Studio. HWYD traite les longues sessions par portions bornées et rédige chaque sujet à partir de ses sources. Un grand contexte serveur n’augmente pas automatiquement la taille des requêtes. Pour limiter la mémoire, chargez un seul modèle et une seule requête à la fois : ce réglage ne modifie pas la mémoire allouée par le serveur."
+          }
+        }
+      }
+    },
+    "Informez chaque personne présente avant de démarrer et obtenez son accord. Votre déclaration et son heure sont consignées dans la session et ses exports. Elle ne vaut pas consentement à mémoriser une voix.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tell everyone present before you start and get their agreement. Your declaration and its time are recorded in the session and its exports. It is not consent to remembering a voice."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informez chaque personne présente avant de démarrer et obtenez son accord. Votre déclaration et son heure sont consignées dans la session et ses exports. Elle ne vaut pas consentement à mémoriser une voix."
           }
         }
       }
@@ -7325,6 +7389,22 @@
         }
       }
     },
+    "Présents informés et d’accord": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "People present informed and agreeing"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Présents informés et d’accord"
+          }
+        }
+      }
+    },
     "Prévenir": {
       "localizations": {
         "en": {
@@ -7337,22 +7417,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Prévenir"
-          }
-        }
-      }
-    },
-    "Que voulez-vous enregistrer ?": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "What do you want to record?"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Que voulez-vous enregistrer ?"
           }
         }
       }

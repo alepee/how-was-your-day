@@ -115,6 +115,9 @@ import HWYDCore
         let previousSelection = model.selectedID
         model.requestNewSession(); model.newSessionKind = .meeting
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-new-session.png"))
+        model.newSessionConsent = true
+        render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-new-session-stamped.png"))
+        model.newSessionConsentAt = nil
         model.showNewSession = false; model.selectedID = previousSelection
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 1500), to: directory.appendingPathComponent("studio-summary-full.png"))
         // Wide window: the outline appears beside the reading column.
