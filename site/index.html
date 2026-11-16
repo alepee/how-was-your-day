@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How Was Your Day · Conversations worth keeping</title>
-<meta name="description" content="Record, transcribe and revisit conversations on your Mac. Native audio capture, speaker diarization, notes and optional local AI summaries. Install with Homebrew.">
+<meta name="description" content="Record, transcribe and revisit conversations on your Mac. Two-track capture, local transcription, voice review, notes and summaries that link back to what was said. Install with Homebrew.">
 <meta name="theme-color" content="#1b2025">
 <meta property="og:title" content="How Was Your Day">
-<meta property="og:description" content="Be in the conversation. Keep the context. A native Mac app for local recording, transcripts and notes.">
+<meta property="og:description" content="Be in the conversation. Keep the context. A native Mac app for recording, transcripts, notes and summaries.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://alepee.github.io/how-was-your-day/">
-<meta property="og:image" content="https://alepee.github.io/how-was-your-day/assets/transcript-dark.png">
+<meta property="og:image" content="https://alepee.github.io/how-was-your-day/assets/session-dark.png">
 <link rel="canonical" href="https://alepee.github.io/how-was-your-day/">
 <link rel="icon" href="assets/icon.png" type="image/png">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
@@ -21,72 +21,128 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="wrap nav">
   <a class="brand" href="#" aria-label="How Was Your Day home"><img src="assets/icon.png" alt="" width="40" height="40"><span>hwyd<span class="brand-dot">.</span></span></a>
-  <nav aria-label="Main navigation"><a href="#how-it-works">The app</a><a href="https://github.com/alepee/how-was-your-day">GitHub ↗</a><button id="theme" aria-label="Switch to light theme">Light mode</button></nav>
+  <nav aria-label="Main navigation"><a href="#day">A day</a><a href="#principles">Privacy</a><a href="#install">Install</a><a href="https://github.com/alepee/how-was-your-day">GitHub ↗</a><button id="theme" aria-label="Switch to light theme">Light mode</button></nav>
 </header>
 <main id="main">
 <section class="hero wrap">
   <div class="eyebrow"><span class="status-dot"></span> YOUR CONVERSATIONS. ON YOUR MAC.</div>
   <h1>Be in the conversation.<br><span>Keep the context.</span></h1>
-  <p class="lede">The meeting. The quick call. That idea on the way home.<br class="desktop"> How Was Your Day gives them a place to stay.</p>
+  <p class="lede">The meeting. The quick call. That idea on the way in.<br class="desktop"> How Was Your Day records them, and gives them back when you need them.</p>
   <div class="actions"><a class="button primary" href="https://github.com/alepee/how-was-your-day/releases/latest/download/HowWasYourDay.dmg">Download for Mac <span aria-hidden="true">↓</span></a><a class="text-link" href="#install">Install with Homebrew <span aria-hidden="true">↗</span></a></div>
-  <p class="fine">Apple Silicon · macOS 26+ · Experimental release</p>
-  <figure class="hero-shot"><img id="app-shot" src="assets/transcript-dark.png" alt="HWYD session view with separate microphone and system tracks, transcript and editable speaker names. French demo interface." width="2160" height="1580" fetchpriority="high"><figcaption><span class="status-dot"></span> Native SwiftUI. Light and dark. Currently in French. <span>Fictional demo session.</span></figcaption></figure>
+  <p class="fine">Apple Silicon · macOS 26+ · Signed and notarized · Experimental</p>
+  <figure class="hero-shot"><img id="app-shot" src="assets/session-dark.png" alt="A meeting session opened on its summary: two-track player with waveforms, voice tiles, overview, key points and decisions with their source times." width="2160" height="1580" fetchpriority="high"><figcaption><span class="status-dot"></span> A session opens on its summary.</figcaption></figure>
 </section>
-<section class="wrap intro" id="how-it-works">
-  <p class="eyebrow">LESS SCRAMBLING. MORE LISTENING.</p>
-  <h2>From “what did we say?”<br>to right where you left off.</h2>
-  <div class="steps">
-    <article><span class="number">01 / RECORD</span><h3>One click. Two tracks.</h3><p>Capture your microphone and your Mac’s audio together. A call, a room conversation or a voice memo: a calendar event is optional.</p></article>
-    <article><span class="number">02 / REVISIT</span><h3>Find the part that matters.</h3><p>Read the local transcript, correct a speaker and jump back to the audio. Solo or mute either track while you listen.</p></article>
-    <article><span class="number">03 / REMEMBER</span><h3>Give the discussion a next step.</h3><p>Keep your own notes, or ask a local model for a structured draft: overview, decisions, next steps and details by topic.</p></article>
-  </div>
+
+<section class="wrap day-intro" id="day">
+  <p class="eyebrow">ONE MONDAY</p>
+  <h2>A day, from the first idea<br>to “how was it?”</h2>
+  <p class="section-copy">Follow one ordinary day: a thought on the way to work, a check-in with Camille and Sam about a beta launch, and the evening when you try to remember what was decided.</p>
 </section>
-<section class="feature-section">
-<div class="wrap feature-grid">
-  <div><p class="eyebrow">HEAR THE WHOLE PICTURE</p><h2>Two sides.<br>One conversation.</h2><p class="section-copy">Your voice and the audio from other apps stay on separate, synchronized tracks. Real waveforms help you find your place. Solo and mute let you choose what to hear.</p><p class="fine">Raw audio is preserved. Offline echo reduction prepares the microphone track for transcription.</p></div>
-  <figure class="player-shot"><img src="assets/player.png" width="1460" height="440" loading="lazy" alt="Two audio waveforms labelled Micro and Système with individual Solo and Mute controls."><figcaption>Synthetic audio preview. No meeting was recorded for this image.</figcaption></figure>
-</div>
-</section>
-<section class="wrap feature-grid notes-section">
-  <figure class="notes-shot"><img src="assets/notes.png" width="2160" height="1580" loading="lazy" alt="HWYD in light mode, with editable session notes and timestamped entries."><figcaption>Notes are yours to edit. Fictional demo content.</figcaption></figure>
-  <div><p class="eyebrow">YOUR NOTES COME FIRST</p><h2>A thought, not just<br>a transcript.</h2><p class="section-copy">Write during the conversation in a floating notepad. Come back later to your notes, the transcript and the original audio, all in the same session.</p><p class="section-copy">Optional summaries run through a local server such as LM Studio. Source timestamps help you check what was actually said.</p></div>
-</section>
-<section class="wrap tour" id="tour">
-  <p class="eyebrow">A QUICK TOUR</p><h2>Every screen,<br>one quiet place.</h2>
-  <div class="tour-grid">
-    <figure class="tour-menu"><img src="assets/menu-bar.png" width="680" height="700" loading="lazy" alt="Menu bar popover during a session, with Pause, End session, Open notes, Open sessions and Settings."><figcaption><b>Menu bar.</b> Pause, end or open your notes without leaving the app you are in.</figcaption></figure>
-    <figure><img src="assets/new-session.png" width="2160" height="1580" loading="lazy" alt="New session screen with session type choices, an optional name and a button to start recording."><figcaption><b>New session.</b> Pick a type, name it if you want, then start. Nothing is captured before you press the button.</figcaption></figure>
-    <figure><img src="assets/capture.png" width="2160" height="1700" loading="lazy" alt="Recording view with a large timer, microphone and system audio levels, consent checkbox and session notes."><figcaption><b>Recording.</b> Live levels for both tracks, timestamped notes and a pause that keeps the session open.</figcaption></figure>
-    <figure><img src="assets/library.png" width="2160" height="1540" loading="lazy" alt="Session library in light mode with search, type filter and sessions grouped by day."><figcaption><b>Library.</b> Search titles and what was said, filter by type, browse by day.</figcaption></figure>
-    <figure><img src="assets/summary.png" width="2160" height="1580" loading="lazy" alt="Summary tab with an overview, a topic section and decisions, each followed by source timestamps."><figcaption><b>Summary.</b> A local draft where every point links back to its source timestamps.</figcaption></figure>
-    <figure><img src="assets/notifications.png" width="2160" height="1580" loading="lazy" alt="Stacked notifications in the corner of the window: a summary error with Retry and Settings, a ready summary and a voice correction."><figcaption><b>Notifications.</b> Messages stack in the corner. Those that need a decision carry their buttons and stay until answered.</figcaption></figure>
-    <figure class="tour-wide"><img src="assets/calendar-upcoming.png" width="1560" height="420" loading="lazy" alt="Upcoming calendar event with a Record button."><figcaption><b>Calendar.</b> Upcoming events can be recorded in one click. Linking a session to an event stays optional.</figcaption></figure>
-    <figure class="tour-wide"><img src="assets/voice-tiles.png" width="2080" height="220" loading="lazy" alt="Voice tiles for a session: an unnamed voice, a suggested match to confirm, a named voice and an ignored voice."><figcaption><b>Voices.</b> Name, confirm or ignore each voice from its tile. A voice is remembered only when you choose to, and every suggestion needs your confirmation.</figcaption></figure>
-    <figure class="tour-tall"><img src="assets/notepad.png" width="1000" height="1300" loading="lazy" alt="Floating notepad window during a session, with timer, timestamped notes, Pause and End session."><figcaption><b>Floating notepad.</b> Detach your notes beside the call and add a timestamp in one click.</figcaption></figure>
-    <figure><img src="assets/voice-people.png" width="1440" height="600" loading="lazy" alt="Remembered people with the voice samples each session added, Remove buttons, and an excluded person with Lift exclusion."><figcaption><b>Remembered people.</b> See what each session added to a voice print and remove it, erase the print, or exclude the person.</figcaption></figure>
-    <figure><img src="assets/settings-audio.png" width="2160" height="1580" loading="lazy" alt="Audio and voice settings: local Apple Speech transcription, voice separation and remembered people."><figcaption><b>Audio and voice.</b> Local transcription and voice separation, configured on your Mac.</figcaption></figure>
-    <figure><img src="assets/settings-agents.png" width="2160" height="1580" loading="lazy" alt="Agents and exports settings with an opt-in for agent edits and an export folder picker."><figcaption><b>Agents and exports.</b> MCP is read-only by default. Pick a folder for Markdown and JSON exports.</figcaption></figure>
-  </div>
-  <p class="fine">Fictional demo sessions. No microphone is used to produce these images.</p>
-</section>
-<section class="wrap principles">
+
+<ol class="wrap timeline">
+  <li class="chapter">
+    <div class="rail"><time>08:42</time><span>Voice memo</span></div>
+    <div class="body split">
+      <div>
+        <h3>An idea on the way in.</h3>
+        <p>Say it before it is gone. Press <kbd>⌃⌥⌘R</kbd> from any app and recording starts, without bringing a window forward. The menu bar icon shows it is running and lets you pause or end it.</p>
+        <p class="aside">The shortcut is configurable in Settings and needs no Accessibility permission.</p>
+      </div>
+      <div class="keys" aria-hidden="true"><kbd>⌃</kbd><kbd>⌥</kbd><kbd>⌘</kbd><kbd>R</kbd><span>From any app. Again to stop.</span></div>
+    </div>
+  </li>
+
+  <li class="chapter">
+    <div class="rail"><time>09:58</time><span>Before the meeting</span></div>
+    <div class="body">
+      <h3>The meeting is about to start.</h3>
+      <p>Your calendar knows. A reminder offers to join the call and record, or to record without joining. Starting by hand? Name it, pick a type and the language. Before a session with other people, Start waits until you declare everyone present informed and agreeing: the stamp keeps the time, and so does the session.</p>
+      <figure><img src="assets/calendar-upcoming.png" width="1560" height="420" loading="lazy" alt="Upcoming events: Design review with Record and Join and Record buttons, and a pricing workshop."></figure>
+      <figure><img src="assets/new-session.png" width="1520" height="740" loading="lazy" alt="New session card for a meeting named Design review, with the switch “People present informed and agreeing” on and a copper stamp dated 9:59 in its corner."></figure>
+    </div>
+  </li>
+
+  <li class="chapter">
+    <div class="rail"><time>10:00</time><span>Recording</span></div>
+    <div class="body">
+      <h3>Be in the room, not in your notes.</h3>
+      <p>Your microphone and your Mac’s audio are recorded on two synchronized tracks. Jot a few words when something matters; each note is timestamped. Pause when the discussion goes off the record: nothing is captured until you resume.</p>
+      <figure><img src="assets/capture.png" width="2160" height="1700" loading="lazy" alt="Recording view with a large timer, microphone and system audio levels, a reminder that everyone present has been informed, and timestamped notes."></figure>
+      <div class="detail">
+        <p><b>Your AirPods just connected.</b> HWYD does not follow silently: it asks whether to switch, and warns that a headset microphone lowers what you hear. Unplug a microphone and recording continues on the default input.</p>
+        <figure><img src="assets/microphone-offer.png" width="1639" height="340" loading="lazy" alt="Notice in the capture screen: new microphone available, AirPods Pro, with Switch and Keep Mac microphone buttons."></figure>
+      </div>
+      <p class="aside">Stopped too early? <b>Resume recording</b> picks the session up again for 24 hours, notes and all.</p>
+    </div>
+  </li>
+
+  <li class="chapter">
+    <div class="rail"><time>10:04</time><span>Transcript</span></div>
+    <div class="body">
+      <h3>Who said what.</h3>
+      <p>The transcript is written on your Mac by Apple Speech, in the language spoken on each track. Each detected voice gets a tile: click it to hear only that voice, then name it, confirm a suggestion, or ignore the echo of your own speakers.</p>
+      <figure><img src="assets/voices.png" width="2080" height="220" loading="lazy" alt="Voice tiles: You and Camille named, Sam suggested and waiting for confirmation, and the echo of the speakers ignored."></figure>
+      <figure><img src="assets/transcript.png" width="1779" height="1580" loading="lazy" alt="Transcript in light mode with real waveforms, the passage being played highlighted, and speaker names above each passage."></figure>
+      <p class="aside">A voice is remembered only when you choose to, person by person. Every suggestion waits for your confirmation, and a voice correction can be undone.</p>
+    </div>
+  </li>
+
+  <li class="chapter">
+    <div class="rail"><time>10:06</time><span>Summary</span></div>
+    <div class="body">
+      <h3>So, what did we decide?</h3>
+      <p>The summary lays out the overview, decisions, next steps with their owner and due date, then the details by topic. Each point carries the time it was said: one click plays the passage, so you can check before you quote it.</p>
+      <figure><img src="assets/summary.png" width="1830" height="1480" loading="lazy" alt="Summary with an overview, key points, two decisions and five next steps with owners and due dates, each with its source time, and an outline on the right."></figure>
+      <div class="detail">
+        <p><b>You choose who writes it.</b> A local model server such as LM Studio, a hosted provider with your own API key (Mistral, OpenAI, Anthropic, Gemini), or your own coding agent: Claude Code, Codex, Gemini CLI and others. An agent can add what it knows about the people and projects, in a separate Context section.</p>
+        <figure><img src="assets/summary-agent.png" width="1647" height="528" loading="lazy" alt="Summary settings with automatic generation, the Agent (ACP) provider, Claude Code and a working folder."></figure>
+      </div>
+      <p class="aside">Summaries are written in English or French, following the language you choose for HWYD. Turn on automatic summaries and one starts as soon as the transcript is done and every voice is named.</p>
+    </div>
+  </li>
+
+  <li class="chapter">
+    <div class="rail"><time>10:15</time><span>Sharing</span></div>
+    <div class="body split">
+      <div>
+        <h3>Pass it on.</h3>
+        <p>Export the summary as PDF or Markdown and pick the sections. Context notes from your agent start unticked, since they may hold private information.</p>
+        <p>Your own tools can read every session too: versioned Markdown and JSON exports, and a standalone MCP server for your agents.</p>
+      </div>
+      <figure class="narrow"><img src="assets/export-sheet.png" width="880" height="840" loading="lazy" alt="Export sheet listing summary sections, with Context unticked."></figure>
+    </div>
+  </li>
+
+  <li class="chapter">
+    <div class="rail"><time>18:30</time><span>Evening</span></div>
+    <div class="body">
+      <h3>How was your day?</h3>
+      <p>Everything is in one place: the coffee with Léa, the idea from this morning, the check-in, the 1:1 with Sam. Search titles and what was said, filter by type, and open any session right where it matters.</p>
+      <figure><img src="assets/library.png" width="1779" height="1300" loading="lazy" alt="Session library in light mode with search, a type filter and today’s sessions."></figure>
+    </div>
+  </li>
+</ol>
+<p class="wrap fine center">Screens rendered by the app from a fictional day. The voices are speech synthesis; no microphone was used.</p>
+
+<section class="wrap principles" id="principles">
   <div><p class="eyebrow">BUILT TO STAY CLOSE</p><h2>Your Mac.<br>Your context.</h2></div>
   <div class="principle-list">
-    <article><h3>Local processing</h3><p>Apple Speech and optional offline diarization process the audio on your Mac. Summaries use a local model server you configure separately.</p></article>
-    <article><h3>Recording is your call</h3><p>Start explicitly, with a visible recording state. Calendar reminders can offer “join and record”. Voice memory is optional and activated explicitly for each person.</p></article>
-    <article><h3>Useful beyond the app</h3><p>Export versioned Markdown and JSON, or let your agents read sessions through the standalone MCP server. Voice vectors never enter exports.</p></article>
+    <article><h3>Audio stays on your Mac</h3><p>Recording, transcription and voice separation run locally. For summaries, you decide where the transcript goes: a local server, your own agent, or a hosted provider you enable with your key. Audio, notes and voice prints are never sent.</p></article>
+    <article><h3>Recording is your call</h3><p>Every recording starts with an explicit action and a visible state. Your declaration that the people present agree is kept with its time, in the session and its exports. Voice memory is a separate, opt-in choice for each person, and you can see, withdraw or erase what each session added.</p></article>
+    <article><h3>Yours to keep, or to delete</h3><p>Export Markdown and JSON, or let your agents read sessions through MCP. Voice vectors never enter exports. Deleting a session deletes its audio.</p></article>
   </div>
 </section>
+
 <section class="wrap install" id="install">
   <img src="assets/icon.png" alt="" width="72" height="72" loading="lazy">
   <p class="eyebrow">HOW WAS YOUR DAY?</p><h2>Keep something from it.</h2>
-  <p>Available for Apple Silicon Macs running macOS 26 or later.</p>
+  <p>For Apple Silicon Macs running macOS 26 or later. Signed, notarized and updated from within the app.</p>
   <div class="command"><code id="brew-command">brew install --cask alepee/tap/how-was-your-day</code><button id="copy" aria-label="Copy Homebrew install command">Copy</button></div>
   <span id="copy-status" role="status" aria-live="polite"></span>
   <a class="text-link" href="https://github.com/alepee/how-was-your-day/releases/latest">Prefer a download? Get the DMG or ZIP ↗</a>
-  <div class="release-note"><strong>An early release, with clear limits.</strong><p>The app is signed but not notarized by Apple. If macOS blocks the first launch, open <b>System Settings → Privacy &amp; Security → Open Anyway</b>.</p><p>Transcription is currently French-only. Speaker identification and summaries still need review. Automatic audio cleanup, app-level encryption and embedded LLM inference are not implemented. Inform participants before recording. <a href="https://github.com/alepee/how-was-your-day#current-limitations">Read the current limitations ↗</a></p></div>
+  <div class="release-note"><strong>An early release, with clear limits.</strong><p>Capture and speaker identification are experimental: transcripts and summaries still need review. HWYD records your consent declaration, it does not collect consent from participants. There is no app-level encryption or automatic audio purge yet. <a href="https://github.com/alepee/how-was-your-day#current-limitations">Read the current limitations ↗</a></p></div>
 </section>
 </main>
-<footer class="wrap"><span>How Was Your Day <span class="muted">/ Made for the Mac.</span></span><div><a href="https://github.com/alepee/how-was-your-day">Source</a><a href="https://github.com/alepee/how-was-your-day/issues">Feedback</a><a href="https://no-bleeding-eyes.lepee.dev/">Also: No Bleeding Eyes ↗</a></div></footer>
+<footer class="wrap"><span>How Was Your Day <span class="muted">/ Made for the Mac.</span></span><div><a href="https://github.com/alepee/how-was-your-day">Source</a><a href="https://github.com/alepee/how-was-your-day/releases">Releases</a><a href="https://github.com/alepee/how-was-your-day/issues">Feedback</a><a href="https://no-bleeding-eyes.lepee.dev/">Also: No Bleeding Eyes ↗</a></div></footer>
 </body>
 </html>
