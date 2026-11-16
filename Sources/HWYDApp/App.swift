@@ -57,7 +57,10 @@ import HWYDCore
                 FileHandle.standardOutput.write(Data("Synthetic microphone switch: combined, split and back, one timeline: PASS\n".utf8))
                 exit(0)
             } catch { FileHandle.standardError.write(Data("\(error)\n".utf8)); exit(1) }
-        case .snapshot(let directory): Snapshotter.run(into: directory); NSApp.terminate(nil); return
+        case .snapshot(let directory):
+            // `--site` renders the screens of the public website instead of the review set.
+            if CommandLine.arguments.contains("--site") { SiteShots.run(into: directory) } else { Snapshotter.run(into: directory) }
+            NSApp.terminate(nil); return
         case .preview, .app: break
         }
         let model = AppRoot.model

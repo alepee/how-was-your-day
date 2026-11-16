@@ -4,7 +4,7 @@ function setTheme(theme) {
   const next = theme === 'dark' ? 'light' : 'dark';
   themeButton.textContent = `${next === 'light' ? 'Light' : 'Dark'} mode`;
   themeButton.setAttribute('aria-label', `Switch to ${next} theme`);
-  document.querySelector('#app-shot').src = `assets/transcript-${theme}.png`;
+  document.querySelector('#app-shot').src = `assets/session-${theme}.png`;
   document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#1b2025' : '#f4f6f3';
 }
 const systemTheme = window.matchMedia('(prefers-color-scheme: light)');
