@@ -74,7 +74,7 @@ final class SummaryExportTests: XCTestCase {
 
     func testAStaleSummarySaysTheTranscriptChanged() throws {
         var item = DemoContent.recordings()[0]; item.isDemo = false
-        XCTAssertFalse(try XCTUnwrap(SummaryExport.markdown(item)).contains(SummaryExport.staleNotice))
+        XCTAssertFalse(try XCTUnwrap(SummaryExport.markdown(item)).contains(SummaryVocabulary(.french).staleNotice))
         try item.renameSpeaker(item.speakers.first { !$0.confirmed }!.id, to: "Léa")
         XCTAssertTrue(item.summaryIsStale)
         XCTAssertTrue(try XCTUnwrap(SummaryExport.markdown(item)).contains("_Le transcript a changé depuis cette synthèse._"))

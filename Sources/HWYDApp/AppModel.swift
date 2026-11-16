@@ -205,6 +205,23 @@ final class AppModel: ObservableObject {
             if appliesAppearance { NSApp.appearance = appearancePreference.appearance }
         }
     }
+    /// Language of the interface and of what HWYD writes. Takes effect at the next launch: macOS
+    /// reads the per-app language list then, and the helpers receive the resolved language.
+    @Published var appLanguage: AppLanguage = .system {
+        didSet { if appLanguage != oldValue { workspace.settings.set(appLanguage.appleLanguages, for: .appleLanguages) } }
+    }
+    /// The choice this process started with: the interface and outputs follow it until relaunch.
+    private(set) var launchLanguage: AppLanguage = .system
+    var languageNeedsRelaunch: Bool { appLanguage != launchLanguage }
+    /// Quits and opens the app again once this process has ended, so the new language applies.
+    /// Quitting goes through the usual path: a running capture ends and edits are saved first.
+    func relaunchForLanguage() {
+        guard !isBusy else { return }
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        task.arguments = ["-c", "while kill -0 \(ProcessInfo.processInfo.processIdentifier) 2>/dev/null; do sleep 0.2; done; /usr/bin/open \"$0\"", Bundle.main.bundlePath]
+        do { try task.run(); NSApp.terminate(nil) } catch { notifier.notify(.error(error.localizedDescription)) }
+    }
     /// Preferences read at start: the user's for the installed app, in memory for previews, tests
     /// and synthetic checks. Changes go to the workspace's settings.
     private var preferences: SettingsStore { environment.preferences }
@@ -245,6 +262,7 @@ final class AppModel: ObservableObject {
             recordingShortcut = data.isEmpty ? nil : (try? JSONDecoder().decode(RecordingShortcut.self, from: data)) ?? .standard
         }
         appearancePreference = AppearancePreference(rawValue: preferences.value(.appearance) ?? "") ?? .system
+        launchLanguage = AppLanguage(appleLanguages: preferences.value(.appleLanguages)); appLanguage = launchLanguage
         if appliesAppearance { NSApp.appearance = appearancePreference.appearance }
         if let locales = environment.initialLocales { installedSpeechLocales = locales.installed; supportedSpeechLocales = locales.supported }
         if let error = environment.startupError { notifier.notify(.error(error)) }
@@ -979,7 +997,7 @@ final class AppModel: ObservableObject {
             // Stale once the transcript or anything the summary read changed, here or in another process.
             do {
                 try await library.apply(item.id, ifStillAt: item.transcriptVersion, where: { try SummaryPipeline.inputHash($0) == result.inputHash }) {
-                    $0.summary = result.structured.markdown; $0.summaryProvenance = result
+                    $0.summary = result.markdown; $0.summaryProvenance = result
                 }
             } catch is StaleResult { throw SummaryFailure.stale }
             catch is UnsavedResult { return } // The summary stays pending; the save failure is shown.

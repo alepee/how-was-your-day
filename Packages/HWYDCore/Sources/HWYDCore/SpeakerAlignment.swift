@@ -60,7 +60,7 @@ public enum SpeakerAlignment {
                 if let cluster = run.cluster {
                     let key = original.source.rawValue + ":" + cluster
                     if ids[key] == nil {
-                        let speaker = Speaker(label: "Voix \(speakers.count + 1)", source: original.source)
+                        let speaker = Speaker(label: SummaryLanguage.current.voiceLabel(speakers.count + 1), source: original.source)
                         ids[key] = speaker.id; speakers.append(speaker)
                     }
                     id = ids[key]

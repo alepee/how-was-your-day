@@ -118,6 +118,7 @@ import SwiftUI
         guard let summary = item.summaryProvenance?.structured, summary.details != nil else {
             return blocks + legacy(SummaryExport.keeping(sections, of: item.summary ?? ""))
         }
+        let words = SummaryExport.vocabulary(item)
         let decisions = sections.contains(.decisions) ? summary.decisions : []
         let actions = sections.contains(.actions) ? summary.action_items : []
         let details = sections.contains(.details) ? summary.details ?? [] : []
@@ -126,8 +127,8 @@ import SwiftUI
         blocks.append(Block(20) {
             Text(summary.overview).font(.system(size: Size.lead)).lineSpacing(4)
         })
-        let stats = [(decisions.count, "décision", "décisions"), (actions.count, "action", "actions"), // l10n:ignore
-                     (details.count, "thème", "thèmes")].filter { $0.0 > 0 } // l10n:ignore
+        let stats = [(decisions.count, words.decisionNoun.0, words.decisionNoun.1), (actions.count, words.actionNoun.0, words.actionNoun.1),
+                     (details.count, words.topicNoun.0, words.topicNoun.1)].filter { $0.0 > 0 }
         if !stats.isEmpty {
             blocks.append(Block(12) {
                 HStack(spacing: 6) { ForEach(Array(stats.enumerated()), id: \.offset) { _, stat in Chip(count: stat.0, label: stat.0 == 1 ? stat.1 : stat.2) } }
@@ -142,14 +143,14 @@ import SwiftUI
             })
         }
         if !decisions.isEmpty {
-            blocks.append(Block(24, keepWithNext: true) { SectionTitle(title: "Décisions", count: decisions.count) }) // l10n:ignore
+            blocks.append(Block(24, keepWithNext: true) { SectionTitle(title: words.heading(.decisions)!, count: decisions.count) })
             for decision in decisions {
                 blocks.append(Block(6) { Callout(text: decision.text, segments: segments(decision.evidence_segment_ids)) })
             }
         }
         if !actions.isEmpty {
             let assigned = actions.contains { !($0.assignee_name ?? "").isEmpty }
-            blocks.append(Block(24, keepWithNext: true) { SectionTitle(title: "Étapes suivantes", count: actions.count) }) // l10n:ignore
+            blocks.append(Block(24, keepWithNext: true) { SectionTitle(title: words.heading(.actions)!, count: actions.count) })
             for (index, action) in actions.enumerated() {
                 var row = Block(0) { ActionRow(action: action, assigned: assigned, segments: segments(action.evidence_segment_ids), divider: index > 0) }
                 row.atPageTop = AnyView(ActionRow(action: action, assigned: assigned, segments: segments(action.evidence_segment_ids), divider: false))
@@ -157,16 +158,16 @@ import SwiftUI
             }
         }
         if !details.isEmpty {
-            blocks.append(Block(24, keepWithNext: true) { SectionTitle(title: "Détails", count: details.count) }) // l10n:ignore
+            blocks.append(Block(24, keepWithNext: true) { SectionTitle(title: words.heading(.details)!, count: details.count) })
             for topic in details {
                 blocks.append(card(topic.title, topic.text, segments: segments(topic.evidence_segment_ids)))
             }
         }
         // Context notes come from the agent's own sources, not from the session: they carry the sources instead of passages.
         if !context.isEmpty {
-            blocks.append(Block(24, keepWithNext: true) { SectionTitle(title: "Contexte", count: context.count) }) // l10n:ignore
+            blocks.append(Block(24, keepWithNext: true) { SectionTitle(title: words.heading(.context)!, count: context.count) })
             for note in context {
-                let sources = note.sources.isEmpty ? note.text : note.text + "\nSources : " + note.sources.joined(separator: ", ") // l10n:ignore
+                let sources = note.sources.isEmpty ? note.text : note.text + "\n" + words.sources + note.sources.joined(separator: ", ")
                 blocks.append(card(note.title, sources, segments: []))
             }
         }
@@ -174,24 +175,25 @@ import SwiftUI
     }
 
     static func header(_ item: Recording) -> Block {
-        let date = item.startedAt.formatted(Date.FormatStyle(date: .long, time: .shortened).locale(Locale(identifier: "fr_FR")))
+        let words = SummaryExport.vocabulary(item)
+        let date = words.date(item.startedAt)
         var meta = ["\(max(1, Int(item.duration / 60))) min"]
         let names = item.participants.map(\.label)
         if !names.isEmpty { meta.append(names.joined(separator: ", ")) }
-        let provenance = item.summaryProvenance.map { "Synthèse générée par " + $0.model + " le " + $0.generatedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted).locale(Locale(identifier: "fr_FR"))) } // l10n:ignore
+        let provenance = item.summaryProvenance.map { words.generated(by: $0.model, on: words.date($0.generatedAt, style: .abbreviated, time: .omitted), review: false) }
         return Block(0) {
             VStack(alignment: .leading, spacing: 8) {
-                Text(("Synthèse · " + item.kind.label + " · " + date).uppercased()).font(.system(size: Size.small, weight: .semibold)).tracking(1.2).foregroundStyle(Ink.muted) // l10n:ignore
+                Text((words.summary + " · " + item.kind.label + " · " + date).uppercased()).font(.system(size: Size.small, weight: .semibold)).tracking(1.2).foregroundStyle(Ink.muted) // l10n:ignore
                 Text(item.title).font(.system(size: Size.title, weight: .semibold))
                 Text(meta.joined(separator: " · ")).font(.system(size: Size.body)).foregroundStyle(Ink.muted)
                 HStack(spacing: 6) {
-                    Text(verbatim: item.isDemo ? "Synthèse fictive · exemple" : "Brouillon à relire").font(.system(size: Size.small, weight: .medium)) // l10n:ignore
+                    Text(verbatim: item.isDemo ? words.example : words.draft).font(.system(size: Size.small, weight: .medium)) // l10n:ignore
                         .foregroundStyle(Ink.copper).padding(.horizontal, 6).padding(.vertical, 3)
                         .background(Ink.copper.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
                     if let provenance { Text(provenance).font(.system(size: Size.small)).foregroundStyle(Ink.muted) }
                 }.padding(.top, 2)
                 if item.summaryIsStale {
-                    Text(verbatim: SummaryExport.staleNotice).font(.system(size: Size.small)).foregroundStyle(Ink.copper)
+                    Text(verbatim: words.staleNotice).font(.system(size: Size.small)).foregroundStyle(Ink.copper)
                 }
                 Rectangle().fill(Ink.line).frame(height: 0.5).padding(.top, 8)
             }

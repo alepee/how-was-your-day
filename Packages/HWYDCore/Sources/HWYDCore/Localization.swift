@@ -15,7 +15,13 @@ public enum HWYDLocalization {
     public static let environmentKey = "HWYD_LOCALIZATION"
 
     /// The localization the app resolved for itself, passed to child processes.
-    public static var current: String { Bundle.hwyd.preferredLocalizations.first ?? Bundle.hwyd.developmentLocalization ?? "fr" }
+    /// In a helper, the language the app passed; `Bundle.hwyd` is then a single `.lproj`.
+    public static var current: String {
+        if Bundle.main.bundleURL.pathExtension != "app", let passed = ProcessInfo.processInfo.environment[environmentKey], !passed.isEmpty { return passed }
+        // Without the catalog (tests, `swift run`), strings are the French source text: so is the language.
+        guard Bundle.hwyd.path(forResource: "Localizable", ofType: "strings") != nil else { return "fr" }
+        return Bundle.hwyd.preferredLocalizations.first ?? Bundle.hwyd.developmentLocalization ?? "fr"
+    }
 
     static func resolve(main: Bundle = .main, environment: [String: String] = ProcessInfo.processInfo.environment) -> Bundle {
         if main.bundleURL.pathExtension == "app" { return main }

@@ -4,7 +4,7 @@
 
 A native macOS app for recording, transcribing and reviewing conversations locally. Built with SwiftUI and Swift Package Manager.
 
-**Experimental, Apple Silicon, macOS 26 or later.** The interface follows the macOS language: English, or French otherwise. Demo content, stored default voice labels ("Voix 1", "Voix à nommer") and summaries stay in French.
+**Experimental, Apple Silicon, macOS 26 or later.** HWYD speaks French or English. Settings > General > HWYD language sets the interface, summaries and their exports, labels given to new voices and the examples; it applies at the next launch. By default HWYD follows the macOS language: English, or French otherwise. Summaries already written keep their language. Session exports (`SessionExporter`), the MCP protocol and validation reasons sent to models are not translated.
 
 ## Install
 
@@ -49,7 +49,7 @@ Summaries require a separately running local server, a hosted provider API key, 
 
 An automatic summary refused because the provider is not configured is not attempted again until the transcript changes, and a session that was ready when HWYD quit during its 10-second wait is not picked up at the next launch. On a stale summary, some source references may be missing when the passages they pointed to changed.
 
-Structured output and source references do not guarantee accuracy. Models can omit decisions or distort details, and summaries still need review. French, English and mixed transcripts have a synthetic [benchmark suite](docs/summary-benchmark.md); summaries are currently written in French. Input budgets limit each request, not the external server's memory allocation or model cache. With a local server, verify the context it actually reports. The optional reasoning toggle helps models that otherwise return no final JSON. See [summary workflow](docs/summary-workflow.md).
+Structured output and source references do not guarantee accuracy. Models can omit decisions or distort details, and summaries still need review. French, English and mixed transcripts have a synthetic [benchmark suite](docs/summary-benchmark.md); summaries are written in French or English, following the language setting. English summaries use English prompts at every stage; the benchmark suite only measures French output so far. Input budgets limit each request, not the external server's memory allocation or model cache. With a local server, verify the context it actually reports. The optional reasoning toggle helps models that otherwise return no final JSON. See [summary workflow](docs/summary-workflow.md).
 
 There is no automatic audio purge, app-level encryption or login item yet. Deleting a session does not erase manual exports, copies made by agents, backups, or the freed pages of the SQLite file. Uninstalling does not delete recordings or keychain entries. Voice matching thresholds are not calibrated on a representative corpus.
 

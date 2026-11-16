@@ -9,7 +9,8 @@ struct SummaryStageRequest {
     let references: [String: String]
 
     init(prompt: String, evidenceIDs: [UUID], system: String, planning: Bool,
-         intermediateLanguage: SummaryIntermediateLanguage, schemaOrder: SummarySchemaOrder = .alphabetical) throws {
+         intermediateLanguage: SummaryIntermediateLanguage, outputLanguage: SummaryLanguage = .french,
+         schemaOrder: SummarySchemaOrder = .alphabetical) throws {
         let references = Dictionary(uniqueKeysWithValues: evidenceIDs.enumerated().map { ("S\($0.offset + 1)", $0.element.uuidString) })
         var input = prompt
         for (reference, id) in references { input = input.replacingOccurrences(of: id, with: reference) }
@@ -30,7 +31,7 @@ struct SummaryStageRequest {
             if let entries = value as? [Any] { entries.forEach(collectNames) }
             if let object = value as? [String: Any] {
                 for key in ["speaker", "assignee_name"] {
-                    if let name = object[key] as? String, name != "Voix non identifiée" { names.insert(name) }
+                    if let name = object[key] as? String, !SummaryLanguage.allCases.map(\.unidentifiedSpeaker).contains(name) { names.insert(name) }
                 }
                 object.values.forEach(collectNames)
             }
@@ -47,11 +48,11 @@ struct SummaryStageRequest {
             "decisions": ["type": "array", "maxItems": routing || executive || repair || verifyActions ? 0 : 32, "items": ["type": "object", "additionalProperties": false, "required": ["text", "evidence_segment_ids"], "properties": ["text": ["type": "string"], "evidence_segment_ids": claimEvidence]]],
             "action_items": ["type": "array", "maxItems": routing || executive || repair || verifyDecisions ? 0 : 64, "items": ["type": "object", "additionalProperties": false, "required": ["text", "assignee_name", "assignee_person_id", "due_date", "evidence_segment_ids"], "properties": ["text": ["type": "string"], "assignee_name": assigneeSchema, "assignee_person_id": ["type": "null"], "due_date": dateSchema, "evidence_segment_ids": claimEvidence]]]
         ]]
-        // Only the intermediate stages follow the configured language. Final writing stays French.
+        // Intermediate stages follow the intermediate language, final writing the output language.
         let intermediateStage = prompt.hasPrefix("EXTRACT:") || routing || verification
         let contract = LocalLLMProvider.outputContract(planning: planning, routing: routing, executive: executive,
                                                        verification: verification, verifyActions: verifyActions, verifyDecisions: verifyDecisions, repair: repair,
-                                                       language: intermediateStage ? intermediateLanguage : .french)
+                                                       language: intermediateStage ? intermediateLanguage : outputLanguage)
         self.system = system + "\n\n" + contract
         self.input = input
         self.schema = schema
@@ -182,6 +183,7 @@ public struct RemoteLLMProvider: LLMProvider {
     let apiKey: String
     let baseURL: URL
     public let intermediateLanguage: SummaryIntermediateLanguage
+    public let outputLanguage: SummaryLanguage
     static let outputTokens = 16_000
     /// Hosted models have far larger contexts than local servers (128k tokens and more), so a
     /// typical one-hour session fits one extraction window and takes the two-request path.
@@ -195,14 +197,15 @@ public struct RemoteLLMProvider: LLMProvider {
     static let anthropicVersion = "2026-10-21"
 
     public init(service: SummaryService, model: String, apiKey: String, baseURL: URL? = nil,
-                intermediateLanguage: SummaryIntermediateLanguage = .french) throws {
+                intermediateLanguage: SummaryIntermediateLanguage = .french, outputLanguage: SummaryLanguage = .french) throws {
         let model = model.trimmingCharacters(in: .whitespacesAndNewlines)
         let apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard service.isRemote, let url = baseURL ?? service.baseURL else { throw SummaryFailure.invalidEndpoint }
         guard !apiKey.isEmpty else { throw SummaryFailure.apiKeyMissing(service.displayName) }
         guard !model.isEmpty else { throw SummaryFailure.modelMissing(service.displayName) }
         self.service = service; self.model = model; self.apiKey = apiKey; self.baseURL = url
-        self.intermediateLanguage = intermediateLanguage
+        self.outputLanguage = outputLanguage
+        self.intermediateLanguage = outputLanguage == .english ? .english : intermediateLanguage
     }
     /// Stored in the summary provenance and the stage cache key. Never contains the key.
     public var identity: String { service.rawValue + "|" + baseURL.absoluteString }
@@ -216,9 +219,9 @@ public struct RemoteLLMProvider: LLMProvider {
     }
 
     func makeRequest(prompt: String, evidenceIDs: [UUID], planning: Bool) throws -> (request: URLRequest, stage: SummaryStageRequest) {
-        let system = LocalLLMProvider.systemInstructions(for: prompt, planning: planning, language: intermediateLanguage)
+        let system = LocalLLMProvider.systemInstructions(for: prompt, planning: planning, language: intermediateLanguage, output: outputLanguage)
         let stage = try SummaryStageRequest(prompt: prompt, evidenceIDs: evidenceIDs, system: system, planning: planning,
-                                            intermediateLanguage: intermediateLanguage)
+                                            intermediateLanguage: intermediateLanguage, outputLanguage: outputLanguage)
         let schema = SummaryStageRequest.portable(stage.schema, keepEvidenceEnum: stage.references.count <= Self.evidenceEnumLimit)
         var request: URLRequest
         var body: [String: Any]

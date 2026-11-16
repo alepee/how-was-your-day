@@ -7,9 +7,11 @@ import CryptoKit
 public enum AgentSummaryTask {
     public static let promptVersion = "agent-summary-v1"
     public static let handoffFileName = "summary.json"
+    /// French keeps the historical version; English has its own.
+    static func promptVersion(for language: SummaryLanguage) -> String { language == .english ? Self.promptVersion + "+english" : Self.promptVersion }
     /// Hash of the fixed instructions, without the session-specific title and transcript.
-    static var promptHash: String {
-        let text = (try? prompt(Recording(title: ""))) ?? promptVersion
+    static func promptHash(for language: SummaryLanguage) -> String {
+        let text = (try? prompt(Recording(title: ""), language: language)) ?? promptVersion(for: language)
         return SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
     }
     static let maximumEvidenceReferences = 5
@@ -22,19 +24,44 @@ public enum AgentSummaryTask {
         Dictionary(uniqueKeysWithValues: segments(recording).enumerated().map { ("S\($0.offset + 1)", $0.element.id.uuidString) })
     }
 
-    public static func prompt(_ recording: Recording) throws -> String {
+    public static func prompt(_ recording: Recording, language: SummaryLanguage = .french) throws -> String {
         let labels = Dictionary(uniqueKeysWithValues: recording.speakers.map { ($0.id, $0.label) })
         // `resumed`, absent unless recording resumed just before the passage, tells the agent the session was cut there.
         struct Row: Encodable { let id: String; let speaker: String; let start: String; let text: String; let resumed: String? }
         let passages = segments(recording)
         let markers = SessionResume.markers(recording.boundaries, before: passages.sorted { $0.start < $1.start })
         let rows = passages.enumerated().map { index, segment in
-            Row(id: "S\(index + 1)", speaker: segment.speakerID.flatMap { labels[$0] } ?? "Voix non identifiée", start: timeLabel(segment.start), text: segment.text,
+            Row(id: "S\(index + 1)", speaker: segment.speakerID.flatMap { labels[$0] } ?? language.unidentifiedSpeaker, start: timeLabel(segment.start), text: segment.text,
                 resumed: markers[segment.id].map { $0.map { SessionResume.exportLabel($0) }.joined(separator: ", ") })
         }
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         let transcript = String(decoding: try encoder.encode(rows), as: UTF8.self)
         let date = recording.startedAt.formatted(.iso8601.year().month().day())
+        if language == .english {
+            return """
+            HWYD hands you the summary of a recorded session: "\(recording.title)", on \(date). The transcript is at the end of this message.
+
+            Your only task is to produce this summary and send it with the submit_summary tool of the "hwyd" MCP server. Do not write, modify or delete any file, and do not run any command: HWYD refuses these actions.
+
+            HWYD hands it to you rather than to an isolated model because you know the user. Proceed as follows:
+            1. Read the transcript and note the people, projects, tools and decisions that matter.
+            2. Consult your context read-only (instructions, memory, notes, documents you can access) to place them: who these people are, which projects or earlier decisions the topics relate to, what is already known.
+            3. Write the summary, then send it.
+
+            Content rules:
+            - overview, key_points, details, decisions and action_items describe only what was said in the session, sourced by the S<n> identifiers of the passages (1 to \(maximumEvidenceReferences) per element, in evidence_segment_ids). Import no fact from your context into them.
+            - What your context brings (who a person is, which project or earlier decision a topic relates to, what extends or contradicts a known decision) goes in context, with the sources consulted in sources (note path, document name, link). context stays empty if you have nothing useful to add.
+            - assignee_name repeats exactly the voice label (speaker) of the person who commits, or null. assignee_person_id is always null. due_date is null unless a YYYY-MM-DD date appears in the cited passages.
+            - Write in English, whatever the language of the transcript.
+
+            \(SummaryPipeline.instructionsEnglish)
+
+            If submit_summary refuses the summary, read the reason, correct it and send it again. Stop as soon as it is accepted.
+
+            TRANSCRIPT (JSON, one line per passage):
+            \(transcript)
+            """
+        }
         return """
         HWYD te confie la synthèse d'une session enregistrée : « \(recording.title) », du \(date). Le transcript est en fin de message.
 
@@ -298,6 +325,7 @@ public enum ACPSummaryAgent {
     public static let timeout: Duration = .seconds(20 * 60)
 
     public static func run(_ recording: Recording, command: String, workingDirectory: URL, mcpExecutable: URL, storeDirectory: URL,
+                           language: SummaryLanguage = .french,
                            progress: @escaping @Sendable (SummaryProgress) async -> Void = { _ in }) async throws -> SummaryProvenance {
         let command = command.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !command.isEmpty else { throw AgentSummaryFailure.commandMissing }
@@ -338,7 +366,7 @@ public enum ACPSummaryAgent {
         guard let sessionID = (try? JSONSerialization.jsonObject(with: session) as? [String: Any])?["sessionId"] as? String else { throw AgentSummaryFailure.protocolError("session/new sans sessionId") }
 
         await progress(.init(stage: String(localized: "L’agent rédige la synthèse", bundle: .hwyd), completed: 0, total: 1, cached: false))
-        let promptParams = try json(["sessionId": sessionID, "prompt": [["type": "text", "text": try AgentSummaryTask.prompt(recording)]]])
+        let promptParams = try json(["sessionId": sessionID, "prompt": [["type": "text", "text": try AgentSummaryTask.prompt(recording, language: language)]]])
         let response: Data
         do {
             response = try await withTaskCancellationHandler {
@@ -377,8 +405,9 @@ public enum ACPSummaryAgent {
                                      maximumEvidenceReferences: AgentSummaryTask.maximumEvidenceReferences, maximumDetails: AgentSummaryTask.maximumDetails)
         await progress(.init(stage: String(localized: "Compte rendu prêt", bundle: .hwyd), completed: 1, total: 1, cached: false))
         return SummaryProvenance(provider: "acp|" + command, model: agentName.isEmpty ? command : agentName,
-                                 promptVersion: AgentSummaryTask.promptVersion, promptHash: AgentSummaryTask.promptHash,
-                                 generatedAt: Date(), transcriptVersion: recording.transcriptVersion, inputHash: inputHash, structured: result.summary)
+                                 promptVersion: AgentSummaryTask.promptVersion(for: language), promptHash: AgentSummaryTask.promptHash(for: language),
+                                 generatedAt: Date(), transcriptVersion: recording.transcriptVersion, inputHash: inputHash, structured: result.summary,
+                                 language: language.code)
     }
 
     private static func json(_ object: Any) throws -> Data { try JSONSerialization.data(withJSONObject: object, options: [.withoutEscapingSlashes]) }

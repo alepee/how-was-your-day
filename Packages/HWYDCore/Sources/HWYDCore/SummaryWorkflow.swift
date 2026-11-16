@@ -51,6 +51,7 @@ extension SummaryPipeline {
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
         func json<T: Encodable>(_ value: T) throws -> String { String(decoding: try encoder.encode(value), as: UTF8.self) }
         let fingerprint = try inputHash(recording)
+        let output = provider.outputLanguage
         let labels = Dictionary(uniqueKeysWithValues: recording.speakers.map { ($0.id, $0.label) })
         // Where recording resumed: the provider knows the session was cut there.
         let markers = SessionResume.markers(recording.boundaries, before: recording.segments.sorted { $0.start < $1.start })
@@ -61,7 +62,7 @@ extension SummaryPipeline {
                 let resumed: String?
             }
             return try json(segments.enumerated().map { index, segment in
-                Row(id: "S\(index + 1)", speaker: segment.speakerID.flatMap { labels[$0] } ?? "Voix non identifiée", start: timeLabel(segment.start), source: segment.source.rawValue, text: segment.text, echo_suspect: segment.echoSuspect,
+                Row(id: "S\(index + 1)", speaker: segment.speakerID.flatMap { labels[$0] } ?? output.unidentifiedSpeaker, start: timeLabel(segment.start), source: segment.source.rawValue, text: segment.text, echo_suspect: segment.echoSuspect,
                     resumed: markers[segment.id].map { $0.map { SessionResume.exportLabel($0) }.joined(separator: ", ") })
             })
         }
@@ -81,11 +82,14 @@ extension SummaryPipeline {
         var total = windows.count + 1, completed = 0
         // Intermediate stages follow the provider's language. The default keeps the historical identity,
         // so existing checkpoints stay valid; English never shares a checkpoint with French.
-        let language = provider.intermediateLanguage
+        // English output writes every stage in English and has its own identity too.
+        let language = output == .english ? .english : provider.intermediateLanguage
         let english = language == .english
         let historicalPromptText = instructions + planningInstructions + boundedInstructions + LocalLLMProvider.stageInstructionVersion
-        let promptVersion = english ? "summary-v7-grounded-writing+intermediate-english" : "summary-v7-grounded-writing"
-        let promptHash = english ? englishPromptHash(historicalPromptText)
+        let promptVersion = output == .english ? "summary-v7-grounded-writing+english"
+            : english ? "summary-v7-grounded-writing+intermediate-english" : "summary-v7-grounded-writing"
+        let promptHash = output == .english ? englishOutputPromptHash(historicalPromptText)
+            : english ? englishPromptHash(historicalPromptText)
             : SHA256.hash(data: Data(historicalPromptText.utf8)).map { String(format: "%02x", $0) }.joined()
         func generate(_ prompt: String, segments: [TranscriptSegment], planning: Bool, stage: String,
                       cachePrompt: String? = nil,
@@ -348,7 +352,7 @@ extension SummaryPipeline {
             verificationContexts.append(VerificationContext(originalIDs: ids, corrections: corrections, verified: candidate))
         }
         var drafts: [SummaryContent] = []
-        let writePrefix = boundedInstructions + "\n"
+        let writePrefix = (output == .english ? boundedInstructionsEnglish : boundedInstructions) + "\n"
         for (topicIndex, key) in topicOrder.enumerated() {
             let selected = recording.segments.filter { topicSources[key, default: []].contains($0.id) }
             func writingInput(_ rows: [TranscriptSegment]) throws -> (String, [TranscriptSegment]) {
@@ -398,7 +402,7 @@ extension SummaryPipeline {
         var executiveBatch: [Abstract] = [], executiveIDs = Set<UUID>()
         func executivePrompt(_ batch: [Abstract], previous: SummaryContent) throws -> String {
             struct Payload: Encodable { let previous: SummaryContent; let thematic_abstracts: [Abstract] }
-            return "EXECUTIVE: écris uniquement overview et au plus quatre key_points transversaux pour le compte rendu complet, depuis ces paragraphes thématiques sourcés. Préserve aussi les sujets de fin. Ne rédige ni details, ni decisions, ni action_items (tableaux vides). La source peut être en français et anglais; écris en français. Les citations doivent provenir des paragraphes fournis ou des points précédents.\n" + (try json(Payload(previous: previous, thematic_abstracts: batch)))
+            return executivePrefix(output) + (try json(Payload(previous: previous, thematic_abstracts: batch)))
         }
         // Each fact sent to the editor carries its own references. Never offer an enum of
         // source IDs whose supporting text is absent from this request.
@@ -427,7 +431,15 @@ extension SummaryPipeline {
         total = completed
         await progress(.init(stage: String(localized: "Compte rendu prêt", bundle: .hwyd), completed: completed, total: total, cached: false))
         return SummaryProvenance(provider: providerIdentity, model: model, promptVersion: promptVersion, promptHash: promptHash,
-                                 generatedAt: Date(), transcriptVersion: recording.transcriptVersion, inputHash: fingerprint, structured: result)
+                                 generatedAt: Date(), transcriptVersion: recording.transcriptVersion, inputHash: fingerprint, structured: result,
+                                 language: output.code)
+    }
+
+    private static func executivePrefix(_ language: SummaryLanguage) -> String {
+        switch language {
+        case .french: "EXECUTIVE: écris uniquement overview et au plus quatre key_points transversaux pour le compte rendu complet, depuis ces paragraphes thématiques sourcés. Préserve aussi les sujets de fin. Ne rédige ni details, ni decisions, ni action_items (tableaux vides). La source peut être en français et anglais; écris en français. Les citations doivent provenir des paragraphes fournis ou des points précédents.\n"
+        case .english: "EXECUTIVE: write only overview and at most four cross-cutting key_points for the complete report, from these sourced thematic paragraphs. Also preserve the final topics. Write neither details, nor decisions, nor action_items (empty arrays). The source may be in French, English or another language; write in English. Quotations must come from the paragraphs provided or the previous points.\n"
+        }
     }
 
     private static func extractPrefix(_ language: SummaryIntermediateLanguage) -> String {
@@ -453,6 +465,24 @@ extension SummaryPipeline {
     /// Identity of the English intermediate prompt set. Every part is length-prefixed, so no
     /// concatenation of different parts can produce the same input. The rendered system instructions
     /// and contracts are included, so editing any of them invalidates English checkpoints.
+    /// Identity of the English output prompt set: the English intermediate set plus the final writing stages.
+    private static func englishOutputPromptHash(_ historicalPromptText: String) -> String {
+        let output = SummaryLanguage.english
+        return lengthPrefixedHash([englishPromptHash(historicalPromptText), "output-language=" + output.rawValue,
+                                   instructionsEnglish, boundedInstructionsEnglish, executivePrefix(output), output.unidentifiedSpeaker,
+                                   LocalLLMProvider.systemInstructions(for: "EXECUTIVE:", planning: false, language: output, output: output),
+                                   LocalLLMProvider.outputContract(planning: false, language: output),
+                                   LocalLLMProvider.outputContract(planning: false, executive: true, language: output)])
+    }
+    private static func lengthPrefixedHash(_ parts: [String]) -> String {
+        var data = Data()
+        for part in parts {
+            var count = UInt64(part.utf8.count).bigEndian
+            withUnsafeBytes(of: &count) { data.append(contentsOf: $0) }
+            data.append(contentsOf: part.utf8)
+        }
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
     private static func englishPromptHash(_ historicalPromptText: String) -> String {
         let language = SummaryIntermediateLanguage.english
         let parts = [historicalPromptText, "intermediate-language=" + language.rawValue, planningInstructionsEnglish,
@@ -466,17 +496,15 @@ extension SummaryPipeline {
                      LocalLLMProvider.outputContract(planning: false, verification: true, verifyActions: true, language: language),
                      LocalLLMProvider.outputContract(planning: false, verification: true, verifyDecisions: true, language: language),
                      LocalLLMProvider.englishStageInstructionVersion]
-        var data = Data()
-        for part in parts {
-            var count = UInt64(part.utf8.count).bigEndian
-            withUnsafeBytes(of: &count) { data.append(contentsOf: $0) }
-            data.append(contentsOf: part.utf8)
-        }
-        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        return lengthPrefixedHash(parts)
     }
 
     private static let boundedInstructions = """
     WRITE_TOPIC: rédige ce thème du compte rendu depuis les paroles originales. La carte des thèmes et extraction_map servent uniquement d'orientation. verified_context indique les engagements vérifiés avant rédaction et les changements constatés, avec leurs paroles justificatives présentes dans original_transcript. Utilise ces sources pour expliquer la chronologie et la position finale. Une suppression de doublon dans une liste ne signifie pas que le fait est annulé. Ne transforme pas une proposition non validée en proposition retirée. Le routage est approximatif : si la source aborde un autre sujet, conserve-le dans un détail distinct. Comprends le français et l'anglais et leur alternance, mais rédige en français naturel. Préserve faits, chiffres, arguments, désaccords, évolutions de position et questions ouvertes. N'invente pas les liens entre passages éloignés. Les horodatages donnent leur ordre. Développe les thèmes en paragraphes concrets sans recopier le verbatim. Les engagements explicites doivent apparaître aussi dans decisions et action_items. Une proposition n'est pas une décision. Un écho suspect n'est pas une preuve d'engagement. Toutes les références doivent pointer vers les paroles fournies ici. Réponds selon le schéma JSON.
+    """
+    /// English wording of `boundedInstructions`, for summaries written in English.
+    private static let boundedInstructionsEnglish = """
+    WRITE_TOPIC: write this theme of the report from the original speech. The topic map and extraction_map are for orientation only. verified_context gives the commitments verified before writing and the changes found, with their supporting speech present in original_transcript. Use these sources to explain the chronology and the final position. Removing a duplicate from a list does not mean the fact is cancelled. Do not turn an unvalidated proposal into a withdrawn proposal. Routing is approximate: if the source covers another topic, keep it in a separate detail. Understand French, English and switching between them, and any other language of the speech, but write in natural English. Preserve facts, figures, arguments, disagreements, changes of position and open questions. Do not invent links between distant passages. Timestamps give their order. Develop the themes into concrete paragraphs without copying the verbatim. Explicit commitments must also appear in decisions and action_items. A proposal is not a decision. A suspected echo is not evidence of a commitment. All references must point to the speech provided here. Reply following the JSON schema.
     """
 }
 
