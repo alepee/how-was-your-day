@@ -725,6 +725,46 @@
         }
       }
     },
+    "%lld passage(s) · %@": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld passage · %@"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld passages · %@"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld passage · %@"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld passages · %@"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld réunion(s) dans les 7 prochains jours": {
       "localizations": {
         "en": {
@@ -1001,6 +1041,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "64k tokens"
+          }
+        }
+      }
+    },
+    "AVANT %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BEFORE %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AVANT %@"
           }
         }
       }
@@ -1901,6 +1957,22 @@
         }
       }
     },
+    "Avant %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Before %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avant %@"
+          }
+        }
+      }
+    },
     "Avant la version 0.9 · session inconnue": {
       "localizations": {
         "en": {
@@ -2153,6 +2225,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ce micro n’est plus branché."
+          }
+        }
+      }
+    },
+    "Ce passage est le premier de cette voix : il n’y a rien à scinder avant lui.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is the voice's first passage: there is nothing before it to split off."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce passage est le premier de cette voix : il n’y a rien à scinder avant lui."
           }
         }
       }
@@ -2845,18 +2933,18 @@
         }
       }
     },
-    "Corriger ce passage : changer de voix ou le découper": {
+    "Corriger ce passage : changer de voix, le découper ou scinder sa voix": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Correct this passage: change its voice or split it"
+            "value": "Correct this passage: change its voice, cut it, or split its voice"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Corriger ce passage : changer de voix ou le découper"
+            "value": "Corriger ce passage : changer de voix, le découper ou scinder sa voix"
           }
         }
       }
@@ -2937,6 +3025,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Des voix ne sont pas encore identifiées : la synthèse les désigne de façon générique."
+          }
+        }
+      }
+    },
+    "Deux personnes ont parlé l’une après l’autre sous « %@ » ? Ses passages sont coupés à %@ : une des deux parties devient une nouvelle voix.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Did two people speak one after the other as “%1$@”? Its passages are cut at %2$@: one of the two parts becomes a new voice."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deux personnes ont parlé l’une après l’autre sous « %@ » ? Ses passages sont coupés à %@ : une des deux parties devient une nouvelle voix."
           }
         }
       }
@@ -5837,6 +5941,22 @@
         }
       }
     },
+    "Lire la session à partir de ce passage": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play the session from this passage"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lire la session à partir de ce passage"
+          }
+        }
+      }
+    },
     "Lire les pistes": {
       "localizations": {
         "en": {
@@ -6105,6 +6225,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "L’audio système expose %u canaux, 2 attendus. Aucun enregistrement n’a démarré."
+          }
+        }
+      }
+    },
+    "L’autre partie devient une nouvelle voix, à nommer ensuite. Aucune empreinte vocale n’est lue ni modifiée, et la scission peut être annulée.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The other part becomes a new voice, to be named next. No voice print is read or changed, and the split can be undone."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’autre partie devient une nouvelle voix, à nommer ensuite. Aucune empreinte vocale n’est lue ni modifiée, et la scission peut être annulée."
           }
         }
       }
@@ -6957,6 +7093,22 @@
         }
       }
     },
+    "Nouvelle voix…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New voice…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nouvelle voix…"
+          }
+        }
+      }
+    },
     "Ordre des pistes inattendu : canaux de départ %@, le micro (1) doit précéder l’audio système (%u ou plus). Aucun enregistrement n’a démarré.": {
       "localizations": {
         "en": {
@@ -7113,6 +7265,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pas encore de synthèse"
+          }
+        }
+      }
+    },
+    "Passage attribué à %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passage assigned to %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passage attribué à %@."
           }
         }
       }
@@ -8313,6 +8481,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sauvegardez les modifications avant de transcrire."
+          }
+        }
+      }
+    },
+    "Scinder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Split"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scinder"
+          }
+        }
+      }
+    },
+    "Scinder la voix": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Split the voice"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scinder la voix"
+          }
+        }
+      }
+    },
+    "Scinder la voix à partir d’ici…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Split the voice from here…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scinder la voix à partir d’ici…"
           }
         }
       }
@@ -9885,6 +10101,22 @@
         }
       }
     },
+    "Voix scindée : %@ créée.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice split: %@ created."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voix scindée : %@ créée."
+          }
+        }
+      }
+    },
     "Voix séparées par piste. Rejet d’écho non appliqué. Les empreintes mémorisées restent sur ce Mac.": {
       "localizations": {
         "en": {
@@ -10414,6 +10646,22 @@
         }
       }
     },
+    "« %@ » parle :": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” speaks:"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "« %@ » parle :"
+          }
+        }
+      }
+    },
     "« Rejoindre et enregistrer » ouvre la visio et lance la capture ; « Enregistrer sans rejoindre » lance seulement la capture. Sans clic, aucun enregistrement. Les rappels des 7 prochains jours sont préparés tant que HWYD tourne ; un rappel peut s’afficher après sa fermeture.": {
       "localizations": {
         "en": {
@@ -10462,6 +10710,22 @@
         }
       }
     },
+    "À PARTIR DE %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FROM %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À PARTIR DE %@"
+          }
+        }
+      }
+    },
     "À chaque synthèse, le titre, le transcript et les noms des voix sont envoyés à %@, dont les conditions de traitement et de conservation s’appliquent. Les notes, l’audio et les empreintes vocales restent sur ce Mac.": {
       "localizations": {
         "en": {
@@ -10490,6 +10754,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "À l’arrêt, le transcript sera refait à partir de toute la session : ses corrections (texte, noms des voix, regroupements, voix ignorées) seront perdues. Les voix mémorisées seront de nouveau proposées. Une synthèse existante est conservée et signalée comme antérieure au nouveau transcript."
+          }
+        }
+      }
+    },
+    "À partir de %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À partir de %@"
           }
         }
       }

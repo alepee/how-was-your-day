@@ -6,6 +6,7 @@ struct DetailView: View {
     let recording: Recording
     @State private var confirmReprocessing = false
     @State private var splittingSegment: TranscriptSegment?
+    @State private var splittingVoiceAt: TranscriptSegment?
     @State private var exportFormat: SummaryExportFormat?
     var body: some View {
         VStack(spacing: 0) {
@@ -48,7 +49,7 @@ struct DetailView: View {
                 }.overlay(alignment: .bottom) { Rectangle().fill(Studio.line).frame(height: 0.5) }
             }.padding(.horizontal, 32).padding(.top, 28)
             if model.activeTab == .transcript {
-                TranscriptPane(recording: recording, header: transcriptHeader, onSplit: { splittingSegment = $0 })
+                TranscriptPane(recording: recording, header: transcriptHeader, onSplit: { splittingSegment = $0 }, onSplitVoice: { splittingVoiceAt = $0 })
             } else if model.activeTab == .summary {
                 SummaryPane(recording: recording, header: summaryControls).id(recording.id)
             } else {
@@ -61,6 +62,13 @@ struct DetailView: View {
         }.background(Studio.background)
         .sheet(item: $splittingSegment) { segment in
             SegmentSplitView(recordingID: recording.id, segment: segment).environmentObject(model)
+        }
+        .sheet(item: $splittingVoiceAt) { segment in
+            VoiceSplitSheet(recording: recording, segment: segment) { side in
+                splittingVoiceAt = nil
+                // The name editor of the new voice opens once this sheet is gone.
+                DispatchQueue.main.async { model.splitSpeaker(at: segment.id, keepingIdentity: side) }
+            }.environmentObject(model)
         }
         .sheet(item: $exportFormat) { format in
             SummaryExportSheet(recording: recording, format: format) { sections in
@@ -235,6 +243,7 @@ private struct TranscriptPane<Header: View>: View {
     let recording: Recording
     let header: Header
     let onSplit: (TranscriptSegment) -> Void
+    let onSplitVoice: (TranscriptSegment) -> Void
     @State private var following = true
     var body: some View {
         let playback = model.playback
@@ -244,6 +253,9 @@ private struct TranscriptPane<Header: View>: View {
         let speakers = Dictionary(recording.speakers.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let candidates = Dictionary(grouping: recording.speakers.filter { !$0.ignored }, by: \.source)
         let heard = recording.heardSegments
+        // A voice splits before any of its passages but the first.
+        let firstPassages = Set(Dictionary(grouping: recording.segments.filter { $0.speakerID != nil }, by: \.speakerID)
+            .values.compactMap { $0.min { $0.start < $1.start }?.id })
         let hidden = recording.segments.count - heard.count
         let disabled = model.processingID == recording.id || recording.state == .recording
         ScrollViewReader { proxy in
@@ -258,11 +270,14 @@ private struct TranscriptPane<Header: View>: View {
                             ForEach(markers[segment.id] ?? [], id: \.offset) { ResumeMarker(resume: $0) }
                             TranscriptRow(segment: segment, speaker: segment.speakerID.flatMap { speakers[$0] },
                                 candidates: candidates[segment.source] ?? [],
+                                canSplitVoice: segment.speakerID != nil && !firstPassages.contains(segment.id),
                                 disabled: disabled, isActive: active.contains(segment.id),
                                 onPlay: { model.play(at: segment.start) },
                                 onEdit: { model.beginSpeakerEdit($0) },
                                 onAssign: { model.assignSpeaker($0, to: segment.id, recordingID: recording.id) },
-                                onSplit: { onSplit(segment) }).equatable().id(segment.id)
+                                onSplit: { onSplit(segment) },
+                                onNewVoice: { model.assignNewSpeaker(to: segment.id) },
+                                onSplitVoice: { onSplitVoice(segment) }).equatable().id(segment.id)
                         }
                         if hidden > 0 {
                             Label("\(hidden) passage(s) masqué(s)", systemImage: "eye.slash")
@@ -307,14 +322,17 @@ private struct TranscriptRow: View, Equatable {
     let segment: TranscriptSegment
     let speaker: Speaker?
     let candidates: [Speaker]
+    let canSplitVoice: Bool
     let disabled: Bool
     let isActive: Bool
     let onPlay: () -> Void
     let onEdit: (Speaker) -> Void
     let onAssign: (UUID?) -> Void
     let onSplit: () -> Void
+    let onNewVoice: () -> Void
+    let onSplitVoice: () -> Void
     nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.segment == rhs.segment && lhs.speaker == rhs.speaker && lhs.candidates == rhs.candidates && lhs.disabled == rhs.disabled && lhs.isActive == rhs.isActive
+        lhs.segment == rhs.segment && lhs.speaker == rhs.speaker && lhs.candidates == rhs.candidates && lhs.canSplitVoice == rhs.canSplitVoice && lhs.disabled == rhs.disabled && lhs.isActive == rhs.isActive
     }
     var body: some View {
                 HStack(alignment: .top, spacing: 16) {
@@ -353,9 +371,12 @@ private struct TranscriptRow: View, Equatable {
                                 else { Text(candidate.label) }
                             }
                         }
+                        Button("Nouvelle voix…") { onNewVoice() }
                         Divider()
                         Button("Découper le passage…") { onSplit() }
                             .disabled(segment.splitIndices.isEmpty)
+                        Button("Scinder la voix à partir d’ici…") { onSplitVoice() }
+                            .disabled(!canSplitVoice)
                         Button("Voix non attribuée") {
                             onAssign(nil)
                         }.disabled(segment.speakerID == nil)
@@ -364,7 +385,7 @@ private struct TranscriptRow: View, Equatable {
                     }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                     .disabled(disabled)
-                    .help("Corriger ce passage : changer de voix ou le découper")
+                    .help("Corriger ce passage : changer de voix, le découper ou scinder sa voix")
                     .accessibilityLabel("Corriger ce passage")
                 }.padding(17).frame(maxWidth: .infinity, alignment: .leading)
                     .background(isActive ? Studio.mint.opacity(0.1) : Studio.surface, in: RoundedRectangle(cornerRadius: 7))

@@ -40,6 +40,7 @@ brew upgrade --cask how-was-your-day
 - The transcript follows playback and highlights the passages being heard. Scrolling pauses the follow; « Suivre la lecture » resumes it.
 - Explicit local voice enrollment from a voice tile, with automatic name suggestions after diarization. The channel (microphone or call) follows the track; a person known on only one channel can be suggested on the other above a stricter threshold. Settings show what each session added to a voice print and can withdraw it, erase the print, or oppose recognition. Voice vectors stay in the macOS keychain, never in exports.
 - Voice corrections can be undone from their notification, and a regrouped voice can be split back later.
+- When one detected voice is in fact two people speaking one after the other, « Scinder la voix à partir d’ici… » in a passage's menu cuts it at that passage: you choose which part keeps the current name, and the other becomes a new voice to name. « Nouvelle voix… » gives a single passage a voice of its own. Both are transcript corrections: no voice fingerprint is read or written. Two people who alternate within the same voice still have to be reassigned passage by passage.
 
 ## Current limitations
 

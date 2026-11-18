@@ -67,6 +67,10 @@ import HWYDCore
         var splitExample = TranscriptSegment(start: 12, end: 16, speakerID: nil, source: .mic, text: "Oui. Bonjour à tous.") // l10n:ignore
         splitExample.words = [.init(text: "Oui.", start: 12, end: 12.5), .init(text: " Bonjour", start: 13, end: 14), .init(text: " à", start: 14, end: 14.5), .init(text: " tous.", start: 14.5, end: 16)] // l10n:ignore
         render(SegmentSplitView(recordingID: model.selectedID!, segment: splitExample).environmentObject(model), size: .init(width: 580, height: 490), to: directory.appendingPathComponent("studio-split.png"))
+        if let example = model.selected,
+           let pivot = example.segments.last(where: { segment in example.speakers.first { $0.id == segment.speakerID }?.confirmed == true && example.voiceSplit(at: segment.id)?.before.isEmpty == false }) {
+            render(VoiceSplitSheet(recording: example, segment: pivot) { _ in }.environmentObject(model), size: .init(width: 600, height: 470), to: directory.appendingPathComponent("studio-voice-split.png"))
+        }
         model.activeTab = .notes
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-notes.png"))
         model.activeTab = .summary

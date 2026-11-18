@@ -57,10 +57,14 @@ public struct VoicePlaylist: Equatable, Sendable {
     }
 }
 
+/// Which part of a split voice keeps its current name.
+public enum VoiceSplitSide: Equatable, Sendable { case before, after }
+
 public enum VoiceReviewError: LocalizedError, Equatable {
-    case unnamedMerge, opposedPerson, sameVoice
+    case unnamedMerge, opposedPerson, sameVoice, nothingToSplit
     public var errorDescription: String? {
         switch self {
+        case .nothingToSplit: String(localized: "Ce passage est le premier de cette voix : il n’y a rien à scinder avant lui.", bundle: .hwyd)
         case .unnamedMerge: String(localized: "Ces voix sont sur deux pistes différentes. Nommez d’abord l’une des deux.", bundle: .hwyd)
         case .opposedPerson: String(localized: "Cette personne est exclue de la reconnaissance.", bundle: .hwyd)
         case .sameVoice: String(localized: "Choisissez une autre voix.", bundle: .hwyd)
@@ -131,6 +135,55 @@ extension Recording {
         }
         speakers.append(voice)
         transcriptVersion += 1
+    }
+
+    /// Passages of the voice heard at `segmentID`, on either side of it: the passage itself opens `after`.
+    /// Nil when the passage has no voice.
+    public func voiceSplit(at segmentID: UUID) -> (before: [TranscriptSegment], after: [TranscriptSegment])? {
+        guard let pivot = segments.first(where: { $0.id == segmentID }), let speakerID = pivot.speakerID else { return nil }
+        let owned = segments.filter { $0.speakerID == speakerID }
+        return (owned.filter { $0.start < pivot.start }, owned.filter { $0.start >= pivot.start })
+    }
+
+    /// The user states that one detected voice held two people, one after the other: diarization reused
+    /// the same voice for whoever took over. Passages from `segmentID` on, or those before it, move to a
+    /// new voice on the same track, so the voice's current name stays on `keepingIdentity`.
+    /// Transcript correction only: no voice print is read or written. Returns the new voice.
+    @discardableResult
+    public mutating func splitSpeaker(at segmentID: UUID, keepingIdentity side: VoiceSplitSide = .before) throws -> UUID {
+        guard let split = voiceSplit(at: segmentID), let speakerID = segments.first(where: { $0.id == segmentID })?.speakerID
+        else { throw StoreError.notFound }
+        guard !split.before.isEmpty else { throw VoiceReviewError.nothingToSplit }
+        return try moveToNewSpeaker(Set((side == .before ? split.after : split.before).map(\.id)), from: speakerID)
+    }
+
+    /// Gives this passage alone a new voice on its track. Returns the new voice.
+    @discardableResult
+    public mutating func assignNewSpeaker(to segmentID: UUID) throws -> UUID {
+        guard let segment = segments.first(where: { $0.id == segmentID }) else { throw StoreError.notFound }
+        return try moveToNewSpeaker([segmentID], from: segment.speakerID, source: segment.source)
+    }
+
+    /// `originalSpeakerID` is left alone: it names the voice a merge absorbed, which `separateSpeaker` restores.
+    private mutating func moveToNewSpeaker(_ ids: Set<UUID>, from speakerID: UUID?, source: AudioSource? = nil) throws -> UUID {
+        let position = speakerID.flatMap { id in speakers.firstIndex { $0.id == id } }
+        guard let source = source ?? position.map({ speakers[$0].source }) else { throw StoreError.notFound }
+        let moved = segments.indices.filter { ids.contains(segments[$0].id) && segments[$0].speakerID == speakerID }
+        guard !moved.isEmpty else { throw StoreError.notFound }
+        let voice = Speaker(label: nextVoiceLabel(), source: source)
+        for index in moved { segments[index].speakerID = voice.id }
+        speakers.insert(voice, at: position.map { $0 + 1 } ?? speakers.endIndex)
+        transcriptVersion += 1
+        return voice.id
+    }
+
+    /// First "Voix N" no voice of the session, current or merged, already uses.
+    private func nextVoiceLabel() -> String {
+        let language = SummaryLanguage.current
+        let taken = Set((speakers + (absorbedSpeakers ?? [])).map(\.label))
+        var number = speakers.count + 1
+        while taken.contains(language.voiceLabel(number)) { number += 1 }
+        return language.voiceLabel(number)
     }
 
     /// Shows the person voice memory proposes for each voice nobody confirmed or ignored. The

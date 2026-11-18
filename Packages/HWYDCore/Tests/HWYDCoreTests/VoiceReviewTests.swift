@@ -170,4 +170,71 @@ final class VoiceReviewTests: XCTestCase {
         XCTAssertEqual(item.speakers.filter(\.confirmed).map(\.id), [brice.id])
         XCTAssertFalse(item.speakers.first { $0.id == voice2.id }!.confirmed)
     }
+
+    /// One remote voice held two people in turn: the passages from the split point move to a new voice.
+    private func sharedVoice() -> (Recording, pierre: Speaker, other: Speaker) {
+        let pierre = Speaker(label: "Pierre", confirmed: true, source: .system)
+        let other = Speaker(label: "Voix 2", source: .system), me = Speaker(label: "Vous", confirmed: true)
+        let item = Recording(title: "Test", speakers: [me, pierre, other], segments: [
+            .init(start: 0, end: 1, speakerID: pierre.id, source: .system, text: "a"),
+            .init(start: 1, end: 2, speakerID: me.id, source: .mic, text: "b"),
+            .init(start: 2, end: 3, speakerID: pierre.id, source: .system, text: "c"),
+            .init(start: 3, end: 4, speakerID: other.id, source: .system, text: "d"),
+            .init(start: 4, end: 5, speakerID: pierre.id, source: .system, text: "e")], summary: "old")
+        return (item, pierre, other)
+    }
+
+    func testSplitMovesLaterPassagesToANewVoiceAndKeepsTheName() throws {
+        var (item, pierre, other) = sharedVoice()
+        let pivot = item.segments[2]
+        XCTAssertEqual(item.voiceSplit(at: pivot.id)?.before.map(\.text), ["a"])
+        XCTAssertEqual(item.voiceSplit(at: pivot.id)?.after.map(\.text), ["c", "e"])
+        let voice = try item.splitSpeaker(at: pivot.id)
+        XCTAssertEqual(item.segments.map(\.speakerID), [pierre.id, item.speakers[0].id, voice, other.id, voice])
+        // The new voice sits next to the one it came from, unnamed, on the same track.
+        XCTAssertEqual(item.speakers.map(\.id), [item.speakers[0].id, pierre.id, voice, other.id])
+        let created = item.speakers[2]
+        XCTAssertEqual(created.label, "Voix 4")
+        XCTAssertEqual(created.source, .system)
+        XCTAssertFalse(created.confirmed)
+        XCTAssertNil(created.personID)
+        XCTAssertEqual(item.speakers[1].label, "Pierre")
+        XCTAssertEqual(item.transcriptVersion, 2)
+        XCTAssertEqual(item.summary, "old")
+    }
+
+    func testSplitCanKeepTheNameOnTheLaterPart() throws {
+        var (item, pierre, _) = sharedVoice()
+        let voice = try item.splitSpeaker(at: item.segments[2].id, keepingIdentity: .after)
+        XCTAssertEqual(item.segments.filter { $0.source == .system }.map(\.speakerID), [voice, pierre.id, item.segments[3].speakerID, pierre.id])
+        XCTAssertEqual(item.speakers.first { $0.id == pierre.id }?.label, "Pierre")
+    }
+
+    func testSplitAtTheFirstPassageIsRefused() {
+        var (item, _, _) = sharedVoice()
+        let unchanged = item
+        XCTAssertThrowsError(try item.splitSpeaker(at: item.segments[0].id)) { XCTAssertEqual($0 as? VoiceReviewError, .nothingToSplit) }
+        XCTAssertThrowsError(try item.splitSpeaker(at: UUID()))
+        XCTAssertEqual(item, unchanged)
+    }
+
+    func testNewVoiceForOnePassageIncludingAnUnattributedOne() throws {
+        var (item, pierre, _) = sharedVoice()
+        let voice = try item.assignNewSpeaker(to: item.segments[4].id)
+        XCTAssertEqual(item.segments.map(\.speakerID).filter { $0 == pierre.id }.count, 2)
+        XCTAssertEqual(item.segments[4].speakerID, voice)
+        try item.assignSpeaker(nil, to: item.segments[1].id)
+        let mic = try item.assignNewSpeaker(to: item.segments[1].id)
+        XCTAssertEqual(item.speakers.first { $0.id == mic }?.source, .mic)
+        XCTAssertEqual(Set(item.speakers.map(\.label)).count, item.speakers.count)
+    }
+
+    func testSplitVoiceCanBeMergedBackAndSeparatedAgain() throws {
+        var (item, pierre, _) = sharedVoice()
+        let voice = try item.splitSpeaker(at: item.segments[2].id)
+        try item.mergeSpeaker(voice, into: pierre.id)
+        XCTAssertEqual(item.separableVoices(of: pierre.id).map(\.id), [voice])
+        try item.separateSpeaker(voice, from: pierre.id)
+        XCTAssertEqual(item.segments.filter { $0.speakerID == voice }.map(\.text), ["c", "e"])
+    }
 }
