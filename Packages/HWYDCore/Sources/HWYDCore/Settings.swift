@@ -118,7 +118,7 @@ extension SettingKey where Value == Date? {
     public static var summaryAutomaticSince: Self { .init("summary.automatic.since", default: nil) }
 }
 extension SettingKey where Value == SessionKind {
-    public static var newSessionKind: Self { .init("newSession.kind", default: .adHoc) }
+    public static var newSessionKind: Self { .init("newSession.kind", default: .exchange) }
 }
 extension SettingKey where Value == Data? {
     /// Encoded `RecordingShortcut`; empty data means the user cleared the shortcut.

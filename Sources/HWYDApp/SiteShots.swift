@@ -130,9 +130,9 @@ import HWYDCore
                              notes: "What if the best summary is the sentence you wrote down yourself?", speakers: [you],
                              segments: [.init(start: 2, end: 12, speakerID: you.id, source: .mic, text: "An interface that disappears while you talk. One button to start, one page for what matters.")])
         memo.speechLanguage = "en-US"
-        let coffee = Recording(title: "Coffee with Léa", kind: .conversation, startedAt: today.addingTimeInterval(8 * 3600 + 15 * 60), duration: 1102, notes: "Pick up the Thursday workshop.") // l10n:ignore
-        let oneOnOne = Recording(title: "1:1 with Sam", kind: .call, startedAt: today.addingTimeInterval(14 * 3600), duration: 1510)
-        let prototype = Recording(title: "Prototype feedback", kind: .call, startedAt: today.addingTimeInterval(-7.5 * 3600), duration: 1462)
+        let coffee = Recording(title: "Coffee with Léa", kind: .exchange, startedAt: today.addingTimeInterval(8 * 3600 + 15 * 60), duration: 1102, notes: "Pick up the Thursday workshop.") // l10n:ignore
+        let oneOnOne = Recording(title: "1:1 with Sam", kind: .exchange, startedAt: today.addingTimeInterval(14 * 3600), duration: 1510)
+        let prototype = Recording(title: "Prototype feedback", kind: .exchange, startedAt: today.addingTimeInterval(-7.5 * 3600), duration: 1462)
         return [oneOnOne, meeting, memo, coffee, prototype]
     }
 }

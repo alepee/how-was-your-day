@@ -6,7 +6,7 @@ public struct CaptureRequest: Equatable, Sendable {
     public var kind: SessionKind
     /// The name typed on the setup screen; blank falls back to a default.
     public var title: String?
-    /// A calendar meeting gives its own kind and title.
+    /// A calendar meeting gives its title, and its kind unless another was chosen.
     public var meeting: CalendarContext?
     /// A locale or `SpeechLanguage.automatic`; automatic when nil.
     public var language: String?
@@ -16,13 +16,11 @@ public struct CaptureRequest: Equatable, Sendable {
     /// nil when not declared.
     public var consentAnnouncedAt: Date?
 
-    public init(kind: SessionKind = .adHoc, title: String? = nil, meeting: CalendarContext? = nil, language: String? = nil, microphone: String? = nil,
+    public init(kind: SessionKind? = nil, title: String? = nil, meeting: CalendarContext? = nil, language: String? = nil, microphone: String? = nil,
                 consentAnnouncedAt: Date? = nil) {
-        self.kind = kind; self.title = title; self.meeting = meeting; self.language = language; self.microphone = microphone
+        self.kind = kind ?? (meeting == nil ? .exchange : .meeting); self.title = title; self.meeting = meeting; self.language = language; self.microphone = microphone
         self.consentAnnouncedAt = consentAnnouncedAt
     }
-
-    public var sessionKind: SessionKind { meeting == nil ? kind : .meeting }
 
     /// The typed name, else the meeting's title, else the kind and the time the session started.
     public func sessionTitle(startingAt date: Date) -> String {
@@ -30,8 +28,7 @@ public struct CaptureRequest: Equatable, Sendable {
         if !typed.isEmpty { return typed }
         if let meeting { return meeting.title }
         let time = date.formatted(date: .omitted, time: .shortened)
-        let kind = sessionKind
-        return kind == .adHoc ? String(localized: "Session du \(time)", bundle: .hwyd) : String(localized: "\(kind.label) du \(time)", bundle: .hwyd)
+        return String(localized: "\(kind.label) du \(time)", bundle: .hwyd)
     }
 }
 
@@ -175,7 +172,7 @@ public final class CaptureSession: ObservableObject {
         let title = request.sessionTitle(startingAt: Date())
         do { try await capture.start(session: id, continuing: .start, microphone: request.microphone ?? rememberedMicrophone) } catch { phase = .idle; throw error }
         if let chosen = request.microphone { remember(chosen) }
-        var item = Recording(id: id, title: title, kind: request.sessionKind, state: .recording, isDemo: capture.isSimulated)
+        var item = Recording(id: id, title: title, kind: request.kind, state: .recording, isDemo: capture.isSimulated)
         item.microphone = await capture.microphone?.name
         item.consentAnnounced = request.consentAnnouncedAt != nil; item.consentAnnouncedAt = request.consentAnnouncedAt
         if !capture.isSimulated { item.calendarContext = request.meeting; item.speechLanguage = request.language ?? SpeechLanguage.automatic }

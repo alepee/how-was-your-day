@@ -1413,22 +1413,6 @@
         }
       }
     },
-    "Appel": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Call"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Appel"
-          }
-        }
-      }
-    },
     "Apport retiré de l’empreinte de %@.": {
       "localizations": {
         "en": {
@@ -2853,6 +2837,22 @@
         }
       }
     },
+    "Consentement recueilli": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consent obtained"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consentement recueilli"
+          }
+        }
+      }
+    },
     "Contexte": {
       "localizations": {
         "en": {
@@ -2881,22 +2881,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Contexte chargé dans le serveur"
-          }
-        }
-      }
-    },
-    "Conversation": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conversation"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conversation"
           }
         }
       }
@@ -3185,22 +3169,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Décisions"
-          }
-        }
-      }
-    },
-    "Déclarez d’abord que les personnes présentes sont informées et d’accord.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "First declare that the people present are informed and agree."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Déclarez d’abord que les personnes présentes sont informées et d’accord."
           }
         }
       }
@@ -4645,18 +4613,18 @@
         }
       }
     },
-    "Informez chaque personne présente avant de démarrer et obtenez son accord. Votre déclaration et son heure sont consignées dans la session et ses exports. Elle ne vaut pas consentement à mémoriser une voix.": {
+    "Informez chaque personne présente et obtenez son accord, puis déclarez-le ici avant de démarrer. Votre déclaration et son heure sont consignées dans la session et ses exports. Elle ne vaut pas consentement à mémoriser une voix.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tell everyone present before you start and get their agreement. Your declaration and its time are recorded in the session and its exports. It is not consent to remembering a voice."
+            "value": "Tell everyone present and get their agreement, then declare it here before starting. Your declaration and its time are recorded in the session and its exports. It is not consent to remember a voice."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Informez chaque personne présente avant de démarrer et obtenez son accord. Votre déclaration et son heure sont consignées dans la session et ses exports. Elle ne vaut pas consentement à mémoriser une voix."
+            "value": "Informez chaque personne présente et obtenez son accord, puis déclarez-le ici avant de démarrer. Votre déclaration et son heure sont consignées dans la session et ses exports. Elle ne vaut pas consentement à mémoriser une voix."
           }
         }
       }
@@ -6645,18 +6613,18 @@
         }
       }
     },
-    "Mémo vocal": {
+    "Mémo": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Voice Memo"
+            "value": "Memo"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mémo vocal"
+            "value": "Mémo"
           }
         }
       }
@@ -7553,22 +7521,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Préparation…"
-          }
-        }
-      }
-    },
-    "Présents informés et d’accord": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "People present informed and agreeing"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Présents informés et d’accord"
           }
         }
       }
@@ -8533,22 +8485,6 @@
         }
       }
     },
-    "Session du %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Session at %@"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Session du %@"
-          }
-        }
-      }
-    },
     "Session exportée en Markdown et JSON.": {
       "localizations": {
         "en": {
@@ -8577,22 +8513,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Session introuvable sur ce Mac."
-          }
-        }
-      }
-    },
-    "Session libre": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quick Session"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Session libre"
           }
         }
       }
@@ -10802,6 +10722,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "À venir"
+          }
+        }
+      }
+    },
+    "Échange": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exchange"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Échange"
           }
         }
       }

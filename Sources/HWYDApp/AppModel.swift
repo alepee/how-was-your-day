@@ -27,7 +27,7 @@ final class AppModel: ObservableObject {
     let notifier: any UserNotifier
     /// The setup screen shown before a capture starts: kind and optional name.
     @Published var showNewSession = false
-    @Published var newSessionKind: SessionKind = .adHoc {
+    @Published var newSessionKind: SessionKind = .exchange {
         didSet { workspace.settings.set(newSessionKind, for: .newSessionKind) }
     }
     @Published var newSessionTitle = ""
@@ -138,18 +138,24 @@ final class AppModel: ObservableObject {
     @Published var newSessionLanguage = SpeechLanguage.automatic
     /// UID of the microphone chosen on the setup screen; nil follows the system default input.
     @Published var newSessionMicrophone: String?
-    /// When the user declared on the setup screen that the people present were told and agree.
-    /// Asked again for every session, never remembered.
+    /// When the user declared, on the setup screen or in the menu, that the people present were told
+    /// and agree. Asked again for every session, never remembered.
     @Published var newSessionConsentAt: Date?
-    /// The declaration as a switch: on stamps the current time.
-    var newSessionConsent: Bool {
-        get { newSessionConsentAt != nil }
-        set { newSessionConsentAt = newValue ? (newSessionConsentAt ?? Date()) : nil }
+    /// The kind records other people and they are not declared informed yet: the start button
+    /// declares first, then starts on the next press.
+    var newSessionNeedsConsent: Bool { newSessionKind.involvesOthers && newSessionConsentAt == nil }
+    var newSessionCanStart: Bool { !isStarting && !newSessionNeedsConsent }
+    /// Declares, at this time, that the people present are informed and agree.
+    func declareNewSessionConsent() {
+        if newSessionNeedsConsent { newSessionConsentAt = Date() }
     }
-    /// The setup screen starts a session only once the people present are declared informed,
-    /// unless the kind records no one else.
-    var newSessionCanStart: Bool { !isStarting && (newSessionConsent || !newSessionKind.involvesOthers) }
-    /// Starts the session set up on the setup screen or in the menu, once it can start.
+    /// The start button's two steps: declare when needed, start otherwise.
+    @discardableResult
+    func advanceNewSession() -> Task<Void, Never> {
+        if newSessionNeedsConsent { declareNewSessionConsent(); return Task {} }
+        return startNewSession()
+    }
+    /// Starts the session set up on the setup screen, once it can start.
     @discardableResult
     func startNewSession() -> Task<Void, Never> {
         guard newSessionCanStart else { return Task {} }
@@ -519,14 +525,14 @@ final class AppModel: ObservableObject {
         showNewSession = true
         refreshSpeechLanguages(); showWindow?()
     }
-    /// Starts recording. A calendar meeting provides its own kind and title; otherwise the
-    /// setup screen does, and an empty name falls back to the kind and time.
+    /// Starts recording. A calendar meeting provides its title and preselects the meeting kind; otherwise
+    /// the setup screen does, and an empty name falls back to the kind and time.
     @discardableResult
     func startCapture(meeting: CalendarContext? = nil, kind: SessionKind? = nil, title: String? = nil, language: String? = nil,
                       microphone: String? = nil, consentAnnouncedAt: Date? = nil, reveal: Bool = true) -> Task<Void, Never> {
         guard activeCaptureID == nil, !isStarting else { if reveal { showWindow?() }; return Task {} }
         // Without the setup screen (shortcut, calendar), the session records the remembered microphone, if present.
-        let request = CaptureRequest(kind: kind ?? .adHoc, title: title, meeting: meeting, language: language, microphone: microphone,
+        let request = CaptureRequest(kind: kind, title: title, meeting: meeting, language: language, microphone: microphone,
                                      consentAnnouncedAt: consentAnnouncedAt)
         showSettings = false; showNewSession = false
         stopPlayback(); isStarting = true

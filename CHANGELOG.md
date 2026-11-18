@@ -12,6 +12,11 @@ Entries describe what a user observes. The detailed release notes published on G
 ### Added
 - « Scinder la voix à partir d’ici… » in a transcript passage's menu, for one voice that was in fact two people speaking one after the other. It shows how many passages fall on each side of the cut with a way to listen to them, lets you choose which part keeps the current name, turns the other into a new voice and opens its name editor. « Nouvelle voix… » gives a single passage a voice of its own. Both can be undone from their notification and never touch a voice fingerprint.
 
+### Changed
+- Three session kinds instead of five: « Mémo » (`voice-memo`, alone), « Échange » (`exchange`, with others) and « Réunion » (`meeting`). Calls, conversations and free sessions recorded before become exchanges, in the app, its filter, `hwyd-mcp` and the next export of each session; files already exported keep their old value until then. A new session is an exchange by default, titled « Échange du … ».
+- Declaring the people present informed and agreeing no longer takes a switch before a disabled « Démarrer »: for an exchange or a meeting, the start button works in two steps. It first reads « Consentement recueilli » and lands the dated stamp, then becomes « Démarrer l’enregistrement ». The declaration and its time are recorded as before. The menu bar follows the same two steps, without the stamp.
+- Recording a calendar meeting preselects « Réunion » instead of imposing it: the kind can be changed while recording, like any other session.
+
 ## [0.16.0] - 2026-11-16
 
 ### Added

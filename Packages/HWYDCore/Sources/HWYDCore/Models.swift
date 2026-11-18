@@ -1,12 +1,22 @@
 import Foundation
 
 public enum SessionKind: String, Codable, CaseIterable, Sendable {
-    case meeting, call, conversation, voiceMemo = "voice-memo", adHoc = "ad-hoc"
+    case voiceMemo = "voice-memo", exchange, meeting
+    /// Reads the current kinds and the ones earlier versions stored: a call, a conversation and an
+    /// ad-hoc session are exchanges.
+    public init?(rawValue: String) {
+        switch rawValue {
+        case "voice-memo": self = .voiceMemo
+        case "exchange", "call", "conversation", "ad-hoc": self = .exchange
+        case "meeting": self = .meeting
+        default: return nil
+        }
+    }
     public var label: String {
-        switch self { case .meeting: String(localized: "Réunion", bundle: .hwyd); case .call: String(localized: "Appel", bundle: .hwyd); case .conversation: String(localized: "Conversation", bundle: .hwyd); case .voiceMemo: String(localized: "Mémo vocal", bundle: .hwyd); case .adHoc: String(localized: "Session libre", bundle: .hwyd) }
+        switch self { case .voiceMemo: String(localized: "Mémo", bundle: .hwyd); case .exchange: String(localized: "Échange", bundle: .hwyd); case .meeting: String(localized: "Réunion", bundle: .hwyd) }
     }
     public var symbol: String {
-        switch self { case .meeting: "person.2.wave.2"; case .call: "phone"; case .conversation: "bubble.left.and.bubble.right"; case .voiceMemo: "waveform.circle"; case .adHoc: "smallcircle.filled.circle" }
+        switch self { case .voiceMemo: "waveform.circle"; case .exchange: "bubble.left.and.bubble.right"; case .meeting: "person.2.wave.2" }
     }
     /// Whether other people may be recorded, so their consent is asked before the capture starts.
     public var involvesOthers: Bool { self != .voiceMemo }
@@ -132,7 +142,7 @@ public struct Recording: Codable, Identifiable, Equatable, Sendable {
     /// Name of the microphone the session started on. Absent in sessions recorded before this
     /// field existed, and when the capture could not tell.
     public var microphone: String?
-    public init(id: UUID = UUID(), title: String, kind: SessionKind = .adHoc, startedAt: Date = Date(), duration: Double = 0,
+    public init(id: UUID = UUID(), title: String, kind: SessionKind = .exchange, startedAt: Date = Date(), duration: Double = 0,
                 state: CaptureState = .sealed, notes: String = "", noteEntries: [NoteEntry] = [], speakers: [Speaker] = [],
                 segments: [TranscriptSegment] = [], summary: String? = nil, isDemo: Bool = false) {
         self.id = id; self.title = title; self.kind = kind; self.startedAt = startedAt; self.duration = duration

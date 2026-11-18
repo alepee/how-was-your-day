@@ -19,8 +19,8 @@ public enum DemoContent {
                 .init(start: 66, end: 78, speakerID: camille.id, source: .system, text: t.segments[4])
             ], isDemo: true),
             Recording(title: t.memoTitle, kind: .voiceMemo, startedAt: today.addingTimeInterval(31_320), duration: 248, state: .demo, notes: t.memoNotes, speakers: [me], segments: [.init(start: 2, end: 12, speakerID: me.id, source: .mic, text: t.memoSegment)], isDemo: true),
-            Recording(title: t.coffeeTitle, kind: .conversation, startedAt: today.addingTimeInterval(29_700), duration: 1102, state: .demo, notes: t.coffeeNotes, isDemo: true),
-            Recording(title: t.callTitle, kind: .call, startedAt: today.addingTimeInterval(-27_000), duration: 1462, state: .demo, notes: t.callNotes, isDemo: true)
+            Recording(title: t.coffeeTitle, kind: .exchange, startedAt: today.addingTimeInterval(29_700), duration: 1102, state: .demo, notes: t.coffeeNotes, isDemo: true),
+            Recording(title: t.callTitle, kind: .exchange, startedAt: today.addingTimeInterval(-27_000), duration: 1462, state: .demo, notes: t.callNotes, isDemo: true)
         ]
         let ids = recordings[0].segments.map(\.id)
         var summary = SummaryContent(overview: t.overview, decisions: [.init(text: t.decision, evidence_segment_ids: [ids[0], ids[1]])], action_items: [.init(text: t.action, assignee_name: "Camille", assignee_person_id: nil, due_date: nil, evidence_segment_ids: [ids[1]])])

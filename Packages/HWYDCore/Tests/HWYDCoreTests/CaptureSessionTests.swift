@@ -60,13 +60,27 @@ final class CaptureSessionTests: XCTestCase {
     func testDefaultTitles() {
         let date = Date()
         let time = date.formatted(date: .omitted, time: .shortened)
-        XCTAssertEqual(CaptureRequest(kind: .call, title: "  Idée  ").sessionTitle(startingAt: date), "Idée")
-        XCTAssertEqual(CaptureRequest(kind: .adHoc, title: " ").sessionTitle(startingAt: date), String(localized: "Session du \(time)", bundle: .hwyd))
-        let call = CaptureRequest(kind: .call).sessionTitle(startingAt: date)
-        XCTAssertTrue(call.hasPrefix(SessionKind.call.label) && call.hasSuffix(time), call)
-        let meeting = CaptureRequest(kind: .voiceMemo, meeting: CalendarContext(id: "e", title: "Point produit", start: date, end: date, calendarTitle: "Travail"))
-        XCTAssertEqual(meeting.sessionKind, SessionKind.meeting)
-        XCTAssertEqual(meeting.sessionTitle(startingAt: date), "Point produit")
+        XCTAssertEqual(CaptureRequest(kind: .exchange, title: "  Idée  ").sessionTitle(startingAt: date), "Idée")
+        let exchange = CaptureRequest(kind: .exchange, title: " ").sessionTitle(startingAt: date)
+        XCTAssertTrue(exchange.hasPrefix(SessionKind.exchange.label) && exchange.hasSuffix(time), exchange)
+        XCTAssertEqual(CaptureRequest().kind, .exchange)
+        let event = CalendarContext(id: "e", title: "Point produit", start: date, end: date, calendarTitle: "Travail")
+        XCTAssertEqual(CaptureRequest(meeting: event).sessionTitle(startingAt: date), "Point produit")
+    }
+
+    func testACalendarMeetingPreselectsTheMeetingKindWithoutImposingIt() {
+        let event = CalendarContext(id: "e", title: "Point produit", start: Date(), end: Date(), calendarTitle: "Travail")
+        XCTAssertEqual(CaptureRequest(meeting: event).kind, .meeting)
+        XCTAssertEqual(CaptureRequest(kind: .exchange, meeting: event).kind, .exchange)
+    }
+
+    func testKindsOfEarlierVersionsReadAsTheThreeCurrentKinds() throws {
+        let read = { (raw: String) in try JSONDecoder().decode(SessionKind.self, from: Data("\"\(raw)\"".utf8)) }
+        for raw in ["call", "conversation", "ad-hoc", "exchange"] { XCTAssertEqual(try read(raw), .exchange, raw) }
+        XCTAssertEqual(try read("voice-memo"), .voiceMemo)
+        XCTAssertEqual(try read("meeting"), .meeting)
+        XCTAssertEqual(SessionKind.allCases.map(\.rawValue), ["voice-memo", "exchange", "meeting"])
+        XCTAssertThrowsError(try read("podcast"))
     }
 
     func testStartRecordsTheConsentConfirmedOnTheSetupScreen() async throws {
@@ -75,7 +89,7 @@ final class CaptureSessionTests: XCTestCase {
         let confirmed = try await session().start(CaptureRequest(kind: .meeting, consentAnnouncedAt: declared), with: realCapture(), in: library)
         let item = try XCTUnwrap(library.recording(try XCTUnwrap(confirmed)))
         XCTAssertTrue(item.consentAnnounced); XCTAssertEqual(item.consentAnnouncedAt, declared)
-        let unconfirmed = try await session().start(CaptureRequest(kind: .call), with: realCapture(), in: library)
+        let unconfirmed = try await session().start(CaptureRequest(kind: .exchange), with: realCapture(), in: library)
         XCTAssertFalse(try XCTUnwrap(library.recording(try XCTUnwrap(unconfirmed))).consentAnnounced)
         XCTAssertFalse(SessionKind.voiceMemo.involvesOthers)
         XCTAssertTrue(SessionKind.allCases.filter { $0 != .voiceMemo }.allSatisfy(\.involvesOthers))
@@ -83,10 +97,10 @@ final class CaptureSessionTests: XCTestCase {
 
     func testStartAddsTheSessionAndRefusesASecondCapture() async throws {
         let capture = session(), library = SessionLibrary(volatile: [])
-        let id = try await capture.start(CaptureRequest(kind: .call, language: "fr-FR"), with: realCapture(), in: library)
+        let id = try await capture.start(CaptureRequest(kind: .exchange, language: "fr-FR"), with: realCapture(), in: library)
         let item = try XCTUnwrap(library.recording(try XCTUnwrap(id)))
         XCTAssertEqual(capture.phase, .recording(item.id))
-        XCTAssertEqual(item.state, .recording); XCTAssertEqual(item.kind, .call); XCTAssertEqual(item.speechLanguage, "fr-FR"); XCTAssertFalse(item.isDemo)
+        XCTAssertEqual(item.state, .recording); XCTAssertEqual(item.kind, .exchange); XCTAssertEqual(item.speechLanguage, "fr-FR"); XCTAssertFalse(item.isDemo)
         let second = try await capture.start(CaptureRequest(), with: realCapture(), in: library)
         XCTAssertNil(second)
         XCTAssertEqual(library.recordings.count, 1)

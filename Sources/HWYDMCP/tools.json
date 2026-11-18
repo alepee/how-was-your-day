@@ -53,11 +53,9 @@
         "kind": {
           "type": "string",
           "enum": [
-            "meeting",
-            "call",
-            "conversation",
             "voice-memo",
-            "ad-hoc"
+            "exchange",
+            "meeting"
           ]
         },
         "started_at": {
@@ -518,11 +516,9 @@
           "kind": {
             "type": "string",
             "enum": [
-              "meeting",
-              "call",
-              "conversation",
               "voice-memo",
-              "ad-hoc"
+              "exchange",
+              "meeting"
             ]
           },
           "participant": {
@@ -738,11 +734,9 @@
           "kind": {
             "type": "string",
             "enum": [
-              "meeting",
-              "call",
-              "conversation",
               "voice-memo",
-              "ad-hoc"
+              "exchange",
+              "meeting"
             ]
           },
           "participant": {
