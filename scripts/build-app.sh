@@ -36,7 +36,12 @@ if [[ -n "${VERSION:-}" ]]; then
     version="${VERSION#v}"
     [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "VERSION must be x.y.z" >&2; exit 1; }
     /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$app/Contents/Info.plist"
+    display_version="$version"
+else
+    # Development builds show the commit they come from, not the placeholder version of Info.plist.
+    display_version="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)-dev"
 fi
+/usr/libexec/PlistBuddy -c "Add :HWYDDisplayVersion string $display_version" "$app/Contents/Info.plist"
 if [[ -n "${BUILD_NUMBER:-}" ]]; then
     [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || { echo "BUILD_NUMBER must be numeric" >&2; exit 1; }
     /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$app/Contents/Info.plist"
