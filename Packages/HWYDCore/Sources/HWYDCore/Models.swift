@@ -65,8 +65,20 @@ public struct TranscriptSegment: Codable, Identifiable, Equatable, Sendable {
 public struct NoteEntry: Codable, Identifiable, Equatable, Sendable {
     public var id: UUID
     public var offset: Double
+    /// The note, or the caption of `image`.
     public var text: String
-    public init(id: UUID = UUID(), offset: Double, text: String = "") { self.id = id; self.offset = offset; self.text = text }
+    /// An image pasted during the capture. Absent from sessions recorded before images existed.
+    public var image: NoteImage?
+    public init(id: UUID = UUID(), offset: Double, text: String = "", image: NoteImage? = nil) {
+        self.id = id; self.offset = offset; self.text = text; self.image = image
+    }
+}
+/// An image kept with the notes. Its PNG lives in the data directory (`NoteImageFiles`), never in SQLite.
+public struct NoteImage: Codable, Equatable, Sendable {
+    public var id: UUID
+    public var width: Int
+    public var height: Int
+    public init(id: UUID = UUID(), width: Int, height: Int) { self.id = id; self.width = width; self.height = height }
 }
 public struct AudioChunk: Codable, Identifiable, Equatable, Sendable {
     public var id: UUID

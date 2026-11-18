@@ -49,9 +49,16 @@ struct CaptureView: View {
                     Text("Notes").font(.system(size: Studio.Size.heading, weight: .medium))
                     NotesSaveStatus()
                     Spacer()
+                    Button { if !model.pasteNoteImage() { model.notifier.notify(.info(String(localized: "Aucune image dans le presse-papiers."))) } } label: { Label("Image", systemImage: "photo.badge.plus") }
+                        .buttonStyle(StudioButtonStyle(compact: true)).help("Ajoute l’image du presse-papiers aux notes, à l’instant présent. ⌘V fonctionne aussi, comme le glisser-déposer.")
                     Button { model.addTimestamp() } label: { Label("Horodatage", systemImage: "plus") }.buttonStyle(StudioButtonStyle(compact: true)).keyboardShortcut("t", modifiers: [.command, .shift])
                 }
                 NotesEditor(recording: recording, headings: false)
+                    .dropDestination(for: Data.self) { items, _ in
+                        let images = items.filter { NSImage(data: $0) != nil }
+                        images.forEach(model.addNoteImage)
+                        return !images.isEmpty
+                    }
             }.padding(compact ? 23 : 32)
         }.background(Studio.background)
         .safeAreaInset(edge: .bottom, spacing: 0) {

@@ -414,6 +414,32 @@ final class AppModel: ObservableObject {
         let offset = captureSession.sessionID == id ? captureSession.elapsed : elapsed
         update(id) { $0.noteEntries.append(.init(offset: offset)) }
     }
+    /// The image types a paste or a drop can add to the notes.
+    static let noteImageTypes: [NSPasteboard.PasteboardType] = [.png, .tiff, NSPasteboard.PasteboardType("public.jpeg"), NSPasteboard.PasteboardType("public.heic")]
+    /// Adds the image on `pasteboard` to the notes of the capture, at the current time. Returns false, touching nothing,
+    /// when there is no capture or the pasteboard holds text: a copied text that comes with an image stays a text paste.
+    @discardableResult func pasteNoteImage(from pasteboard: NSPasteboard = .general) -> Bool {
+        guard activeCaptureID != nil, pasteboard.string(forType: .string) == nil,
+              let type = pasteboard.availableType(from: Self.noteImageTypes), let data = pasteboard.data(forType: type) else { return false }
+        addNoteImage(data)
+        return true
+    }
+    /// Keeps `data` as an image of the capture, timed when it was given rather than when it was saved.
+    func addNoteImage(_ data: Data) {
+        guard let id = activeCaptureID else { return }
+        let offset = captureSession.sessionID == id ? captureSession.elapsed : elapsed
+        let images = workspace.noteImages
+        Task {
+            do {
+                let image = try await images.add(data, to: id)
+                update(id) { $0.noteEntries.append(.init(offset: offset, image: image)) }
+            } catch { notifier.notify(.error(String(localized: "Image non ajoutée : \(error.localizedDescription)"))) }
+        }
+    }
+    /// The PNG of an image of session `id`.
+    func noteImageData(_ image: NoteImage, in id: UUID) async -> Data? { await workspace.noteImages.data(of: image, in: id) }
+    /// Removes the entry from the notes. The file stays with the session, as earlier versions of the notes still show it.
+    func removeNoteEntry(_ entryID: UUID, from id: UUID) { update(id) { $0.noteEntries.removeAll { $0.id == entryID } } }
     func beginSpeakerEdit(_ speaker: Speaker) { editingSpeakerID = speaker.id; speakerName = speaker.confirmed || speaker.proposedIdentity != nil ? speaker.label : "" }
     /// Names the voice if needed, then adds a sample of it to the person's voice print. The
     /// channel follows the voice's track. Only an explicit request from the user leads here.
@@ -1075,7 +1101,7 @@ final class AppModel: ObservableObject {
                 guard !hasUnsavedChanges else { return }
                 do {
                     let current = recordings.first { $0.id == item.id } ?? item
-                    try await FolderExportPublisher(directory: url).publish(current); notifier.notify(.info(String(localized: "Session exportée en Markdown et JSON."))); NSWorkspace.shared.open(url)
+                    try await FolderExportPublisher(directory: url, noteImages: store?.directory).publish(current); notifier.notify(.info(String(localized: "Session exportée en Markdown et JSON."))); NSWorkspace.shared.open(url)
                 } catch { notifier.notify(.error(String(localized: "Export impossible : \(error.localizedDescription)"))) }
             }
         }

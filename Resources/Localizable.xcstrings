@@ -1317,6 +1317,22 @@
         }
       }
     },
+    "Ajoute l’image du presse-papiers aux notes, à l’instant présent. ⌘V fonctionne aussi, comme le glisser-déposer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adds the clipboard image to the notes, at the current time. ⌘V works too, as does drag and drop."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajoute l’image du presse-papiers aux notes, à l’instant présent. ⌘V fonctionne aussi, comme le glisser-déposer."
+          }
+        }
+      }
+    },
     "Ajouter une langue": {
       "localizations": {
         "en": {
@@ -1729,6 +1745,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Aucune empreinte"
+          }
+        }
+      }
+    },
+    "Aucune image dans le presse-papiers.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No image on the clipboard."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune image dans le presse-papiers."
           }
         }
       }
@@ -2177,6 +2209,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Casque Bluetooth"
+          }
+        }
+      }
+    },
+    "Ce contenu n’est pas une image lisible.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This content is not a readable image."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce contenu n’est pas une image lisible."
           }
         }
       }
@@ -4533,6 +4581,54 @@
         }
       }
     },
+    "Image": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image"
+          }
+        }
+      }
+    },
+    "Image collée dans les notes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image pasted into the notes"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image collée dans les notes"
+          }
+        }
+      }
+    },
+    "Image non ajoutée : %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image not added: %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image non ajoutée : %@"
+          }
+        }
+      }
+    },
     "Impossible de lancer l’agent : %@": {
       "localizations": {
         "en": {
@@ -5985,6 +6081,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Liste des modèles proposés par %@ pour votre clé. Vous pouvez aussi saisir un identifiant. Le contexte des modèles hébergés est bien plus grand que celui d’un serveur local : une session d’une heure tient en quelques requêtes."
+          }
+        }
+      }
+    },
+    "Légende…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Caption…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Légende…"
           }
         }
       }
@@ -7969,6 +8081,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Retirer"
+          }
+        }
+      }
+    },
+    "Retirer l’image des notes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove the image from the notes"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retirer l’image des notes"
           }
         }
       }

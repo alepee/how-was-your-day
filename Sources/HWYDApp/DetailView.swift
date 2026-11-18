@@ -223,9 +223,16 @@ struct NotesEditor: View {
                 ForEach(recording.noteEntries) { entry in
                     HStack(alignment: .top, spacing: 12) {
                         Text(timeLabel(entry.offset)).font(.system(size: Studio.Size.caption, design: .monospaced)).foregroundStyle(Studio.mint).frame(width: 45).padding(.top, 4)
-                        TextField("Votre note…", text: Binding(get: { model.recordings.first { $0.id == recording.id }?.noteEntries.first { $0.id == entry.id }?.text ?? entry.text }, set: { value in
-                            model.update(recording.id) { if let i = $0.noteEntries.firstIndex(where: { $0.id == entry.id }) { $0.noteEntries[i].text = value } }
-                        }), axis: .vertical).textFieldStyle(.plain).font(.system(size: Studio.Size.body)).lineSpacing(5)
+                        VStack(alignment: .leading, spacing: 8) {
+                            if let image = entry.image { NoteImageView(recordingID: recording.id, image: image) }
+                            TextField(entry.image == nil ? "Votre note…" : "Légende…", text: Binding(get: { model.recordings.first { $0.id == recording.id }?.noteEntries.first { $0.id == entry.id }?.text ?? entry.text }, set: { value in
+                                model.update(recording.id) { if let i = $0.noteEntries.firstIndex(where: { $0.id == entry.id }) { $0.noteEntries[i].text = value } }
+                            }), axis: .vertical).textFieldStyle(.plain).font(.system(size: entry.image == nil ? Studio.Size.body : Studio.Size.caption)).lineSpacing(5)
+                        }
+                        if entry.image != nil {
+                            Button { model.removeNoteEntry(entry.id, from: recording.id) } label: { Image(systemName: "xmark") }
+                                .buttonStyle(.plain).foregroundStyle(Studio.muted).help("Retirer l’image des notes").accessibilityLabel("Retirer l’image des notes")
+                        }
                     }.padding(12).background(Studio.surface, in: RoundedRectangle(cornerRadius: 6))
                 }
             }
@@ -234,6 +241,29 @@ struct NotesEditor: View {
                 .font(.system(size: Studio.Size.body)).lineSpacing(7).scrollContentBackground(.hidden).padding(12).frame(minHeight: 220)
                 .background(Studio.inset, in: RoundedRectangle(cornerRadius: 7)).overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Studio.line)).accessibilityLabel("Notes manuelles de la session")
         }
+    }
+}
+
+/// An image of the notes, at most as wide as the column and 320 pt high.
+struct NoteImageView: View {
+    @EnvironmentObject var model: AppModel
+    let recordingID: UUID
+    let image: NoteImage
+    @State private var picture: NSImage?
+    var body: some View {
+        let ratio = CGFloat(image.width) / CGFloat(max(image.height, 1))
+        Group {
+            if let picture {
+                Image(nsImage: picture).resizable().aspectRatio(ratio, contentMode: .fit)
+            } else {
+                Rectangle().fill(Studio.inset).aspectRatio(ratio, contentMode: .fit)
+                    .overlay { Image(systemName: "photo").foregroundStyle(Studio.muted) }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: 320, alignment: .leading)
+        .clipShape(RoundedRectangle(cornerRadius: 5)).overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Studio.line))
+        .accessibilityLabel("Image collée dans les notes")
+        .task(id: image.id) { picture = await model.noteImageData(image, in: recordingID).flatMap(NSImage.init(data:)) }
     }
 }
 

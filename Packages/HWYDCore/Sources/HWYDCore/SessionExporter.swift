@@ -35,7 +35,12 @@ public enum SessionExporter {
             "tracks": [AudioSource.mic, .system].filter { source in item.audioChunks.contains { $0.source == source } || item.segments.contains { $0.source == source } }.map { ["id": track($0), "source": $0.rawValue, "channel": channel($0), "sample_rate": 16000, "channels": 1] as [String: Any] },
             "speakers": item.speakers.map { speaker in ["id": speaker.id.uuidString, "label": speaker.label, "track_id": track(speaker.source), "channel": channel(speaker.source), "ignored": speaker.ignored, "identity": ["status": speaker.confirmed ? "confirmed" : speaker.proposedIdentity == nil ? "anonymous" : "proposed", "person_id": nullable(speaker.confirmed ? speaker.personID?.uuidString : nil), "persistent_speaker_id": NSNull(), "name": nullable(speaker.confirmed ? speaker.label : nil), "alias": NSNull(), "proposed_person_id": nullable(speaker.proposedIdentity?.personID.uuidString), "scores": nullable(speaker.proposedIdentity.map { ["acoustic": $0.score, "adjusted": $0.score, "margin": nullable($0.margin), "threshold": $0.crossChannel == true ? VoiceResolver.crossChannelThreshold : VoiceResolver.threshold, "calendar_bonus": 0, "cross_channel": $0.crossChannel == true, "policy_version": "experimental-v2"] as [String: Any] })]] as [String: Any] },
             "segments": item.segments.map { segment in ["id": segment.id.uuidString, "start_us": micros(segment.start), "end_us": micros(segment.end), "track_id": track(segment.source), "speaker_id": nullable(segment.speakerID?.uuidString), "text": segment.text, "confidence": NSNull(), "flags": (segment.words == nil ? ["timing_coarse"] : []) + (ignoredSpeakers.contains(segment.speakerID ?? UUID()) ? ["speaker_ignored"] : []), "words": (segment.words ?? []).enumerated().map { index, word in ["id": uuid(segment.id.uuidString + String(index)), "text": word.text, "start_us": micros(word.start), "end_us": micros(word.end), "confidence": NSNull(), "timing_quality": "word"] as [String: Any] }] as [String: Any] },
-            "gaps": [], "notes": ["version": item.notesVersion ?? item.revision, "markdown": item.notes, "entries": item.noteEntries.map { ["id": $0.id.uuidString, "offset_us": micros($0.offset), "text": $0.text] as [String: Any] }],
+            "gaps": [], "notes": ["version": item.notesVersion ?? item.revision, "markdown": item.notes, "entries": item.noteEntries.map { entry in
+                var object: [String: Any] = ["id": entry.id.uuidString, "offset_us": micros(entry.offset), "text": entry.text]
+                // Only image entries carry the key, so sessions without images keep the bytes they were published with.
+                if let image = entry.image { object["image"] = ["path": NoteImageFiles.exportPath(image, session: item.id), "width": image.width, "height": image.height] }
+                return object
+            }],
             "provenance": ["pipeline_version": "hwyd-0.2", "run_id": NSNull(), "asr": [], "diarizer": [], "echo_policy": "not-applied", "alignment_policy": "word-overlap", "identity_policy": "experimental-v2"], "exported_at": exportedAt.ISO8601Format()]
         // Only once the capture changed (recording resumed, microphone changed), and once the
         // session knows its first microphone: an earlier session exports as it always did, so a
@@ -46,7 +51,9 @@ public enum SessionExporter {
         if let microphone = item.microphone { document["microphone"] = microphone }
         return document
     }
-    public static func export(_ recording: Recording, to directory: URL) throws {
+    /// `noteImages` is the data directory holding the session's note images; they are copied under `attachments/<id>/`
+    /// once, as an image never changes. A missing image is left out rather than holding back the publication.
+    public static func export(_ recording: Recording, to directory: URL, noteImages: URL? = nil) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let lock = open(directory.appendingPathComponent("export.lock").path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
         guard lock >= 0 else { throw StoreError.invalidPath }; defer { close(lock) }
@@ -67,7 +74,7 @@ public enum SessionExporter {
         let front = object.filter { !["tracks", "speakers", "segments", "gaps", "notes", "provenance"].contains($0.key) }
         // JSON is a YAML subset; one serializer escapes every user-supplied frontmatter value.
         let yaml = String(decoding: try JSONSerialization.data(withJSONObject: front, options: [.sortedKeys, .withoutEscapingSlashes]), as: UTF8.self)
-        let markdown = Data(("---\n" + yaml + "\n---\n\n# " + escape(recording.title) + "\n\n## Notes\n\n" + artifact(recording, "notes") + (recording.summary.map { "\n\n## Summary\n\n" + $0 } ?? "") + "\n\n## Transcript\n\n" + artifact(recording, "transcript") + "\n").utf8)
+        let markdown = Data(("---\n" + yaml + "\n---\n\n# " + escape(recording.title) + "\n\n## Notes\n\n" + RecordingText.artifact(recording, "notes", imageLink: { NoteImageFiles.exportPath($0, session: recording.id) }) + (recording.summary.map { "\n\n## Summary\n\n" + $0 } ?? "") + "\n\n## Transcript\n\n" + artifact(recording, "transcript") + "\n").utf8)
         func hash(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
         let manifest = try JSONSerialization.data(withJSONObject: ["id": id, "revision": revision, "files": ["session.md": ["sha256": hash(markdown), "bytes": markdown.count], "session.json": ["sha256": hash(json), "bytes": json.count]]], options: [.sortedKeys])
         if FileManager.default.fileExists(atPath: generation.path) {
@@ -80,6 +87,15 @@ public enum SessionExporter {
             defer { try? FileManager.default.removeItem(at: temporary) }
             for (name, data) in [("session.md", markdown), ("session.json", json), ("manifest.json", manifest)] { try durableWrite(data, to: temporary.appendingPathComponent(name)) }
             try FileManager.default.moveItem(at: temporary, to: generation)
+        }
+        if let noteImages {
+            for image in recording.noteEntries.compactMap(\.image) {
+                let target = directory.appendingPathComponent(NoteImageFiles.exportPath(image, session: recording.id))
+                guard !FileManager.default.fileExists(atPath: target.path),
+                      let data = try? Data(contentsOf: noteImages.appendingPathComponent(NoteImageFiles.relativePath(image, session: recording.id))) else { continue }
+                try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try durableWrite(data, to: target)
+            }
         }
         let index = directory.appendingPathComponent("index.jsonl")
         var indexData = (try? Data(contentsOf: index)) ?? Data()
@@ -120,6 +136,8 @@ public enum SessionExporter {
         }
         let generations = directory.appendingPathComponent(".hwyd/generations/" + id)
         if FileManager.default.fileExists(atPath: generations.path) { try FileManager.default.removeItem(at: generations) }
+        let images = directory.appendingPathComponent(NoteImageFiles.exportRoot + "/" + id)
+        if FileManager.default.fileExists(atPath: images.path) { try FileManager.default.removeItem(at: images) }
         for file in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) where file.lastPathComponent.hasPrefix("session-") && file.lastPathComponent.contains(id) { try FileManager.default.removeItem(at: file) }
     }
     static func parseEntry(_ data: Data) throws -> [String: Any] {

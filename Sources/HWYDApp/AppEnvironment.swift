@@ -51,6 +51,8 @@ struct CaptureSource {
     var summarizer: @MainActor (SummaryConfiguration) -> any Summarizer
     /// Where preference changes go while this workspace shows.
     var settings: SettingsStore
+    /// Where images pasted into the notes are kept. In memory unless the store is open.
+    var noteImages: any NoteImageStore = InMemoryNoteImageStore()
     /// Presentation only: the banner, the « Simulation » labels, and summary settings that are
     /// neither saved nor checked against the keychain or the network.
     var isExamples = false
@@ -131,6 +133,7 @@ struct CaptureSource {
         do {
             let store = try SessionStore(directory: directory)
             user.store = store; user.audio = store.audio; user.library = library(over: store, sweepsFiles: true)
+            user.noteImages = FolderNoteImageStore(directory: store.directory)
             user.capture = .coreAudio(store.audio, microphones: CoreAudioMicrophones())
         } catch { startupError = String(localized: "Impossible d’ouvrir les données locales : \(error.localizedDescription)") }
         return AppEnvironment(dataDirectory: directory, preferences: preferences, helpers: helpers, agentDiscovery: LoginShellAgentDiscovery(),
@@ -182,7 +185,7 @@ struct CaptureSource {
     /// `sweepsFiles`: whether each load removes the files of sessions deleted earlier from the store's folder.
     private static func library(over store: SessionStore, sweepsFiles: Bool) -> SessionLibrary {
         // Asked at each publication, so a folder chosen later applies at once.
-        SessionLibrary(repository: store, exportTarget: { try await store.exportDirectory().map(FolderExportPublisher.init) }, sweepsFiles: sweepsFiles)
+        SessionLibrary(repository: store, exportTarget: { try await store.exportDirectory().map { FolderExportPublisher(directory: $0, noteImages: store.directory) } }, sweepsFiles: sweepsFiles)
     }
 
     /// Summarizers for the settings of the moment, reading keys from the environment's vault.

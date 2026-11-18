@@ -92,6 +92,13 @@ import HWYDCore
             AppRoot.updater.start(isBusy: { [weak model] in model?.isBusy ?? false },
                                   busyChanges: model.$isBusy.removeDuplicates().map { _ in () }.eraseToAnyPublisher())
         }
+        // ⌘V with an image on the pasteboard adds it to the capture notes; the text fields cannot paste images themselves.
+        // Anything else (text, no capture, another screen) goes on to the focused field.
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command, event.charactersIgnoringModifiers == "v",
+                  let key = NSApp.keyWindow, key === self.notepad || (key === self.mainWindow && AppRoot.model.showsCaptureScreen) else { return event }
+            return AppRoot.model.pasteNoteImage() ? nil : event
+        }
         openWindow()
         // Loads the user's store; the examples have nothing to load.
         Task { await model.load() }

@@ -3,6 +3,7 @@ import Foundation
 /// Files a session owns in the data directory, outside SQLite.
 ///
 /// - `audio/<id lowercased>/` (`DataDirectoryAudio.relativeFolder`): CAF chunks of both tracks, partial chunks, sequence descriptors, manifest, recovery notes.
+/// - `notes/<id lowercased>/` (`NoteImageFiles.relativeFolder`): images pasted into the notes, kept while the session exists.
 /// - `cache/summaries/<ID>/`: summary checkpoints (extracted evidence, drafts).
 /// - `cache/waveforms/<chunk id>-<bins>.json` (`DataDirectoryAudio.waveformFolder`): waveform envelopes, keyed by the first chunk of the session.
 /// - `jobs/<uuid>/`: a transcription job (`request.json` names the session; result, log, echo and diarization scratch audio).
@@ -40,6 +41,7 @@ public struct SessionFiles: Sendable {
         let folder = DataDirectoryAudio.relativeFolder(for: id)
         if !livePaths.contains(where: { $0.hasPrefix(folder + "/") }) { remove(folder, into: &report) }
         remove("cache/summaries/" + id.uuidString, into: &report)
+        remove(NoteImageFiles.relativeFolder(for: id), into: &report)
         let ownChunks = Set(chunks.map(\.id)).subtracting(liveChunkIDs)
         for name in entries(Self.waveforms) where waveformChunk(name).map(ownChunks.contains) == true {
             remove(Self.waveforms + "/" + name, into: &report)
@@ -69,6 +71,10 @@ public struct SessionFiles: Sendable {
             guard let id = UUID(uuidString: name), !liveIDs.contains(id), !livePaths.contains(where: { $0.hasPrefix(folder + "/") }),
                   settled(folder) else { continue }
             remove(folder, into: &report)
+        }
+        for name in entries(NoteImageFiles.root) {
+            guard let id = UUID(uuidString: name), !liveIDs.contains(id), settled(NoteImageFiles.root + "/" + name) else { continue }
+            remove(NoteImageFiles.root + "/" + name, into: &report)
         }
         for name in entries("cache/summaries") {
             guard let id = UUID(uuidString: name), !liveIDs.contains(id), settled("cache/summaries/" + name) else { continue }

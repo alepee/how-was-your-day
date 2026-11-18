@@ -82,7 +82,7 @@ actor MCPService {
             // Published now when a folder is set; the app publishes what is left as soon as it sees the commit.
             // The receipt remains durable either way.
             if let directory = try? await store.exportDirectory() {
-                try? await ExportOutbox.drain(store, to: FolderExportPublisher(directory: directory))
+                try? await ExportOutbox.drain(store, to: FolderExportPublisher(directory: directory, noteImages: store.directory))
             }
             return String(decoding: try JSONEncoder().encode(receipt), as: UTF8.self)
         }
