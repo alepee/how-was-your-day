@@ -61,7 +61,7 @@ struct RootView: View {
                 Button { model.retrySave() } label: { Label("Enregistrer les notes", systemImage: "arrow.clockwise").contentShape(Rectangle()) }.buttonStyle(.plain).font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.copper).padding(10)
             }
             nav(String(localized: "Réglages"), symbol: "slider.horizontal.3", selected: model.showSettings) { model.showSettings = true }
-            HStack(spacing: 7) { Circle().fill(Studio.mint).frame(width: 5, height: 5); Text("Sur ce Mac").font(.system(size: Studio.Size.caption)); Spacer(); Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev").font(.system(size: Studio.Size.caption, design: .monospaced)) }.foregroundStyle(Studio.muted).padding(12)
+            HStack(spacing: 7) { Circle().fill(Studio.mint).frame(width: 5, height: 5); Text("Sur ce Mac").font(.system(size: Studio.Size.caption)); Spacer(); Text((Bundle.main.object(forInfoDictionaryKey: "HWYDDisplayVersion") ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")) as? String ?? "dev").font(.system(size: Studio.Size.caption, design: .monospaced)) }.foregroundStyle(Studio.muted).padding(12)
         }.padding(.horizontal, 10).padding(.bottom, 8).background(Studio.inset)
     }
     private func nav(_ title: String, symbol: String, selected: Bool, action: @escaping () -> Void) -> some View {
