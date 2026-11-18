@@ -778,6 +778,25 @@ import HWYDCore
         model.requestEnrollment(camille.id)
         guard model.enrollmentCandidateID == camille.id, !model.voiceBusy, model.people == peopleBefore else { throw CaptureFailure(message: "Enrollment started without confirmation") }
         model.enrollmentCandidateID = nil
+        // Splitting a voice that held two people in turn: a new voice, its name editor, no enrollment, undoable.
+        notices.clear()
+        guard let beforeVoiceSplit = model.selected,
+              let pivot = beforeVoiceSplit.segments.first(where: { beforeVoiceSplit.voiceSplit(at: $0.id)?.before.isEmpty == false }) else {
+            throw CaptureFailure(message: "Missing voice split fixture")
+        }
+        model.splitSpeaker(at: pivot.id, keepingIdentity: .before)
+        guard let voiceSplit = model.selected, voiceSplit.speakers.count == beforeVoiceSplit.speakers.count + 1,
+              let created = model.editingSpeakerID, voiceSplit.segments.first(where: { $0.id == pivot.id })?.speakerID == created,
+              voiceSplit.speakers.first(where: { $0.id == pivot.speakerID }) == beforeVoiceSplit.speakers.first(where: { $0.id == pivot.speakerID }),
+              model.people == peopleBefore, !model.voiceBusy else {
+            throw CaptureFailure(message: "Voice split failed, kept no name editor or triggered enrollment")
+        }
+        model.editingSpeakerID = nil
+        guard let undoSplit = notices.notices.last(where: { $0.actions.first?.title == String(localized: "Annuler") }) else { throw CaptureFailure(message: "Voice split cannot be undone") }
+        perform(undoSplit.actions[0])
+        guard model.selected?.segments == beforeVoiceSplit.segments, model.selected?.speakers == beforeVoiceSplit.speakers else {
+            throw CaptureFailure(message: "Voice split undo failed")
+        }
         notices.clear()
         var splitExample = TranscriptSegment(start: 0, end: 2, speakerID: nil, source: .mic, text: "Oui. Bonjour")
         splitExample.words = [.init(text: "Oui.", start: 0, end: 1), .init(text: " Bonjour", start: 1, end: 2)]
@@ -807,6 +826,6 @@ import HWYDCore
         guard model.selected?.notes == "Note pendant la session", model.selected?.noteEntries.count == 1, model.activeTab == .notes else { throw CaptureFailure(message: "Capture handoff failed") } // l10n:ignore
         let afterDemo = try await reopened.all()
         guard afterDemo.count == 1 else { throw CaptureFailure(message: "Demo leaked into store") }
-        FileHandle.standardOutput.write(Data("UI persistence, merge with another process, speaker correction, merge undo and separation, capture timer, notes handoff and demo isolation: PASS\n".utf8))
+        FileHandle.standardOutput.write(Data("UI persistence, merge with another process, speaker correction, merge undo and separation, voice split, capture timer, notes handoff and demo isolation: PASS\n".utf8))
     }
 }

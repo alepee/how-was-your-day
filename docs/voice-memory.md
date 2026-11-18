@@ -17,6 +17,8 @@ Memorize a voice from its tile in a session. A named voice offers **Mémoriser c
 
 Corrections can be undone: each voice correction shows **Annuler** in its notification, and a voice merged into another on the same track can be split back later with **Séparer** in the tile menu.
 
+When diarization gives one voice to two people who spoke in turn, **Scinder la voix à partir d’ici…** in a passage's menu cuts the voice at that passage. The passages before it and those from it on become two voices on the same track: a named voice lets the user choose which part keeps its name, and the other part becomes a new voice whose name editor opens. **Nouvelle voix…** does the same for one passage. Like naming, splitting edits the transcript only and never reads or writes a voice print. A print already memorized from a voice that held two people is not corrected by the split: withdraw that session's samples in Settings › Audio et voix.
+
 Before 0.9 the microphone was split into `near` and `room`. Those samples move to `mic` the first time they are read, keeping at most 20 per channel.
 
 The personal-use UI records an explicit enrollment request in `enrollmentRequestedAt`. It does not manufacture a legal consent attestation in `consentedAt`. Existing consent metadata remains readable; opposition still disables recognition. It does not claim legal compliance for deployment to other users.

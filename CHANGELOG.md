@@ -9,6 +9,9 @@ Entries describe what a user observes. The detailed release notes published on G
 
 ## [Unreleased]
 
+### Added
+- « Scinder la voix à partir d’ici… » in a transcript passage's menu, for one voice that was in fact two people speaking one after the other. It shows how many passages fall on each side of the cut with a way to listen to them, lets you choose which part keeps the current name, turns the other into a new voice and opens its name editor. « Nouvelle voix… » gives a single passage a voice of its own. Both can be undone from their notification and never touch a voice fingerprint.
+
 ## [0.16.0] - 2026-11-16
 
 ### Added

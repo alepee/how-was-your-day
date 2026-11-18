@@ -85,6 +85,27 @@ extension AppModel {
     func separateSpeaker(_ absorbedID: UUID, from speakerID: UUID) {
         editVoices({ String(localized: "\(self.label(absorbedID, in: $0)) séparée de \(self.label(speakerID, in: $0)).") }) { try $0.separateSpeaker(absorbedID, from: speakerID) }
     }
+    /// "This voice was two people in turn." The part that does not keep the name becomes a new voice,
+    /// whose name editor opens. Transcript correction only, no enrollment.
+    func splitSpeaker(at segmentID: UUID, keepingIdentity side: VoiceSplitSide) {
+        var created: UUID?
+        let applied = editVoices({ String(localized: "Voix scindée : \(self.label(created ?? UUID(), in: $0)) créée.") }) {
+            created = try $0.splitSpeaker(at: segmentID, keepingIdentity: side)
+        }
+        nameNewVoice(created, applied: applied)
+    }
+    /// Gives one passage a voice of its own, then opens its name editor.
+    func assignNewSpeaker(to segmentID: UUID) {
+        var created: UUID?
+        let applied = editVoices({ String(localized: "Passage attribué à \(self.label(created ?? UUID(), in: $0)).") }) {
+            created = try $0.assignNewSpeaker(to: segmentID)
+        }
+        nameNewVoice(created, applied: applied)
+    }
+    private func nameNewVoice(_ id: UUID?, applied: Bool) {
+        guard applied, let id, let voice = selected?.speakers.first(where: { $0.id == id }) else { return }
+        beginSpeakerEdit(voice)
+    }
     /// Hides an echo or noise voice from this session, or restores it. Segments are kept.
     func setSpeakerIgnored(_ speakerID: UUID, _ ignored: Bool) {
         editVoices({ ignored ? String(localized: "\(self.label(speakerID, in: $0)) ignorée : ses passages sont masqués du transcript, de l’export et de la synthèse.") : String(localized: "\(self.label(speakerID, in: $0)) rétablie dans le transcript.") }) {
