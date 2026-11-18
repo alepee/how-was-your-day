@@ -101,7 +101,7 @@ Un modèle chargé à la fois. Le CLI se termine après chaque réunion, donc la
 ## 6. Détection et déclenchement
 
 - **Calendrier** : Google, Outlook/Microsoft 365 et Apple Calendar. Voie principale : **EventKit**, qui expose déjà tous les comptes ajoutés dans Réglages Système (Google, Exchange, iCloud, CalDAV) sans OAuth propre à l'app. Voie de secours si un compte n'est pas dans macOS : OAuth direct Google Calendar API et Microsoft Graph, en v2. Deux rôles. (1) **Mise en contexte** : titre, description, participants, pièces jointes et liens de l'événement alimentent le frontmatter et le JSON, pour qu'un consommateur aval puisse relier la session à ses propres entités (personnes, projets). (2) **A priori d'identité** (§ 5), jamais filtre. Lu dès le jalon 4. Emails à parser depuis `EKParticipant.url` (mailto) ou via Contacts ; lien visio à extraire de `url`, `location`, `notes` (pas de propriété dédiée). Notification N minutes avant, action « rejoindre et enregistrer ».
-- **Enregistrement en 1 clic** : depuis la barre de menus ou le raccourci, la session démarre immédiatement (sans événement : `session_kind: ad-hoc`, titre horodaté, renommable). Une notification propose d'ouvrir le **notepad de session** : une fenêtre flottante légère où l'utilisateur tape des notes pendant la capture. Chaque note est horodatée sur l'horloge de la session, ce qui permet de la replacer dans le transcript. Le notepad est le même pour toutes les sortes de sessions.
+- **Enregistrement en 1 clic** : depuis la barre de menus ou le raccourci, la session démarre immédiatement (sans événement : le dernier type choisi, `exchange` par défaut, titre horodaté, renommable). Une notification propose d'ouvrir le **notepad de session** : une fenêtre flottante légère où l'utilisateur tape des notes pendant la capture. Chaque note est horodatée sur l'horloge de la session, ce qui permet de la replacer dans le transcript. Le notepad est le même pour toutes les sortes de sessions.
 - **Sans calendrier** : objets process Core Audio (macOS 14+) : `kAudioProcessPropertyIsRunningInput/Output` + bundle ID (Chrome helper, Slack, Gather). Slack qui prend le micro = Huddle. Meet ou Gather dans un onglet : URL de l'onglet actif via Automation sur Chrome/Safari (`meet.google.com`, `app.gather.town`). Le critère « app au premier plan » est écarté, Meet est souvent en arrière-plan ; `DeviceIsRunningSomewhere` est global et peu fiable en Bluetooth.
 - **Fin de réunion** : entrée et sortie du process de visio inactives depuis > 60 s. **[spike]** : le mute Meet libère-t-il le micro ?
 - **Salle** : aucun signal fiable. Événement sans lien visio + raccourci clavier.
@@ -116,7 +116,7 @@ Un modèle chargé à la fois. Le CLI se termine après chaque réunion, donc la
 type: Session            # type neutre ; un consommateur peut le re-projeter
 date: 2026-10-23
 source: hwyd://session/<uuid>
-session_kind: meeting | call | conversation | voice-memo | ad-hoc
+session_kind: voice-memo | exchange | meeting
 participants:         # uniquement les identités confirmées
   - name: Jérôme Noel
     alias: "[[person-jerome-noel]]"   # alias libre défini dans l'app, recopié tel quel

@@ -22,7 +22,7 @@ struct CaptureView: View {
                 TextField("Titre de la session", text: Binding(get: { model.activeCapture?.title ?? recording.title }, set: { value in model.update(recording.id) { $0.title = value } }))
                     .textFieldStyle(.plain).font(.system(size: compact ? Studio.Size.heading : Studio.Size.title, weight: .medium)).accessibilityLabel("Titre de la session en cours")
                 HStack(spacing: 16) {
-                    Picker("Type", selection: Binding(get: { model.activeCapture?.kind ?? .adHoc }, set: { value in model.update(recording.id) { $0.kind = value } })) {
+                    Picker("Type", selection: Binding(get: { model.activeCapture?.kind ?? .exchange }, set: { value in model.update(recording.id) { $0.kind = value } })) {
                         ForEach(SessionKind.allCases, id: \.self) { Text($0.label).tag($0) }
                     }.labelsHidden().frame(width: 150)
                     Spacer(minLength: 8)

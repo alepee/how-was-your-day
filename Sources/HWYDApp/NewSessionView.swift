@@ -1,9 +1,9 @@
 import SwiftUI
 import HWYDCore
 
-/// Set up a session before recording: its name, kind, microphone and language, then the
-/// declaration that the people present are informed and agree, which stamps the session.
-/// Nothing is captured until the user presses the start button.
+/// Set up a session before recording: its name, kind, microphone and language. Nothing is captured
+/// until the user presses the start button. When the kind records other people, that button works in
+/// two steps: it first declares them informed and agreeing, which stamps the card, then it starts.
 struct NewSessionView: View {
     @EnvironmentObject var model: AppModel
     @FocusState private var nameFocused: Bool
@@ -59,7 +59,7 @@ struct NewSessionView: View {
     private var header: some View {
         TextField("Nom", text: $model.newSessionTitle, prompt: Text(NewSessionView.placeholder(model.newSessionKind)).foregroundStyle(Studio.muted))
             .textFieldStyle(.plain).font(.system(size: Studio.Size.title, weight: .semibold)).tracking(-0.7)
-            .focused($nameFocused).onSubmit { model.startNewSession() }
+            .focused($nameFocused).onSubmit { model.advanceNewSession() }
             .help(String(localized: "Facultatif. Sans nom, la session s’appelle d’après son type et l’heure de début. Vous pourrez le changer ensuite."))
             .padding(.trailing, 96).padding(.bottom, 10)
             .overlay(alignment: .bottom) { Rectangle().fill(Studio.line).frame(height: 1) }
@@ -108,32 +108,31 @@ struct NewSessionView: View {
         .help(String(localized: "En détection automatique, HWYD choisit la langue de chaque piste parmi les langues installées, d’après le début de l’enregistrement. Choisissez une langue pour l’imposer aux deux pistes. Vous pourrez retranscrire dans une autre langue."))
         .accessibilityLabel("Langue")
     }
-    /// Cancel, the declaration, then start: in the order they are done.
+    /// Cancel, then the start button: with other people, it declares before it starts.
     private var actions: some View {
         HStack(spacing: 18) {
             Button("Annuler") { model.library() }.buttonStyle(StudioButtonStyle()).keyboardShortcut(.cancelAction)
             Spacer(minLength: 8)
-            if model.newSessionKind.involvesOthers {
-                Toggle(isOn: $model.newSessionConsent) {
-                    Text("Présents informés et d’accord").font(.system(size: Studio.Size.body))
-                }
-                .toggleStyle(.switch).tint(Studio.copper).controlSize(.small)
-                .help(String(localized: "Informez chaque personne présente avant de démarrer et obtenez son accord. Votre déclaration et son heure sont consignées dans la session et ses exports. Elle ne vaut pas consentement à mémoriser une voix."))
-            }
-            Button { model.startNewSession() } label: {
-                Label(model.isStarting ? "Préparation…" : model.isDemoMode ? "Simuler l’enregistrement" : "Démarrer l’enregistrement", systemImage: "record.circle")
-            }
-            .buttonStyle(StudioButtonStyle(primary: true, destructive: true)).disabled(!model.newSessionCanStart)
+            Button { model.advanceNewSession() } label: { NewSessionView.startLabel(model) }
+            .buttonStyle(StudioButtonStyle(primary: true, destructive: !model.newSessionNeedsConsent)).disabled(model.isStarting)
             .keyboardShortcut(.defaultAction)
-            .help(model.newSessionCanStart ? "" : String(localized: "Déclarez d’abord que les personnes présentes sont informées et d’accord."))
+            .help(model.newSessionNeedsConsent ? NewSessionView.consentHelp : "")
         }
         .padding(.horizontal, 24).padding(.vertical, 15).background(Studio.inset)
         .overlay(alignment: .top) { Rectangle().fill(Studio.line).frame(height: 1) }
     }
+    /// The start button's label: the declaration while one is needed, then the start.
+    static func startLabel(_ model: AppModel) -> some View {
+        if model.newSessionNeedsConsent { return Label("Consentement recueilli", systemImage: "checkmark.seal") }
+        return Label(model.isStarting ? "Préparation…" : model.isDemoMode ? "Simuler l’enregistrement" : "Démarrer l’enregistrement", systemImage: "record.circle")
+    }
+    static var consentHelp: String {
+        String(localized: "Informez chaque personne présente et obtenez son accord, puis déclarez-le ici avant de démarrer. Votre déclaration et son heure sont consignées dans la session et ses exports. Elle ne vaut pas consentement à mémoriser une voix.")
+    }
     /// What the session will be called if no name is typed.
     static func placeholder(_ kind: SessionKind) -> String {
         let time = Date().formatted(date: .omitted, time: .shortened)
-        return kind == .adHoc ? String(localized: "Session du \(time)") : String(localized: "\(kind.label) du \(time)")
+        return String(localized: "\(kind.label) du \(time)")
     }
 }
 

@@ -86,11 +86,9 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
         "kind": {
           "type": "string",
           "enum": [
-            "meeting",
-            "call",
-            "conversation",
             "voice-memo",
-            "ad-hoc"
+            "exchange",
+            "meeting"
           ]
         },
         "started_at": {
@@ -350,11 +348,9 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
           "kind": {
             "type": "string",
             "enum": [
-              "meeting",
-              "call",
-              "conversation",
               "voice-memo",
-              "ad-hoc"
+              "exchange",
+              "meeting"
             ]
           },
           "participant": {
@@ -570,11 +566,9 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
           "kind": {
             "type": "string",
             "enum": [
-              "meeting",
-              "call",
-              "conversation",
               "voice-memo",
-              "ad-hoc"
+              "exchange",
+              "meeting"
             ]
           },
           "participant": {

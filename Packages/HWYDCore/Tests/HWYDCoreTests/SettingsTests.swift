@@ -6,7 +6,7 @@ final class SettingsTests: XCTestCase {
     func testMissingOrInvalidValuesFallBackToTheKeyDefault() {
         let store = InMemorySettings(["summary.service": "unknown-provider", "newSession.kind": 42])
         XCTAssertEqual(store.value(.summaryService), .local)
-        XCTAssertEqual(store.value(.newSessionKind), .adHoc)
+        XCTAssertEqual(store.value(.newSessionKind), .exchange)
         XCTAssertEqual(store.value(.summaryEndpoint), "http://127.0.0.1:1234/v1")
         XCTAssertEqual(store.value(.summaryContextTokens), 32768)
         XCTAssertNil(store.value(.appearance))
@@ -51,9 +51,9 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(store.value(.appearance), "dark")
         XCTAssertTrue(store.value(.calendarEnabled))
         store.set(false, for: .diarizationEnabled)
-        store.set(.call, for: .newSessionKind)
+        store.set(.meeting, for: .newSessionKind)
         XCTAssertEqual(defaults.object(forKey: "diarizationEnabled") as? Bool, false)
-        XCTAssertEqual(defaults.string(forKey: "newSession.kind"), "call")
+        XCTAssertEqual(defaults.string(forKey: "newSession.kind"), "meeting")
         store.remove(.appearance)
         XCTAssertNil(defaults.object(forKey: "appearancePreference"))
     }

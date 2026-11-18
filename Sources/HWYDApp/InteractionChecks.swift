@@ -560,27 +560,31 @@ import HWYDCore
         let model = AppModel(environment: .preview())
         model.requestNewSession()
         guard model.showNewSession, model.activeCaptureID == nil else { throw CaptureFailure(message: "New session must open its setup screen without recording") }
-        model.newSessionKind = .call
+        model.newSessionKind = .exchange
         await model.startCapture(kind: model.newSessionKind, title: "  ").value
-        guard let active = model.activeCapture, active.kind == .call, active.title.hasPrefix(SessionKind.call.label), active.title != SessionKind.call.label, !model.showNewSession else {
+        guard let active = model.activeCapture, active.kind == .exchange, active.title.hasPrefix(SessionKind.exchange.label), active.title != SessionKind.exchange.label, !model.showNewSession else {
             throw CaptureFailure(message: "Kind and default name were not applied")
         }
         await model.stopCapture().value
         await model.startCapture(kind: .voiceMemo, title: "Idée produit").value // l10n:ignore
         guard model.activeCapture?.title == "Idée produit", model.activeCapture?.kind == .voiceMemo else { throw CaptureFailure(message: "Typed name was not applied") } // l10n:ignore
         await model.stopCapture().value
-        // A session with other people starts only once they are declared informed; the declaration is recorded.
+        // With other people, the start button declares first, then starts; the declaration is recorded.
         model.requestNewSession(); model.newSessionKind = .meeting
         await model.startNewSession().value
-        guard model.activeCaptureID == nil, model.showNewSession else { throw CaptureFailure(message: "A meeting started without the consent declaration") }
-        model.newSessionConsent = true
-        await model.startNewSession().value
+        guard model.activeCaptureID == nil, model.newSessionNeedsConsent else { throw CaptureFailure(message: "A meeting started without the consent declaration") }
+        await model.advanceNewSession().value
+        guard model.activeCaptureID == nil, model.newSessionConsentAt != nil, model.newSessionCanStart else { throw CaptureFailure(message: "The first press must only declare") }
+        await model.advanceNewSession().value
         guard let declared = model.activeCapture, declared.consentAnnounced, declared.consentAnnouncedAt != nil else {
             throw CaptureFailure(message: "The consent declaration was not recorded")
         }
         await model.stopCapture().value
+        // A voice memo records no one else: it starts at once, with no declaration.
         model.requestNewSession(); model.newSessionKind = .voiceMemo
-        guard model.newSessionCanStart else { throw CaptureFailure(message: "A voice memo must start without a consent declaration") }
+        await model.advanceNewSession().value
+        guard let memo = model.activeCapture, !memo.consentAnnounced, memo.consentAnnouncedAt == nil else { throw CaptureFailure(message: "A voice memo must start without a consent declaration") }
+        await model.stopCapture().value
 
         // A fresh model: its toasts hold none of the capture notices above.
         let shown = AppModel(environment: .preview())

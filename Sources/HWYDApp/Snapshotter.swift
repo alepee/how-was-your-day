@@ -119,7 +119,7 @@ import HWYDCore
         let previousSelection = model.selectedID
         model.requestNewSession(); model.newSessionKind = .meeting
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-new-session.png"))
-        model.newSessionConsent = true
+        model.newSessionConsentAt = Date()
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-new-session-stamped.png"))
         model.newSessionConsentAt = nil
         model.showNewSession = false; model.selectedID = previousSelection

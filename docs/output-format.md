@@ -43,7 +43,7 @@ microphone: "MacBook Pro Microphone"  # first microphone of the session; absent 
 timezone: "Europe/Paris"
 duration_us: 1800000000
 title: "Point produit"
-session_kind: meeting
+session_kind: meeting  # voice-memo, exchange or meeting; exports written by earlier versions may hold call, conversation or ad-hoc, read as exchange
 app: meet
 status: complete
 locale: "fr-FR"

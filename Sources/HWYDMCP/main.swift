@@ -92,7 +92,7 @@ actor MCPService {
         let limit = input["limit"] as? Int ?? 50
         var result: [String: Any]
         func matches(_ r: Recording) -> Bool {
-            if let kind = input["kind"] as? String, r.kind.rawValue != kind { return false }
+            if let kind = input["kind"] as? String, r.kind != SessionKind(rawValue: kind) { return false }
             if let since = input["since"] as? String, let date = ISO8601DateFormatter().date(from: since), r.startedAt < date { return false }
             if let person = input["participant"] as? String, !r.speakers.contains(where: { $0.confirmed && ($0.personID ?? $0.id).uuidString.lowercased() == person.lowercased() }) { return false }
             return true
