@@ -31,6 +31,19 @@ import HWYDCore
     /// A capture clock the snapshots set by hand.
     @MainActor private final class ManualClock { var time: TimeInterval = 0 }
     /// Lets the tasks of the main actor run until `condition` holds, at most five seconds.
+    /// A fictional slide, as a screenshot pasted into the notes would look.
+    private static func syntheticSlide() -> Data? {
+        let width = 1600, height = 900
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        context.setFillColor(red: 0.96, green: 0.97, blue: 0.96, alpha: 1); context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.setFillColor(red: 0.15, green: 0.41, blue: 0.32, alpha: 1); context.fill(CGRect(x: 120, y: 700, width: 900, height: 70))
+        context.setFillColor(red: 0.6, green: 0.65, blue: 0.68, alpha: 1)
+        for (row, length) in [1100, 980, 1200, 760].enumerated() { context.fill(CGRect(x: 120, y: 560 - row * 90, width: length, height: 34)) }
+        context.setFillColor(red: 0.6, green: 0.29, blue: 0.18, alpha: 1); context.fill(CGRect(x: 1250, y: 140, width: 230, height: 330))
+        guard let image = context.makeImage() else { return nil }
+        return NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
+    }
     private static func settle(_ condition: () -> Bool) {
         let deadline = Date().addingTimeInterval(5)
         while !condition(), Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
@@ -195,6 +208,12 @@ import HWYDCore
         model.toggleCapturePause()
         settle { !model.isCapturePaused }
         render(NotepadWindow().environmentObject(model), size: .init(width: 500, height: 650), to: directory.appendingPathComponent("studio-notepad.png"))
+        // A pasted screenshot, drawn here: the examples keep it in memory.
+        if let slide = syntheticSlide() {
+            model.addNoteImage(slide)
+            settle { model.activeCapture?.noteEntries.contains { $0.image != nil } == true }
+            render(NotepadWindow().environmentObject(model), size: .init(width: 500, height: 900), to: directory.appendingPathComponent("studio-notepad-image.png"))
+        }
         // AirPods connect and become the system default input: the capture only offers them.
         let airpods = MicrophoneDevice(uid: "preview.airpods", name: "AirPods de Camille", transport: .bluetooth) // l10n:ignore
         Task { await capture.offer(airpods) }

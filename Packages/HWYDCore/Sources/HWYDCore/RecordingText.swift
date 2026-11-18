@@ -4,9 +4,17 @@ import Foundation
 /// the exports and `hwyd-mcp`. Ignored voices are left out of the transcript. Where recording
 /// resumed, a marker line precedes the first passage after the resume.
 public enum RecordingText {
-    public static func artifact(_ item: Recording, _ name: String) -> String {
+    /// `imageLink` gives the path an image entry links to; without it, an image is named, not linked.
+    public static func artifact(_ item: Recording, _ name: String, imageLink: ((NoteImage) -> String)? = nil) -> String {
         switch name {
-        case "notes": return item.noteEntries.sorted { $0.offset < $1.offset }.map { "- [\(timeLabel($0.offset, hours: true))] \($0.text)" }.joined(separator: "\n") + "\n\n" + item.notes
+        case "notes":
+            return item.noteEntries.sorted { $0.offset < $1.offset }.map { entry in
+                let time = "- [\(timeLabel(entry.offset, hours: true))] "
+                guard let image = entry.image else { return time + entry.text }
+                let caption = escape(entry.text.trimmingCharacters(in: .whitespacesAndNewlines))
+                guard let imageLink else { return time + "[Image" + (caption.isEmpty ? "" : " : " + caption) + "]" }
+                return time + "![" + (caption.isEmpty ? "Image" : caption) + "](" + imageLink(image) + ")"
+            }.joined(separator: "\n") + "\n\n" + item.notes
         case "summary": return item.summary ?? ""
         default:
             let segments = item.heardSegments.sorted { $0.start == $1.start ? $0.id.uuidString < $1.id.uuidString : $0.start < $1.start }

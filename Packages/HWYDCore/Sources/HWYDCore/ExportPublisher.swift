@@ -16,8 +16,10 @@ public protocol ExportPublisher: Sendable {
 /// one-off export.
 public actor FolderExportPublisher: ExportPublisher {
     public nonisolated let directory: URL
-    public init(directory: URL) { self.directory = directory }
-    public func publish(_ recording: Recording) throws { try SessionExporter.export(recording, to: directory) }
+    /// The data directory the note images are copied from; nil publishes their links only.
+    public nonisolated let noteImages: URL?
+    public init(directory: URL, noteImages: URL? = nil) { self.directory = directory; self.noteImages = noteImages }
+    public func publish(_ recording: Recording) throws { try SessionExporter.export(recording, to: directory, noteImages: noteImages) }
     public func withdraw(_ id: UUID, revision: Int) throws {
         try SessionExporter.delete(id: id.uuidString.lowercased(), revision: revision, from: directory)
     }
