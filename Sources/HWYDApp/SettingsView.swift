@@ -126,6 +126,10 @@ struct SettingsView: View {
                 }
             }
             section(String(localized: "Découvrir HWYD"), symbol: "rectangle.stack") {
+                row(String(localized: "Présentation guidée")) {
+                    Button("Revoir") { model.showSettings = false; model.onboarding.present() }
+                        .buttonStyle(StudioButtonStyle(compact: true)).disabled(model.isDemoMode || model.activeCaptureID != nil)
+                }
                 row(String(localized: "Sessions fictives, sans micro")) {
                     Button(model.isDemoMode ? "Quitter les exemples" : "Explorer des exemples") {
                         model.showSettings = false

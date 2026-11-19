@@ -21,6 +21,25 @@ struct RootView: View {
         .foregroundStyle(Studio.text).background(Studio.background).preferredColorScheme(model.appearancePreference.colorScheme)
         .frame(minWidth: 860, minHeight: 660)
         .sheet(isPresented: Binding(get: { model.editingSpeakerID != nil }, set: { if !$0 { model.editingSpeakerID = nil } })) { SpeakerEditor() }
+        // The welcome tour, over the app; never over a running capture or the examples. A card rather
+        // than a sheet, so that its top stays put when a step needs more room and it grows downward.
+        .overlay(alignment: .top) {
+            if showsTour {
+                ZStack(alignment: .top) {
+                    Color.black.opacity(0.25).ignoresSafeArea().contentShape(Rectangle()).onTapGesture {}
+                    OnboardingView(guide: model.onboarding).environmentObject(model)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Studio.line))
+                        .shadow(color: .black.opacity(0.22), radius: 28, y: 12)
+                        .padding(.top, 36)
+                        .accessibilityAddTraits(.isModal)
+                }.transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: showsTour)
+        // Going elsewhere from a menu or a shortcut ends the tour.
+        .onChange(of: model.showSettings) { _, shown in if shown { model.onboarding.leave() } }
+        .onChange(of: model.showNewSession) { _, shown in if shown { model.onboarding.leave() } }
         .alert("Supprimer cette session ?", isPresented: Binding(get: { model.deleteCandidate != nil }, set: { if !$0 { model.deleteCandidate = nil } })) {
             Button("Annuler", role: .cancel) { model.deleteCandidate = nil }
             Button("Supprimer", role: .destructive) { model.deleteConfirmed() }
@@ -30,6 +49,7 @@ struct RootView: View {
             Button("Reprendre") { model.resumeConfirmed() }
         } message: { Text("À l’arrêt, le transcript sera refait à partir de toute la session : ses corrections (texte, noms des voix, regroupements, voix ignorées) seront perdues. Les voix mémorisées seront de nouveau proposées. Une synthèse existante est conservée et signalée comme antérieure au nouveau transcript.") }
     }
+    private var showsTour: Bool { model.onboarding.isPresented && model.activeCaptureID == nil && !model.isDemoMode }
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 9) {

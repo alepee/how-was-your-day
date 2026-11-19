@@ -22,10 +22,19 @@ final class HelperDiscoveryTests: XCTestCase {
 
     func testAgentDetectionOutputKeepsPresetOrderAndIgnoresUnknownLines() async {
         XCTAssertTrue(ACPAgentPreset.detectionScript.contains("command -v codex-acp"))
-        XCTAssertEqual(ACPAgentPreset.installed(fromDetectionOutput: "gemini\nsomething-else\nclaude-agent-acp\n"),
-                       ["claude-agent-acp", "gemini --experimental-acp"])
-        XCTAssertEqual(ACPAgentPreset.installed(fromDetectionOutput: ""), [])
-        let installed = await FixedAgentDiscovery(["codex-acp"]).installedAgents()
-        XCTAssertEqual(installed, ["codex-acp"])
+        XCTAssertTrue(ACPAgentPreset.detectionScript.contains("command -v claude "))
+        XCTAssertEqual(ACPAgentPreset.inventory(fromDetectionOutput: "gemini\nsomething-else\nclaude-agent-acp\n"),
+                       AgentInventory(ready: ["claude-agent-acp", "gemini --experimental-acp"]))
+        XCTAssertEqual(ACPAgentPreset.inventory(fromDetectionOutput: ""), AgentInventory())
+        let inventory = await FixedAgentDiscovery(["codex-acp"]).inventory()
+        XCTAssertEqual(inventory.ready, ["codex-acp"])
+    }
+
+    /// An agent whose tool is there but not its adapter can be installed; one without an adapter package cannot.
+    func testAgentWithoutItsAdapterIsInstallable() {
+        let inventory = ACPAgentPreset.inventory(fromDetectionOutput: "claude\ncodex\ncodex-acp\nvibe\n")
+        XCTAssertEqual(inventory.ready, ["codex-acp"])
+        XCTAssertEqual(inventory.installable, ["claude-agent-acp"])
+        XCTAssertEqual(ACPAgentPreset.preset(for: "claude-agent-acp")?.adapterInstallCommand, "npm install -g @agentclientprotocol/claude-agent-acp")
     }
 }

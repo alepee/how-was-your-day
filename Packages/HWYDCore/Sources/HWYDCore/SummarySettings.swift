@@ -30,6 +30,10 @@ import Foundation
     @Published public var agentDirectory: String
     /// Commands of the known ACP agents installed on this Mac.
     @Published public private(set) var detectedAgents: [String] = []
+    /// Agents whose tool is installed but not their ACP adapter.
+    @Published public private(set) var installableAgents: [String] = []
+    /// The agent whose adapter installs right now.
+    @Published public private(set) var installingAgent: String?
     /// Demo mode: nothing is saved, no key is touched, no request or process starts.
     public var isDemo = false
     /// Tells the user about key and model list failures.
@@ -167,10 +171,42 @@ import Foundation
         } catch { notifier.notify(.error(String(localized: "Clé API : \(error.localizedDescription)", bundle: .hwyd))) }
     }
 
+    /// Hands the summaries to an installed agent: the agent provider with this command, summaries on
+    /// and started on their own for the sessions recorded from now on. HWYD gives the agent its own
+    /// access to the session at each summary; nothing else is set up.
+    public func useAgent(_ command: String) {
+        select(.agent)
+        agentCommand = command
+        enabled = true
+        automatic = true
+        save()
+    }
+
     /// Looks for the known ACP agents, once. Previews and tests inject a discovery that starts no process.
     public func detectAgents() {
         guard !isDemo, detectedAgents.isEmpty else { return }
         let discovery = discovery
-        Task { detectedAgents = await discovery.installedAgents() }
+        Task { show(await discovery.inventory()) }
+    }
+    private func show(_ inventory: AgentInventory) {
+        detectedAgents = inventory.ready; installableAgents = inventory.installable
+    }
+
+    /// Installs the agent's ACP adapter, then hands it the summaries. Says why when it cannot.
+    public func installAndUseAgent(_ command: String) {
+        guard !isDemo, installingAgent == nil, let preset = ACPAgentPreset.preset(for: command) else { return }
+        installingAgent = command
+        let discovery = discovery
+        Task {
+            defer { installingAgent = nil }
+            do {
+                try await discovery.installAdapter(for: preset)
+                show(await discovery.inventory())
+                if detectedAgents.contains(command) { useAgent(command) }
+                else if let manual = preset.adapterInstallCommand {
+                    notifier.notify(.error(String(localized: "L’adaptateur de \(preset.name) reste introuvable. Lancez dans un terminal : \(manual)", bundle: .hwyd)))
+                }
+            } catch { notifier.notify(.error(error.localizedDescription)) }
+        }
     }
 }

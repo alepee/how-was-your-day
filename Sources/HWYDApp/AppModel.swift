@@ -255,6 +255,9 @@ final class AppModel: ObservableObject {
     let systemNotifications: SystemNotifications
     /// Offers of a new microphone and forced switches, as system notifications.
     let microphoneAlerts: MicrophoneAlerts
+    /// The guided tour, over the preferences read at start.
+    let onboarding: OnboardingGuide
+    private var onboardingChanges: AnyCancellable?
     /// Paths to `hwyd-pipeline` and `hwyd-mcp`.
     var helpers: HelperLocator { environment.helpers }
     var dataDirectory: URL { environment.dataDirectory }
@@ -276,6 +279,7 @@ final class AppModel: ObservableObject {
         systemNotifications = SystemNotifications(allowed: environment.usesSystem)
         microphoneAlerts = MicrophoneAlerts(notifications: systemNotifications)
         calendar = CalendarIntegration(settings: preferences, allowed: environment.usesSystem, notifications: systemNotifications)
+        onboarding = OnboardingGuide(settings: preferences)
         coordinator = environment.coordinator
         // Previews, demos and tests never touch the keychain nor start a process to find agents.
         summarySettings = SummarySettings(store: preferences, usesSystem: environment.usesSystem, notifier: notifier, discovery: environment.agentDiscovery,
@@ -293,6 +297,9 @@ final class AppModel: ObservableObject {
         summarySettings.isDemo = workspace.isExamples
         toastCenter.navigate = { [weak self] intent in self?.navigate(to: intent) }
         summarySettingsChanges = summarySettings.objectWillChange.sink { [weak self] _ in
+            MainActor.assumeIsolated { self?.objectWillChange.send() }
+        }
+        onboardingChanges = onboarding.objectWillChange.sink { [weak self] _ in
             MainActor.assumeIsolated { self?.objectWillChange.send() }
         }
         let coordinator = coordinator
@@ -373,6 +380,7 @@ final class AppModel: ObservableObject {
                 update(item.id) { $0.transcriptState = .failed }
             }
             if count > 0 { notifier.notify(.info(String(localized: "\(count) session(s) interrompue(s) retrouvée(s). Vos notes sont conservées."))) }
+            onboarding.presentOnLaunch(hasSessions: !recordings.isEmpty)
             automaticSummary?.adoptCurrentSessions()
         } catch { notifier.notify(.error(error.localizedDescription)) }
     }
