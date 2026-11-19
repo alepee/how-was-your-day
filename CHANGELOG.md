@@ -9,8 +9,11 @@ Entries describe what a user observes. The detailed release notes published on G
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-19
+
 ### Added
 - « Scinder la voix à partir d’ici… » in a transcript passage's menu, for one voice that was in fact two people speaking one after the other. It shows how many passages fall on each side of the cut with a way to listen to them, lets you choose which part keeps the current name, turns the other into a new voice and opens its name editor. « Nouvelle voix… » gives a single passage a voice of its own. Both can be undone from their notification and never touch a voice fingerprint.
+- Images in the capture notes: paste one with Cmd+V (capture screen or detached notepad), add it with the « Image » button next to « Horodatage », or drop it. Each image is a timed note entry with an editable caption and a remove button, and shows in the review. Images are stored as PNG without metadata, at most 4096 px, next to the session's data, never in SQLite. Markdown exports copy them to `attachments/<id>/` and link them; JSON entries carry an `image` key. Search and `hwyd-mcp` name the image without a link. Images are added during a capture only and are not sent to the summarizer.
 - A welcome tour opens over the app on the first launch, when the library is empty. Six steps present recording, calendars, transcription, voice separation, summaries by your agent and the agent's context folder, and each offers its setup: allow calendar access (which turns meeting reminders on the first time, and asks for notifications), pick the calendars to follow, install the transcription model of the Mac's language, install the voice model, connect an installed agent in one click (installing the Claude Code or Codex ACP adapter with npm when it is missing), which also turns on automatic summaries for the sessions recorded from then on, choose the folder where it keeps your context. Each step has an animated banner, which stands still with Reduce Motion. Users who already have sessions are not interrupted. It opens again from Settings › General or the Help menu.
 
 ### Changed
@@ -235,7 +238,8 @@ Entries describe what a user observes. The detailed release notes published on G
 ### Added
 - First experimental release for Apple Silicon and macOS 26+: separate microphone and system audio recording, local French transcription, optional diarization, notes and speaker corrections, optional local summaries, calendar reminders, Markdown/JSON exports and a standalone MCP server.
 
-[Unreleased]: https://github.com/alepee/how-was-your-day/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/alepee/how-was-your-day/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/alepee/how-was-your-day/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/alepee/how-was-your-day/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/alepee/how-was-your-day/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/alepee/how-was-your-day/compare/v0.13.0...v0.14.0
