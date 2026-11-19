@@ -17,6 +17,9 @@ Entries describe what a user observes. The detailed release notes published on G
 - Declaring the people present informed and agreeing no longer takes a switch before a disabled « Démarrer »: for an exchange or a meeting, the start button works in two steps. It first reads « Consentement recueilli » and lands the dated stamp, then becomes « Démarrer l’enregistrement ». The declaration and its time are recorded as before. The menu bar follows the same two steps, without the stamp.
 - Recording a calendar meeting preselects « Réunion » instead of imposing it: the kind can be changed while recording, like any other session.
 
+### Fixed
+- Settings › General › « Mises à jour » showed the placeholder version 0.4.0 in development builds. It now shows the same version as the sidebar: the release number, or `<commit>-dev` for a local build.
+
 ## [0.16.0] - 2026-11-16
 
 ### Added
