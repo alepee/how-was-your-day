@@ -23,8 +23,6 @@ struct DetailView: View {
                 HStack(spacing: 9) {
                     Text("\(max(1, Int(recording.duration / 60))) min")
                     if !recording.participantNames.isEmpty { Text("·"); Text(recording.participantNames) }
-                    Spacer()
-                    if recording.transcriptVersion > 0 { Text("Transcript v\(recording.transcriptVersion)") }
                 }.font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted)
                 if let event = recording.calendarContext {
                     let guests = String(localized: "\(event.participants.count) invité(s)")
@@ -173,7 +171,7 @@ struct DetailView: View {
     private var summaryHint: String {
         var text = String(localized: "Brouillon généré par un modèle. Les décisions et actions gardent leurs références au transcript.")
         if recording.summary != nil, let provenance = recording.summaryProvenance {
-            text += "\n\(provenance.model) · \(provenance.promptVersion) · transcript v\(provenance.transcriptVersion)"
+            text += "\n\(provenance.model) · \(provenance.promptVersion)"
         }
         return text
     }
