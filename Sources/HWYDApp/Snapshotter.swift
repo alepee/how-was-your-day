@@ -180,6 +180,27 @@ import HWYDCore
         }
         let empty = AppModel(environment: .preview(recordings: [], preferences: preferences))
         render(RootView().environmentObject(empty), size: .init(width: 900, height: 700), to: directory.appendingPathComponent("studio-empty.png"))
+        // The welcome tour of a first launch: nothing installed, every agent found, Claude Code missing its adapter.
+        var firstEnvironment = AppEnvironment.preview(recordings: [], preferences: InMemorySettings([SettingKey<String?>.appearance.name: preference.rawValue]))
+        firstEnvironment.initialLocales = SpeechLocales(installed: [], supported: ["de-DE", "en-US", "es-ES", "fr-FR"])
+        firstEnvironment.agentDiscovery = FixedAgentDiscovery(["codex-acp", "vibe-acp", "grok agent stdio", "gemini --experimental-acp"], installable: ["claude-agent-acp"])
+        let firstLaunch = AppModel(environment: firstEnvironment)
+        firstLaunch.summarySettings.detectAgents()
+        settle { !firstLaunch.summarySettings.installableAgents.isEmpty }
+        // Calendar access granted, one of five calendars followed (fictional, no system calendar is read).
+        firstLaunch.calendar.enabled = true
+        firstLaunch.calendar.calendars = [.init(id: "work", title: "Travail", account: "Google"), // l10n:ignore
+                                          .init(id: "team", title: "Équipe produit", account: "Google"), // l10n:ignore
+                                          .init(id: "home", title: "Famille", account: "iCloud"), // l10n:ignore
+                                          .init(id: "birthdays", title: "Anniversaires", account: "Autre"), // l10n:ignore
+                                          .init(id: "holidays", title: "Fêtes (France)", account: "Abonnements")] // l10n:ignore
+        firstLaunch.calendar.selectedCalendars = ["work"]
+        for step in OnboardingStep.allCases {
+            firstLaunch.onboarding.present(at: step)
+            let tour = OnboardingView(guide: firstLaunch.onboarding).environmentObject(firstLaunch)
+            render(tour, size: .init(width: 560, height: NSHostingView(rootView: tour).fittingSize.height),
+                   to: directory.appendingPathComponent("studio-onboarding-\(step.rawValue + 1)-\(step).png"))
+        }
         print("Snapshots: \(directory.path)")
     }
     /// Starts a job on the coordinator that runs until the process ends: the views show what the

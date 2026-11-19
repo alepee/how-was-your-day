@@ -151,16 +151,27 @@ public enum AgentSummaryTask {
 public struct ACPAgentPreset: Identifiable, Hashable, Sendable {
     public let name: String
     public let command: String
+    /// The agent's own command line tool, whose presence tells that the user has the agent.
+    public let cli: String
+    /// npm package of the ACP adapter, for agents whose tool does not speak ACP itself.
+    public let adapterPackage: String?
     public var id: String { command }
-    /// The executable whose presence tells that the agent is installed.
+    /// The executable whose presence tells that HWYD can start the agent.
     public var executable: String { String(command.split(separator: " ").first ?? "") }
+    public init(name: String, command: String, cli: String, adapterPackage: String? = nil) {
+        self.name = name; self.command = command; self.cli = cli; self.adapterPackage = adapterPackage
+    }
     public static let all: [ACPAgentPreset] = [
-        .init(name: "Claude Code", command: "claude-agent-acp"),
-        .init(name: "Codex", command: "codex-acp"),
-        .init(name: "Mistral Vibe", command: "vibe-acp"),
-        .init(name: "Grok", command: "grok agent stdio"),
-        .init(name: "Gemini CLI", command: "gemini --experimental-acp"),
+        .init(name: "Claude Code", command: "claude-agent-acp", cli: "claude", adapterPackage: "@agentclientprotocol/claude-agent-acp"),
+        .init(name: "Codex", command: "codex-acp", cli: "codex", adapterPackage: "@agentclientprotocol/codex-acp"),
+        // vibe-acp ships with Mistral Vibe; Grok and Gemini CLI speak ACP themselves.
+        .init(name: "Mistral Vibe", command: "vibe-acp", cli: "vibe"),
+        .init(name: "Grok", command: "grok agent stdio", cli: "grok"),
+        .init(name: "Gemini CLI", command: "gemini --experimental-acp", cli: "gemini"),
     ]
+    public static func preset(for command: String) -> ACPAgentPreset? { all.first { $0.command == command } }
+    /// The command that installs the adapter, for the user to run when HWYD cannot.
+    public var adapterInstallCommand: String? { adapterPackage.map { "npm install -g \($0)" } }
 }
 
 public enum AgentSummaryFailure: LocalizedError, Equatable {

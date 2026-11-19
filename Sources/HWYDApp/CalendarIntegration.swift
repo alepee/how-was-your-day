@@ -32,6 +32,9 @@ import HWYDCore
     static let testID = "hwyd.test"
     struct CalendarChoice: Identifiable { var id: String; var title: String; var account: String }
 
+    /// False in demos and tests: no system calendar is read.
+    var isAvailable: Bool { allowed }
+
     /// - Parameter notifications: where reminders are answered; nil unless `allowed`.
     init(settings: SettingsStore, allowed: Bool = false, notifications: SystemNotifications? = nil) {
         self.settings = settings; self.allowed = allowed; self.notifications = notifications
@@ -39,7 +42,7 @@ import HWYDCore
         reminders = allowed && settings.value(.calendarReminders)
         let lead = settings.value(.calendarLeadMinutes)
         leadMinutes = [0, 1, 5, 10, 15].contains(lead) ? lead : SettingKey<Int>.calendarLeadMinutes.defaultValue
-        excludedKeywords = settings.value(.calendarExclusions) ?? String(localized: "RH, entretien, médical")
+        excludedKeywords = settings.value(.calendarExclusions) ?? ""
         selectedCalendars = Set(settings.value(.calendarSelection))
     }
     func start() {
@@ -72,16 +75,23 @@ import HWYDCore
         guard allowed else { return }
         clearReminders()
     }
+    /// Asks for calendar access. The first time it is granted, meeting reminders are turned on as well,
+    /// which asks for the notification permission; someone who chose before keeps their choice.
     func connect() async {
-        guard allowed, active, !busy else { return }
+        guard await requestAccess(), !settings.contains(.calendarReminders) else { return }
+        await enableReminders()
+    }
+    private func requestAccess() async -> Bool {
+        guard allowed, active, !busy else { return false }
         busy = true; defer { busy = false }
         do {
             let store = eventStore ?? EKEventStore(); eventStore = store
-            guard try await store.requestFullAccessToEvents() else { status = String(localized: "Accès refusé. Autorisez HWYD dans Confidentialité et sécurité → Calendriers."); return }
-            guard active else { return }
+            guard try await store.requestFullAccessToEvents() else { status = String(localized: "Accès refusé. Autorisez HWYD dans Confidentialité et sécurité → Calendriers."); return false }
+            guard active else { return false }
             enabled = true; settings.set(true, for: .calendarEnabled)
             await refresh()
-        } catch { status = String(localized: "Calendrier : \(error.localizedDescription)") }
+            return true
+        } catch { status = String(localized: "Calendrier : \(error.localizedDescription)"); return false }
     }
     func saveSettings() {
         guard allowed, active else { return }

@@ -147,6 +147,8 @@ extension SettingKey where Value == Int {
     public static var summaryContextTokens: Self { .init("summary.contextTokens", default: 32768) }
     /// Minutes before a meeting for its reminder.
     public static var calendarLeadMinutes: Self { .init("calendar.lead", default: 5) }
+    /// Version of the guided tour last completed or skipped; zero when never seen.
+    public static var onboardingVersion: Self { .init("onboarding.version", default: 0) }
 }
 extension SettingKey where Value == [String] {
     public static var calendarSelection: Self { .init("calendar.selected", default: []) }

@@ -23,6 +23,10 @@ import HWYDCore
             CommandGroup(replacing: .appSettings) {
                 Button("Réglages…") { model.showSettings = true; model.showWindow?() }.keyboardShortcut(",")
             }
+            CommandGroup(replacing: .help) {
+                Button("Présentation de HWYD") { model.library(); model.onboarding.present(); model.showWindow?() }
+                    .disabled(model.isDemoMode || model.activeCaptureID != nil)
+            }
             CommandGroup(replacing: .newItem) {
                 Button("Nouvelle session") { model.requestNewSession() }.keyboardShortcut("n")
                 Button("Ouvrir les sessions") { model.showWindow?() }.keyboardShortcut("o")

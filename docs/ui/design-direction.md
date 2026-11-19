@@ -61,6 +61,18 @@ Every tab of a session shows one tile per detected voice under the player. A til
 
 During playback the transcript highlights the passages being heard and keeps them in view. A manual scroll pauses the follow; a « Suivre la lecture » button resumes it, and any new playback resumes it too.
 
+## Welcome tour
+
+On the first launch, with an empty library, a card opens over the dimmed app. Its top stays at the same place on every step: a step that needs more room (many agents or calendars) makes it grow downward. Six steps, one feature each: a banner drawn and animated in code, a misty mint waveform that keeps flowing from one step to the next and fades into the card on both sides, with one motif per feature over it (ripples spreading under a copper dot, copper travelling along the arc of a day, waves settling into lines of text, a mint and a copper voice that cross and part, a spark rising from the ribbons, notes orbiting a star) and copper as the single accent; with Reduce Motion on, the banner stands still. Then a title, one sentence, and the control that turns the feature on. The footer offers « Passer », a back arrow, page dots that stay centered whatever the buttons, and « Continuer » (« Terminer » on the last step).
+
+1. Record any meeting: the global shortcut is named, nothing to set up.
+2. Transcription: installs the model of the Mac's first language Apple Speech offers, or another one.
+3. Voices: installs the voice separation model, which turns separation on.
+4. Summary: lists the agents found on this Mac; « Connecter » chooses that agent for summaries and turns them on. An agent whose ACP adapter is missing offers « Installer et connecter », which installs it first. The words used are the user's (agent, summary), not the protocols.
+5. Context: picks the folder the agent starts in, where it keeps its notes or memory. Available once an agent is connected.
+
+Skipping, finishing, or going elsewhere from a menu records the tour as seen. Someone who already has sessions is never interrupted. It opens again from Réglages › Général › Découvrir HWYD and from the Help menu, never over a running capture or the examples. An animation of a recording session is planned to follow the last step; it does not exist yet.
+
 ## Règles de sobriété (0.6.0)
 
 - Une action, un nom : démarrer s’appelle « Nouvelle session » partout, avec `record.circle`. Un SF Symbol ne porte qu’un sens : `waveform` reste le logo, `waveform.circle` le mémo vocal, `smallcircle.filled.circle` la session libre.

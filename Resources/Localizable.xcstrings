@@ -33,6 +33,22 @@
         }
       }
     },
+    " · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " · %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " · %@"
+          }
+        }
+      }
+    },
     " · Apple Speech · sur ce Mac": {
       "localizations": {
         "en": {
@@ -269,6 +285,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ impossible (Core Audio %d). Vérifiez les permissions audio de HWYD dans Réglages Système."
+          }
+        }
+      }
+    },
+    "%@ lance ou arrête un enregistrement depuis n’importe quelle app.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ starts or stops a recording from any app."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ lance ou arrête un enregistrement depuis n’importe quelle app."
           }
         }
       }
@@ -1093,6 +1125,22 @@
         }
       }
     },
+    "Activer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn On"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activer"
+          }
+        }
+      }
+    },
     "Activer la synthèse": {
       "localizations": {
         "en": {
@@ -1137,6 +1185,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Activé"
+          }
+        }
+      }
+    },
+    "Activée": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activée"
           }
         }
       }
@@ -1569,6 +1633,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Aucun"
+          }
+        }
+      }
+    },
+    "Aucun agent compatible trouvé sur ce Mac. D’autres options sont dans Réglages › Synthèse.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No compatible agent found on this Mac. Other options are in Settings › Summary."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun agent compatible trouvé sur ce Mac. D’autres options sont dans Réglages › Synthèse."
           }
         }
       }
@@ -2485,6 +2565,22 @@
         }
       }
     },
+    "Chaque session est transcrite après l’enregistrement, sans que l’audio quitte votre Mac.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each session is transcribed after recording, without the audio leaving your Mac."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chaque session est transcrite après l’enregistrement, sans que l’audio quitte votre Mac."
+          }
+        }
+      }
+    },
     "Choisir la langue": {
       "localizations": {
         "en": {
@@ -2497,6 +2593,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Choisir la langue"
+          }
+        }
+      }
+    },
+    "Choisir le dossier": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose the Folder"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisir le dossier"
+          }
+        }
+      }
+    },
+    "Choisir un autre dossier": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose Another Folder"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisir un autre dossier"
           }
         }
       }
@@ -2805,6 +2933,22 @@
         }
       }
     },
+    "Comptes Google, iCloud et Outlook ajoutés à l’app Calendrier de macOS.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Google, iCloud and Outlook accounts added to the macOS Calendar app."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comptes Google, iCloud et Outlook ajoutés à l’app Calendrier de macOS."
+          }
+        }
+      }
+    },
     "Configurez un modèle et une URL HTTP locale (localhost, 127.0.0.1 ou ::1).": {
       "localizations": {
         "en": {
@@ -2849,6 +2993,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Confirmer : %@"
+          }
+        }
+      }
+    },
+    "Connecter": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecter"
+          }
+        }
+      }
+    },
+    "Connectez d’abord un agent à l’étape précédente.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect an agent in the previous step first."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connectez d’abord un agent à l’étape précédente."
+          }
+        }
+      }
+    },
+    "Connecté": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connected"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecté"
           }
         }
       }
@@ -2929,6 +3121,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Contexte chargé dans le serveur"
+          }
+        }
+      }
+    },
+    "Continuer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continuer"
           }
         }
       }
@@ -3297,6 +3505,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Déjà utilisé ailleurs"
+          }
+        }
+      }
+    },
+    "Délai et mots-clés exclus : Réglages › Calendrier.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Timing and excluded keywords: Settings › Calendar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Délai et mots-clés exclus : Réglages › Calendrier."
           }
         }
       }
@@ -3733,6 +3957,22 @@
         }
       }
     },
+    "Encore mieux avec votre contexte": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Even better with your context"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encore mieux avec votre contexte"
+          }
+        }
+      }
+    },
     "Enregistrement": {
       "localizations": {
         "en": {
@@ -3861,6 +4101,22 @@
         }
       }
     },
+    "Enregistrez n’importe quelle réunion": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Record any meeting"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enregistrez n’importe quelle réunion"
+          }
+        }
+      }
+    },
     "Enregistrez une clé API %@ dans les réglages de synthèse.": {
       "localizations": {
         "en": {
@@ -3937,6 +4193,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Enregistrée"
+          }
+        }
+      }
+    },
+    "Environ 350 Mo, téléchargés une fois.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About 350 MB, downloaded once."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Environ 350 Mo, téléchargés une fois."
           }
         }
       }
@@ -4437,6 +4709,22 @@
         }
       }
     },
+    "HWYD distingue les personnes qui parlent, pour que vous n’ayez plus qu’à les nommer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HWYD tells apart the people speaking, so all you have left is to name them."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HWYD distingue les personnes qui parlent, pour que vous n’ayez plus qu’à les nommer."
+          }
+        }
+      }
+    },
     "HWYD détecte la langue de chaque piste parmi ces langues, d’après le début de l’enregistrement. Si une autre langue est reconnue, il propose de l’installer. Modèles Apple Speech, environ 350 Mo par langue, téléchargés une fois. Aucun audio n’est envoyé pour la transcription.": {
       "localizations": {
         "en": {
@@ -4449,6 +4737,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "HWYD détecte la langue de chaque piste parmi ces langues, d’après le début de l’enregistrement. Si une autre langue est reconnue, il propose de l’installer. Modèles Apple Speech, environ 350 Mo par langue, téléchargés une fois. Aucun audio n’est envoyé pour la transcription."
+          }
+        }
+      }
+    },
+    "HWYD lit les calendriers que vous choisissez pour vous rappeler d’enregistrer et nommer chaque session d’après sa réunion. Aucun événement n’est modifié.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HWYD reads the calendars you choose to remind you to record, and names each session after its meeting. No event is changed."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HWYD lit les calendriers que vous choisissez pour vous rappeler d’enregistrer et nommer chaque session d’après sa réunion. Aucun événement n’est modifié."
           }
         }
       }
@@ -4741,6 +5045,22 @@
         }
       }
     },
+    "Installation de l’adaptateur %@ impossible. Lancez dans un terminal : %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not install the %1$@ adapter. Run in a terminal: %2$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installation de l’adaptateur %1$@ impossible. Lancez dans un terminal : %2$@"
+          }
+        }
+      }
+    },
     "Installation des voix : %@": {
       "localizations": {
         "en": {
@@ -4789,6 +5109,22 @@
         }
       }
     },
+    "Installer et connecter": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install and Connect"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installer et connecter"
+          }
+        }
+      }
+    },
     "Installer et retranscrire": {
       "localizations": {
         "en": {
@@ -4801,6 +5137,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Installer et retranscrire"
+          }
+        }
+      }
+    },
+    "Installer le modèle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install the model"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installer le modèle"
+          }
+        }
+      }
+    },
+    "Installer le modèle %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install the %@ model"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installer le modèle %@"
           }
         }
       }
@@ -6117,6 +6485,22 @@
         }
       }
     },
+    "L’adaptateur de %@ reste introuvable. Lancez dans un terminal : %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The %1$@ adapter still cannot be found. Run in a terminal: %2$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’adaptateur de %1$@ reste introuvable. Lancez dans un terminal : %2$@"
+          }
+        }
+      }
+    },
     "L’agent a renvoyé une réponse ACP inattendue : %@": {
       "localizations": {
         "en": {
@@ -6225,6 +6609,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "L’agent n’a pas terminé dans le temps imparti (20 minutes)."
+          }
+        }
+      }
+    },
+    "L’agent que vous utilisez déjà rédige les points clés, les décisions et les prochaines étapes de chaque session.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The agent you already use writes the key points, decisions and next steps of each session."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’agent que vous utilisez déjà rédige les points clés, les décisions et les prochaines étapes de chaque session."
           }
         }
       }
@@ -6385,6 +6785,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Masquer le détail de %@"
+          }
+        }
+      }
+    },
+    "Me rappeler avant chaque réunion": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remind me before each meeting"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Me rappeler avant chaque réunion"
           }
         }
       }
@@ -7397,6 +7813,22 @@
         }
       }
     },
+    "Passer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passer"
+          }
+        }
+      }
+    },
     "Pause": {
       "localizations": {
         "en": {
@@ -7637,6 +8069,38 @@
         }
       }
     },
+    "Présentation de HWYD": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HWYD Welcome Tour"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Présentation de HWYD"
+          }
+        }
+      }
+    },
+    "Présentation guidée": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Welcome tour"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Présentation guidée"
+          }
+        }
+      }
+    },
     "Prévenir": {
       "localizations": {
         "en": {
@@ -7649,6 +8113,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Prévenir"
+          }
+        }
+      }
+    },
+    "Qui a dit quoi": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Who said what"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qui a dit quoi"
           }
         }
       }
@@ -7681,22 +8161,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quitter les exemples"
-          }
-        }
-      }
-    },
-    "RH, entretien, médical": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "HR, interview, medical"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "RH, entretien, médical"
           }
         }
       }
@@ -8225,6 +8689,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Revenir à la session ou à la bibliothèque"
+          }
+        }
+      }
+    },
+    "Revoir": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Again"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revoir"
           }
         }
       }
@@ -9173,6 +9653,22 @@
         }
       }
     },
+    "Terminer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminer"
+          }
+        }
+      }
+    },
     "Terminer la session": {
       "localizations": {
         "en": {
@@ -9605,6 +10101,22 @@
         }
       }
     },
+    "Transcrite sur votre Mac": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcribed on your Mac"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcrite sur votre Mac"
+          }
+        }
+      }
+    },
     "Trousseau inaccessible (%d).": {
       "localizations": {
         "en": {
@@ -9781,6 +10293,22 @@
         }
       }
     },
+    "Une autre langue": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another language"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une autre langue"
+          }
+        }
+      }
+    },
     "Une autre voix ressemble à une personne connue, à confirmer.": {
       "localizations": {
         "en": {
@@ -9909,6 +10437,22 @@
         }
       }
     },
+    "Une synthèse par votre agent": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A summary by your agent"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une synthèse par votre agent"
+          }
+        }
+      }
+    },
     "Une synthèse se lance depuis la session, ou seule quand la session est prête si la génération automatique est activée. Les étapes validées sont conservées pour reprendre après une interruption.": {
       "localizations": {
         "en": {
@@ -10017,6 +10561,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Visio"
+          }
+        }
+      }
+    },
+    "Visio, appel ou discussion autour de la table : HWYD enregistre votre micro et le son de l’ordinateur. Rien à installer dans la réunion.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video call, phone call or a talk around the table: HWYD records your microphone and the computer’s sound. Nothing to add to the meeting."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Visio, appel ou discussion autour de la table : HWYD enregistre votre micro et le son de l’ordinateur. Rien à installer dans la réunion."
           }
         }
       }
@@ -10245,6 +10805,22 @@
         }
       }
     },
+    "Vos réunions, au bon moment": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your meetings, right on time"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vos réunions, au bon moment"
+          }
+        }
+      }
+    },
     "Vos sessions": {
       "localizations": {
         "en": {
@@ -10273,6 +10849,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Votre agent ACP rédigera la synthèse à partir du transcript et de son propre contexte. Vos notes restent sur ce Mac."
+          }
+        }
+      }
+    },
+    "Votre agent garde vos notes ou votre mémoire dans un dossier ? Il s’en servira pour situer les personnes et les projets.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Does your agent keep your notes or memory in a folder? It will use them to place people and projects."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre agent garde vos notes ou votre mémoire dans un dossier ? Il s’en servira pour situer les personnes et les projets."
           }
         }
       }

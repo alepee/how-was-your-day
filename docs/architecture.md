@@ -157,7 +157,7 @@ Le risque principal est le RGPD, pas l'article 226-1 : des empreintes vocales qu
 - Empreinte persistante uniquement avec consentement ; liste d'opposition (jamais d'enrôlement, sortie « Participant N »).
 - Effacement par personne : purge des vecteurs, anonymisation de l'historique.
 - Annonce en début de réunion, consignée (`consent_announced`).
-- Exclusion par défaut des 1:1 RH, entretiens annuels, sujets médicaux (mots-clés calendrier).
+- Exclusion de réunions par mots-clés du titre (aucun par défaut), pour les 1:1 RH, entretiens annuels ou sujets médicaux par exemple.
 - Audio brut supprimé après 7-30 jours, chiffré au repos. Cible non implémentée : aucune purge automatique ni chiffrement applicatif aujourd'hui ; l'audio d'une session part avec elle quand elle est supprimée (§ 15).
 - Dire aux participants que les transcripts sont lus par des agents LLM cloud ; vérifier la politique IT Evaneos.
 - À faire valider par le DPO avant usage avec des collègues. Sources juridiques secondaires (cabinets), pas la CNIL : à compléter.

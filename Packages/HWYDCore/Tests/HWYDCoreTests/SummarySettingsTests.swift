@@ -17,6 +17,18 @@ import XCTest
         XCTAssertEqual(settings.configuration, SummaryConfiguration(enabled: true, service: .mistral, hostedModel: "mistral-small", agentCommand: "codex-acp"))
     }
 
+    func testUsingAnAgentTurnsSummariesOnWithIt() {
+        let store = InMemorySettings()
+        let settings = SummarySettings(store: store, usesSystem: true, notifier: RecordingNotifier())
+        settings.useAgent("codex-acp")
+        XCTAssertEqual(settings.configuration, SummaryConfiguration(enabled: true, service: .agent, hostedModel: "", agentCommand: "codex-acp"))
+        XCTAssertEqual(store.value(.summaryService), .agent)
+        XCTAssertEqual(store.value(.summaryAgentCommand), "codex-acp")
+        XCTAssertTrue(store.value(.summaryEnabled))
+        XCTAssertTrue(store.value(.summaryAutomatic))
+        XCTAssertNotNil(store.value(.summaryAutomaticSince))
+    }
+
     func testSelectingAProviderLoadsItsOwnModel() {
         let store = InMemorySettings(["summary.model.openai": "gpt-test"])
         let settings = SummarySettings(store: store, usesSystem: false, notifier: RecordingNotifier())
@@ -68,5 +80,21 @@ import XCTest
         settings.detectAgents()
         for _ in 0..<100 where settings.detectedAgents.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertEqual(settings.detectedAgents, ["codex-acp"])
+    }
+
+    func testInstallingAnAdapterConnectsTheAgent() async throws {
+        let store = InMemorySettings()
+        let settings = SummarySettings(store: store, usesSystem: true, notifier: RecordingNotifier(),
+                                       discovery: FixedAgentDiscovery(["codex-acp"], installable: ["claude-agent-acp"]))
+        settings.detectAgents()
+        for _ in 0..<100 where settings.installableAgents.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(settings.installableAgents, ["claude-agent-acp"])
+        settings.installAndUseAgent("claude-agent-acp")
+        for _ in 0..<100 where !settings.enabled { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(settings.detectedAgents, ["claude-agent-acp", "codex-acp"])
+        XCTAssertEqual(settings.installableAgents, [])
+        XCTAssertEqual(settings.configuration.service, .agent)
+        XCTAssertEqual(settings.configuration.agentCommand, "claude-agent-acp")
+        XCTAssertNil(settings.installingAgent)
     }
 }
