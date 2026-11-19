@@ -10005,22 +10005,6 @@
         }
       }
     },
-    "Transcript v%lld": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Transcript v%lld"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Transcript v%lld"
-          }
-        }
-      }
-    },
     "Transcription": {
       "localizations": {
         "en": {
