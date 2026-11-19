@@ -75,7 +75,7 @@ Skipping, finishing, or going elsewhere from a menu records the tour as seen. So
 
 ## Règles de sobriété (0.6.0)
 
-- Une action, un nom : démarrer s’appelle « Nouvelle session » partout, avec `record.circle`. Un SF Symbol ne porte qu’un sens : `waveform` reste le logo, `waveform.circle` le mémo vocal, `smallcircle.filled.circle` la session libre.
+- Une action, un nom : démarrer s’appelle « Nouvelle session » partout, avec `record.circle`. Un SF Symbol ne porte qu’un sens : `waveform` reste le logo, `waveform.circle` le mémo, `bubble.left.and.bubble.right` l’échange, `person.2.wave.2` la réunion.
 - Quatre tailles de texte (`Studio.Size`) : 11, 13, 15 et 28 pt. Le chronomètre de capture et le logotype sont les seules exceptions.
 - L’interface ne s’explique pas en phrases : pas de slogan, pas de note de bas de page. Une explication utile passe par une infobulle ou un bouton d’aide `(?)`.
 - Dans la fenêtre principale, le mode découverte est annoncé par le bandeau ; la ligne d’état de la capture dit « Simulation » parce que le carnet détaché n’a pas de bandeau.

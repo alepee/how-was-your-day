@@ -59,6 +59,8 @@ With several valid Developer ID certificates (after a renewal), set `SIGN_IDENTI
 
 The app embeds Sparkle (`Contents/Frameworks/Sparkle.framework`, without its XPC services: the app is not sandboxed). `scripts/build-app.sh` signs `Autoupdate`, `Updater.app` and the framework with the hardened runtime before the app.
 
+`scripts/build-app.sh` writes `HWYDDisplayVersion` in `Info.plist`: the release version when `VERSION` is set, `<short commit>-dev` otherwise. The sidebar and Settings › General › Updates show it. `CFBundleShortVersionString` stays `x.y.z` for Sparkle.
+
 Only builds made with `VERSION` (that is, releases) get `SUFeedURL` and `SUPublicEDKey`: development and CI builds never check for updates, so a local build is never replaced by the public release. `HWYD_UPDATE_FEED` and `HWYD_UPDATE_PUBLIC_KEY` point a build at another appcast and key for testing.
 
 The feed is `https://github.com/alepee/how-was-your-day/releases/latest/download/appcast.xml`. `scripts/publish-release.sh` signs the notarized ZIP with Sparkle's `sign_update`, writes `appcast.xml` with `scripts/make-appcast.py` (one item: the release itself, with a link to its GitHub release notes) and uploads it with the other assets. Since the URL follows the latest published release, publishing is the only step; a draft or a failed upload leaves installed copies on the previous release.
