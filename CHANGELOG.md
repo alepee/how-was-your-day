@@ -9,6 +9,9 @@ Entries describe what a user observes. The detailed release notes published on G
 
 ## [Unreleased]
 
+### Fixed
+- The update prompt showed the GitHub release page, with its header and menus, in its small notes pane. It now shows the release notes text, with a link to the full page. This applies from the next published release, whatever version is installed.
+
 ## [0.17.0] - 2026-11-19
 
 ### Added

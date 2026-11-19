@@ -63,7 +63,7 @@ if [[ "$notarize" == 1 ]]; then
 fi
 # The ZIP holds the stapled app: it is the archive Sparkle downloads.
 python3 scripts/make-appcast.py "$version" "$build_number" build/release/HowWasYourDay.zip \
-    "$("$sparkle_bin/sign_update" build/release/HowWasYourDay.zip)" build/release/appcast.xml
+    "$("$sparkle_bin/sign_update" build/release/HowWasYourDay.zip)" build/release/appcast.xml --notes "$notes"
 git tag "$tag"
 git push origin HEAD "$tag"
 gh release create "$tag" --repo "$repo" --verify-tag --title "$tag" --notes-file "$notes" \
