@@ -132,6 +132,8 @@ extension SettingKey where Value == Bool {
     public static var summaryAutomatic: Self { .init("summary.automatic", default: false) }
     public static var calendarEnabled: Self { .init("calendar.enabled", default: false) }
     public static var calendarReminders: Self { .init("calendar.reminders", default: false) }
+    /// A capture in which nobody speaks for a while asks whether the user is done, then stops.
+    public static var inactivityStop: Self { .init("capture.inactivityStop", default: true) }
 }
 extension SettingKey where Value == String {
     public static var summaryEndpoint: Self { .init("summary.endpoint", default: "http://127.0.0.1:1234/v1") }

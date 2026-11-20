@@ -36,6 +36,7 @@ struct CaptureView: View {
                     Spacer()
                     if !compact { Button { model.openNotepad?() } label: { Label("Détacher les notes", systemImage: "macwindow.on.rectangle") }.buttonStyle(StudioButtonStyle()) }
                 }
+                if let prompt = model.inactivityPrompt { InactivityCallout(prompt: prompt) }
                 if let offer = model.microphoneOffer { MicrophoneOfferCallout(offer: offer) }
                 microphoneRow
                 if !compact {
@@ -114,6 +115,34 @@ struct MicrophoneOfferCallout: View {
                     Button(offer.current.map { String(localized: "Garder \($0)") } ?? String(localized: "Garder le micro actuel")) { model.declineMicrophoneOffer() }
                         .buttonStyle(StudioButtonStyle(compact: true))
                 }.disabled(model.isSwitchingMicrophone)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14).background(Studio.surface, in: RoundedRectangle(cornerRadius: 7))
+        .overlay(alignment: .leading) { UnevenRoundedRectangle(topLeadingRadius: 7, bottomLeadingRadius: 7).fill(Studio.copper).frame(width: 3) }
+        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Studio.line))
+        .accessibilityElement(children: .contain)
+    }
+}
+/// « Vous avez fini ? »: nobody spoke for a while. The countdown runs until the capture stops on
+/// its own; speech or an answer withdraws it.
+struct InactivityCallout: View {
+    @EnvironmentObject var model: AppModel
+    let prompt: InactivityPrompt
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "waveform.slash").foregroundStyle(Studio.copper).frame(width: 18)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Vous avez fini ?").font(.system(size: Studio.Size.body, weight: .semibold))
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    let left = max(0, prompt.stopsAt.timeIntervalSince(context.date))
+                    Text("Personne n’a parlé depuis \(InactivityText.minutes(prompt.silence)) min. Arrêt dans \(timeLabel(left, hours: false)).")
+                        .font(.system(size: Studio.Size.body)).foregroundStyle(Studio.muted).monospacedDigit().fixedSize(horizontal: false, vertical: true)
+                }
+                HStack(spacing: 8) {
+                    Button("Pas encore") { model.keepRecording() }.buttonStyle(StudioButtonStyle(primary: true, compact: true))
+                    Button("Arrêter") { model.stopCapture() }.buttonStyle(StudioButtonStyle(destructive: true, compact: true))
+                }
             }
             Spacer(minLength: 0)
         }

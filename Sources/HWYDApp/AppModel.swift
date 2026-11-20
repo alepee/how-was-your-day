@@ -170,6 +170,12 @@ final class AppModel: ObservableObject {
     @Published private(set) var captureMicrophones = MicrophoneList()
     @Published private(set) var microphoneOffer: MicrophoneOffer?
     @Published private(set) var isSwitchingMicrophone = false
+    /// Nobody spoke for a while: the capture asks « Vous avez fini ? » until an answer or its stop.
+    @Published private(set) var inactivityPrompt: InactivityPrompt?
+    /// A capture in which nobody speaks for a while asks whether the user is done, then stops.
+    @Published var inactivityStop = true {
+        didSet { workspace.settings.set(inactivityStop, for: .inactivityStop) }
+    }
     /// One locale per language, as reported by Apple Speech on this Mac.
     @Published var installedSpeechLocales: [String] = []
     @Published var supportedSpeechLocales: [String] = []
@@ -255,6 +261,8 @@ final class AppModel: ObservableObject {
     let systemNotifications: SystemNotifications
     /// Offers of a new microphone and forced switches, as system notifications.
     let microphoneAlerts: MicrophoneAlerts
+    /// « Vous avez fini ? » and the stop that follows, as system notifications.
+    let inactivityAlerts: InactivityAlerts
     /// The guided tour, over the preferences read at start.
     let onboarding: OnboardingGuide
     private var onboardingChanges: AnyCancellable?
@@ -278,6 +286,7 @@ final class AppModel: ObservableObject {
         workspace = environment.startsWithExamples ? environment.examples() : environment.user
         systemNotifications = SystemNotifications(allowed: environment.usesSystem)
         microphoneAlerts = MicrophoneAlerts(notifications: systemNotifications)
+        inactivityAlerts = InactivityAlerts(notifications: systemNotifications)
         calendar = CalendarIntegration(settings: preferences, allowed: environment.usesSystem, notifications: systemNotifications)
         onboarding = OnboardingGuide(settings: preferences)
         coordinator = environment.coordinator
@@ -286,6 +295,7 @@ final class AppModel: ObservableObject {
                                           secrets: environment.secrets)
         newSessionKind = preferences.value(.newSessionKind)
         diarizationEnabled = preferences.value(.diarizationEnabled)
+        inactivityStop = preferences.value(.inactivityStop)
         if let data = preferences.value(.recordingShortcut) {
             recordingShortcut = data.isEmpty ? nil : (try? JSONDecoder().decode(RecordingShortcut.self, from: data)) ?? .standard
         }
@@ -332,9 +342,11 @@ final class AppModel: ObservableObject {
             captureSession.$microphone.sink { [weak self] in self?.captureMicrophone = $0 },
             captureSession.$microphones.sink { [weak self] in self?.captureMicrophones = $0 },
             captureSession.$offer.sink { [weak self] in self?.microphoneOffer = $0 },
-            captureSession.$isSwitchingMicrophone.sink { [weak self] in self?.isSwitchingMicrophone = $0 }
+            captureSession.$isSwitchingMicrophone.sink { [weak self] in self?.isSwitchingMicrophone = $0 },
+            captureSession.$inactivity.sink { [weak self] in self?.inactivityPrompt = $0 }
         ]
         microphoneAlerts.follow(captureSession) { [weak self] in self?.showWindow?() }
+        inactivityAlerts.follow(captureSession) { [weak self] in self?.showWindow?() }
         followSetupMicrophones()
         captureSession.onEnd = { [weak self] in self?.showCaptureEnd($0) }
         if environment.user.store != nil {
@@ -662,6 +674,8 @@ final class AppModel: ObservableObject {
     func chooseMicrophone(_ uid: String) { Task { await captureSession.chooseMicrophone(uid) } }
     func acceptMicrophoneOffer() { Task { await captureSession.acceptOffer() } }
     func declineMicrophoneOffer() { captureSession.declineOffer() }
+    /// « Pas encore »: the capture goes on, and the time without speech is counted again.
+    func keepRecording() { captureSession.keepRecording() }
     /// The Mac is going to sleep: the session ends with what was recorded.
     func systemWillSleep() { Task { await captureSession.systemWillSleep() } }
     /// Mirrors the capture's phase in the published state the views read.
@@ -680,6 +694,7 @@ final class AppModel: ObservableObject {
     /// `stopCapture(reveal:)`.
     private func showCaptureEnd(_ ending: CaptureEnding) {
         selectedID = ending.sessionID; activeTab = .notes
+        if case .inactivity(let silence) = ending.cause { inactivityAlerts.stopped(after: silence) }
         if ending.cause != .requested || ending.finalizationError != nil { showWindow?() }
     }
     // MARK: Heavy work

@@ -156,6 +156,9 @@ struct SettingsView: View {
                     }
                 }
             }.task { model.refreshSpeechLanguages() }
+            section(String(localized: "Enregistrement"), symbol: "record.circle") {
+                toggleRow(String(localized: "Proposer d’arrêter quand personne ne parle"), help: String(localized: "Si personne ne parle pendant 5 minutes, au micro ou dans le son de la visio, HWYD demande si vous avez fini. Sans réponse, l’enregistrement s’arrête 2 minutes plus tard ; l’audio et les notes sont conservés. La parole est détectée sur ce Mac par le classifieur de sons de macOS ; rien n’est envoyé ni conservé."), isOn: $model.inactivityStop).disabled(model.isDemoMode)
+            }
             section(String(localized: "Séparation des voix"), symbol: "person.2.wave.2") {
                 toggleRow(String(localized: "Séparer les voix après transcription"), isOn: $model.diarizationEnabled).disabled(!model.workAvailability.isReady || model.isDemoMode)
                 row(String(localized: "Modèles de voix · Community-1"), help: String(localized: "Traitement local par piste. Les modèles se téléchargent une fois ; aucune empreinte personnelle n’est créée sans enrôlement explicite.")) {

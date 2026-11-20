@@ -46,6 +46,7 @@ actor CoreAudioCapture: AudioCapture {
     /// The microphone recorded, the devices as last reported and what changes mean (`CaptureDevices`).
     private var devices: CaptureDevices?
     var microphone: MicrophoneDevice? { devices?.microphone }
+    var detectsSpeech: Bool { writer?.detectsSpeech ?? false }
     var microphones: MicrophoneList { devices?.reported ?? MicrophoneList() }
     /// Paused: the devices are stopped, so neither the microphone nor system audio is captured.
     private var isPaused = false
@@ -60,8 +61,10 @@ actor CoreAudioCapture: AudioCapture {
     /// Restarts the microphone stream once another app opened the input after the capture started.
     private var claimWatch: MicrophoneClaimWatch?
     private var lastClaimPoll: TimeInterval = 0
-    /// Checks levels, health and microphone claims five times per second while recording.
+    /// Checks levels, speech, health and microphone claims five times per second while recording.
     private var monitor: Task<Void, Never>?
+    /// The writer's count of windows with speech at the last check.
+    private var speechHeard = 0
     /// Listens to the devices and the default input and output, and to the microphone in use.
     private var watch: DeviceWatch?
     private var alive: DeviceWatch?
@@ -105,7 +108,8 @@ actor CoreAudioCapture: AudioCapture {
             let folder = try audio.sessionFolder(for: id)
             // A resumed session's files are never written over, even one its chunks do not list.
             writer = AudioWriter(inputs: inputs, folder: folder, startFrames: start.offsetFrames,
-                                 firstSequence: max(start.firstSequence, CaptureContinuation.firstFreeSequence(in: folder.url)))
+                                 firstSequence: max(start.firstSequence, CaptureContinuation.firstFreeSequence(in: folder.url)), detectsSpeech: true)
+            speechHeard = 0
             // Drain before the devices start: starting a tap aggregate can block for about a second.
             writer?.start()
             try startDevices()
@@ -424,6 +428,8 @@ actor CoreAudioCapture: AudioCapture {
         guard let writer, !isPaused, !faulted, !gate.isBusy, !awaitingAudio, devices?.isLost != true else { return }
         let status = writer.status()
         continuation.yield(.levels(mic: status.mic, system: status.system))
+        let heard = writer.speechHeard
+        if heard != speechHeard { speechHeard = heard; continuation.yield(.speech) }
         if let fault = fault() {
             if gate.begin() {
                 await checkDevices()
@@ -587,13 +593,21 @@ private final class AudioWriter: @unchecked Sendable {
     private var firstHostTime: UInt64?
     /// Measured in split mode: the largest correction applied to a track, in samples. Read by tests.
     private(set) var corrections: [Int64] = [0, 0]
+    /// Listens for speech in the converted samples, for the session's inactivity watch.
+    private let speech: SpeechDetector?
+    /// How many analysis windows held speech so far, on either track.
+    var speechHeard: Int { speech?.heard ?? 0 }
+    /// False when the classifier could not start: `speechHeard` then stays at zero.
+    var detectsSpeech: Bool { speech != nil }
     /// - Parameters:
     ///   - folder: the session's audio folder, created by the locator.
     ///   - startFrames: where the first chunk starts on the session's timeline, at 16 kHz: zero
     ///     for a new session, after the earlier audio when recording resumes. Descriptors record
     ///     it too, so recovery after a crash places the chunks on the same timeline.
     ///   - firstSequence: number of the first chunk pair, past the files already in `folder`.
-    init(inputs: [CaptureInput], folder: AudioFolder, chunkSeconds: Double = 300, startFrames: Int64 = 0, firstSequence: Int = 0) {
+    ///   - detectsSpeech: analyzes the converted samples for speech (`speechHeard`).
+    init(inputs: [CaptureInput], folder: AudioFolder, chunkSeconds: Double = 300, startFrames: Int64 = 0, firstSequence: Int = 0, detectsSpeech: Bool = false) {
+        speech = detectsSpeech ? SpeechDetector(sampleRate: Self.outputRate) : nil
         chunkLimit = Int64(chunkSeconds * Self.outputRate)
         outputFrames = startFrames; sequence = firstSequence
         self.folder = folder
@@ -664,6 +678,7 @@ private final class AudioWriter: @unchecked Sendable {
         queue.sync {
             timer?.cancel(); timer = nil
             drain()
+            speech?.finish()
             do { try seal() } catch { setError(error.localizedDescription) }
             return chunks
         }
@@ -737,6 +752,7 @@ private final class AudioWriter: @unchecked Sendable {
         }
         if result == .error { throw error ?? CaptureFailure(message: String(localized: "Conversion audio impossible.")) as NSError }
         var converted = Array(UnsafeBufferPointer(start: output.floatChannelData![0], count: Int(output.frameLength)))
+        speech?.listen(track: track, samples: converted)
         if split { align(track: track, samples: &converted, host: host, duration: Double(frames) / input.sampleRate) }
         pending[track] += converted
         return min(1, peak * 3)

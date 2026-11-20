@@ -6,6 +6,7 @@ private actor UnresumableCapture: AudioCapture {
     struct Failure: LocalizedError { var errorDescription: String? { "resume failed" } }
     nonisolated let isSimulated = false
     nonisolated let events: AsyncStream<CaptureEvent>
+    nonisolated let detectsSpeech = false
     private let continuation: AsyncStream<CaptureEvent>.Continuation
     init() { (events, continuation) = AsyncStream.makeStream(of: CaptureEvent.self) }
     func start(session id: UUID, continuing continuation: CaptureContinuation, microphone: String?) async throws {}
@@ -21,6 +22,7 @@ private actor UnresumableCapture: AudioCapture {
 private actor SlowResumeCapture: AudioCapture {
     nonisolated let isSimulated = false
     nonisolated let events: AsyncStream<CaptureEvent>
+    nonisolated let detectsSpeech = false
     private let continuation: AsyncStream<CaptureEvent>.Continuation
     private var held: CheckedContinuation<Void, Never>?
     private(set) var resumes = 0
