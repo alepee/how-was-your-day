@@ -137,6 +137,20 @@ final class EnrollVoiceTests: XCTestCase {
         XCTAssertEqual(samples, [])
     }
 
+    func testATranscriptionProposesOnlyPeopleStillRecognizable() {
+        var lea = VoicePerson(name: "Léa"); lea.enrollmentRequestedAt = Date(); lea.enrolledChannels = [.mic]
+        var erased = VoicePerson(name: "Hugo"); erased.enrollmentRequestedAt = Date()
+        var opposed = VoicePerson(name: "Camille", opposed: true); opposed.enrolledChannels = [.mic]
+        var voices = [Speaker(label: "Voix 1"), Speaker(label: "Voix 2"), Speaker(label: "Voix 3"), Speaker(label: "Moi", confirmed: true)]
+        for (index, person) in [lea, erased, opposed, lea].enumerated() {
+            voices[index].proposedIdentity = VoiceMatch(personID: person.id, score: 0.8, margin: nil, channel: .mic)
+        }
+        var recording = Recording(title: "Test", speakers: voices)
+        XCTAssertEqual(recording.resolveProposals(among: [lea, erased, opposed]), 2)
+        XCTAssertEqual(recording.speakers.map(\.label), ["Léa", "Voix 2", "Voix 3", "Moi"])
+        XCTAssertEqual(recording.speakers.map { $0.proposedIdentity != nil }, [true, false, false, true], "a confirmed voice is left alone")
+    }
+
     func testProposalsSkipConfirmedIgnoredAndUnknownVoices() {
         let known = VoicePerson(name: "Léa")
         let confirmed = Speaker(label: "Moi", confirmed: true)

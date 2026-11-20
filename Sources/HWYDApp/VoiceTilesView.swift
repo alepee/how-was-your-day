@@ -18,14 +18,19 @@ struct VoiceTilesView: View {
                 if !voices.isEmpty {
                     HelpButton(text: String(localized: "Cliquez une voix pour écouter ses passages. Glissez-la sur une autre pour regrouper une même personne. Mémorisez une voix pour la reconnaître dans les prochaines sessions."))
                 }
-                if model.voiceBusy {
+                if model.work.running?.kind == .voice, model.work.running?.sessionID == recording.id {
                     ProgressView().controlSize(.small).padding(.leading, 4)
                     Text("Traitement local…").font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted)
+                } else if !model.queuedVoiceWork(of: recording.id).isEmpty {
+                    Image(systemName: "clock").font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted).padding(.leading, 4)
+                    Text("En attente…").font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted)
+                        .help("Démarre à la fin du traitement en cours.")
+                    Button("Annuler") { model.cancelQueuedVoiceWork(of: recording.id) }.buttonStyle(StudioButtonStyle(compact: true))
                 }
                 Spacer(minLength: 8)
                 if !voices.isEmpty, model.people.contains(where: { $0.recognitionEnabled && !$0.channels.isEmpty }) {
                     Button("Reconnaître les voix") { model.identifyVoices() }.buttonStyle(StudioButtonStyle(compact: true))
-                        .disabled(recording.isDemo || !model.workAvailability.isReady || locked)
+                        .disabled(recording.isDemo || locked || model.work.isQueued(.voice(session: recording.id)))
                         .help("Compare les voix non confirmées de cette session aux personnes mémorisées. Chaque proposition reste à confirmer.")
                 }
             }
@@ -37,7 +42,7 @@ struct VoiceTilesView: View {
                                       locked: locked, others: recording.speakers.filter { $0.id != voice.id && !$0.ignored }, people: known,
                                       proposed: voice.speaker.proposedIdentity.flatMap { match in known.first { $0.id == match.personID } },
                                       separable: recording.separableVoices(of: voice.id),
-                                      canRemember: !recording.isDemo && model.workAvailability.isReady,
+                                      canRemember: !recording.isDemo,
                                       opposed: model.people.contains { $0.opposed && ($0.id == voice.speaker.personID || $0.name == voice.speaker.label) })
                         }
                     }.padding(.vertical, 1)

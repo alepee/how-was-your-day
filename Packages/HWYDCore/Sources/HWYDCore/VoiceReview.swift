@@ -200,6 +200,24 @@ extension Recording {
         return proposed
     }
 
+    /// Names each proposed voice after its person, and drops the proposal of a person who can no
+    /// longer be recognized: one who opposed, or whose print was erased. A transcription proposes
+    /// from the prints it read; one erased or opposed while it ran must not come back as a
+    /// suggestion. Returns how many were dropped.
+    @discardableResult
+    public mutating func resolveProposals(among people: [VoicePerson]) -> Int {
+        var dropped = 0
+        for index in speakers.indices where !speakers[index].confirmed {
+            guard let match = speakers[index].proposedIdentity else { continue }
+            if let person = people.first(where: { $0.id == match.personID && $0.recognitionEnabled && !$0.channels.isEmpty }) {
+                speakers[index].label = person.name
+            } else {
+                speakers[index].proposedIdentity = nil; dropped += 1
+            }
+        }
+        return dropped
+    }
+
     /// Confirms a voice as a known person: the one mutation behind the voice tiles, an enrollment
     /// and an MCP rename. The name is validated and an opposed person refused. Linking is not
     /// enrollment: no vector is read or written.

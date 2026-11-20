@@ -77,6 +77,7 @@ import HWYDCore
         model.playbackTime = 0; model.playback.activeSegmentIDs = []
         renderResumedSession(preferences: preferences, to: directory.appendingPathComponent("studio-transcript-resumed.png"))
         renderVoiceTiles(preferences: preferences, to: directory.appendingPathComponent("studio-voices.png"))
+        renderVoiceTiles(preferences: preferences, to: directory.appendingPathComponent("studio-voices-queued.png"), queued: true)
         var splitExample = TranscriptSegment(start: 12, end: 16, speakerID: nil, source: .mic, text: "Oui. Bonjour à tous.") // l10n:ignore
         splitExample.words = [.init(text: "Oui.", start: 12, end: 12.5), .init(text: " Bonjour", start: 13, end: 14), .init(text: " à", start: 14, end: 14.5), .init(text: " tous.", start: 14.5, end: 16)] // l10n:ignore
         render(SegmentSplitView(recordingID: model.selectedID!, segment: splitExample).environmentObject(model), size: .init(width: 580, height: 490), to: directory.appendingPathComponent("studio-split.png"))
@@ -273,7 +274,8 @@ import HWYDCore
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-settings-summary-agent.png"))
     }
     /// Synthetic voices covering the three states. Audio chunks are references only; nothing is read or played.
-    private static func renderVoiceTiles(preferences: InMemorySettings, to url: URL) {
+    /// `queued`: an enrollment waits behind a transcription of another session.
+    private static func renderVoiceTiles(preferences: InMemorySettings, to url: URL, queued: Bool = false) {
         let lea = VoicePerson(name: "Léa") // l10n:ignore
         var proposed = Speaker(label: "Léa", source: .system) // l10n:ignore
         proposed.proposedIdentity = VoiceMatch(personID: lea.id, score: 0.81, margin: 0.14, channel: .remote)
@@ -285,8 +287,15 @@ import HWYDCore
             .init(start: 62, end: 140, speakerID: named.id, source: .system, text: "c"),
             .init(start: 141, end: 150, speakerID: duplicate.id, source: .mic, text: "d")])
         example.audioChunks = [.init(source: .mic, relativePath: "preview-mic.caf", start: 0, duration: 150)]
-        let model = AppModel(environment: .preview(examples: DemoContent.recordings() + [example], preferences: preferences))
+        let coordinator = WorkCoordinator()
+        let model = AppModel(environment: .preview(examples: DemoContent.recordings() + [example], preferences: preferences, coordinator: coordinator))
         model.people = [lea]; model.selectedID = example.id; model.playback.voiceID = room.id
+        if queued {
+            hold(.transcription(session: UUID()), on: coordinator)
+            settle { model.processingID != nil }
+            hold(.enrollment(session: example.id, person: lea.id), on: coordinator)
+            settle { !model.queuedVoiceWork(of: example.id).isEmpty }
+        }
         render(VoiceTilesView(recording: example).environmentObject(model).padding(16), size: .init(width: 1040, height: 110), to: url)
     }
     /// Remembered people with their samples per session. Synthetic: the keychain is never read.

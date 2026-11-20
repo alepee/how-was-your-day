@@ -11,12 +11,16 @@ import HWYDCore
             switch args.first {
             case let command where ["enroll-voice", "identify-voices", "forget-voice", "forget-voice-source", "voice-sources", "probe-voice"].contains(command ?? "") && args.count == 4:
                 let store = try SessionStore(directory: URL(fileURLWithPath: args[1]))
-                // Second line of defense: the app's WorkCoordinator already runs one job at a time. This lock
-                // guards against a process it cannot see, such as a second app instance or a script.
+                // Second line of defense: the app's WorkCoordinator already runs one heavy job at a time. This
+                // lock guards against a process it cannot see, such as a second app instance or a script.
+                // Print changes and reads are quick and run beside a transcription: they only take the
+                // voice print lock, as every reader and writer of the prints does.
                 let lock = open(store.directory.appendingPathComponent("pipeline.lock").path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
                 guard lock >= 0 else { throw CLIError(message: String(localized: "Verrou indisponible.", bundle: .hwyd)) }
                 defer { close(lock) }
-                guard flock(lock, LOCK_EX | LOCK_NB) == 0 else { throw CLIError(message: String(localized: "Un traitement est déjà en cours.", bundle: .hwyd)) }
+                if VoiceStage.heavyCommands.contains(command!) {
+                    guard flock(lock, LOCK_EX | LOCK_NB) == 0 else { throw CLIError(message: String(localized: "Un traitement est déjà en cours.", bundle: .hwyd)) }
+                }
                 let job = try JSONDecoder().decode(VoiceJob.self, from: Data(contentsOf: URL(fileURLWithPath: args[2])))
                 try await VoiceStage.run(command: command!, store: store, prints: prints, job: job).write(to: URL(fileURLWithPath: args[3]), options: .atomic)
             case "diagnose": print(await AppleSpeechRecognizer.diagnostics())
@@ -60,8 +64,10 @@ import HWYDCore
                             let matches = try await VoiceStage.identify(recording: recording, store: store, prints: prints, audioOverrides: prepared.chunks)
                             result.speakers = recording.speakers.map { speaker in
                                 var speaker = speaker
-                                if let match = matches[speaker.id.uuidString], let person = people.first(where: { $0.id == match.personID }) {
-                                    speaker.proposedIdentity = match; speaker.label = person.name
+                                // The app names the voice when it applies the result, after checking the
+                                // person can still be recognized.
+                                if let match = matches[speaker.id.uuidString], people.contains(where: { $0.id == match.personID }) {
+                                    speaker.proposedIdentity = match
                                 }
                                 return speaker
                             }
@@ -89,4 +95,4 @@ import HWYDCore
     }
 }
 
-private struct CLIError: LocalizedError { let message: String; var errorDescription: String? { message } }
+struct CLIError: LocalizedError { let message: String; var errorDescription: String? { message } }

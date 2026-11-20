@@ -70,7 +70,7 @@ struct SessionContextMenu: View {
                 Button("Annuler la synthèse") { model.cancelSummary(of: item.id) }
             } else {
                 Button(item.summary == nil ? "Générer une synthèse" : "Régénérer la synthèse") { model.generateSummary(item.id) }
-                    .disabled(!model.summaryAvailability.isReady || item.segments.isEmpty)
+                    .disabled(!model.summaryAvailability.canRequest || item.segments.isEmpty)
             }
         }
         if item.id != model.activeCaptureID {

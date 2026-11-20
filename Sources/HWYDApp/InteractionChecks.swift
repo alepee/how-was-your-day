@@ -661,8 +661,8 @@ import HWYDCore
         guard await memory.samples.isEmpty else { throw CaptureFailure(message: "Forget did not reach voice memory") }
         print("Pipeline ports: diarizer readiness, transcription request, correction without enrollment, enrollment and erasure: PASS")
 
-        // One job at a time: a voice job on a session blocks its deletion, a transcription waits
-        // its turn and says so, other work is refused with the running job as the reason.
+        // One heavy job at a time: a voice job on a session blocks its deletion, a transcription
+        // waits its turn, other work asked by the user waits too and says behind what.
         notices.clear()
         var queued = Recording(title: "File d’attente") // l10n:ignore
         queued.audioChunks = recording.audioChunks
@@ -677,9 +677,10 @@ import HWYDCore
               model.work.isQueued(.transcription(session: queued.id)) else {
             throw CaptureFailure(message: "Transcription was not queued")
         }
-        guard await model.requestDiarizer() == .refused(.busy(busy)),
-              notices.messages.contains(WorkRefusal.busy(busy).localizedDescription) else {
-            throw CaptureFailure(message: "Busy refusal was silent")
+        // Other work asked by the user waits its turn too, and says behind what.
+        guard await model.requestDiarizer() == .queued(behind: busy),
+              notices.messages.contains(UserNotice.queued(behind: busy).message) else {
+            throw CaptureFailure(message: "Queued request was silent")
         }
         await gate.release()
         try await idle()
@@ -690,7 +691,7 @@ import HWYDCore
         guard await service.requests.count == 2, model.recordings.first(where: { $0.id == queued.id })?.segments.isEmpty == false, !model.work.isBusy, !model.isBusy else {
             throw CaptureFailure(message: "Queued transcription did not run after the voice job")
         }
-        print("Work coordinator: deletion blocked by a voice job, transcription queued after capture, busy refusal with reason, idle: PASS")
+        print("Work coordinator: deletion blocked by a voice job, transcription and user requests queued with reason, idle: PASS")
     }
     static func run(directory: URL) async throws {
         try await checkPipelinePorts(directory: directory.appendingPathComponent("pipeline-ports-test"))

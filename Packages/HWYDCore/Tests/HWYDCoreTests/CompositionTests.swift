@@ -111,6 +111,37 @@ final class VoiceRequestsTests: XCTestCase {
         XCTAssertEqual(identified.outcome, .identificationSessionChanged)
     }
 
+    func testAWaitingEnrollmentReadsTheVoiceWhenItStarts() async throws {
+        var (item, first, second) = fixture()
+        try item.renameSpeaker(first.id, to: "Léa")
+        let library = SessionLibrary(volatile: [item])
+        let memory = InMemoryVoiceMemory(), people = InMemoryVoicePeople()
+        let requests = VoiceRequests(people: people, memory: memory)
+        // Edited while the request waited: another voice renamed, the transcript version moved on.
+        library.edit(item.id) { try? $0.renameSpeaker(second.id, to: "Hugo") }
+        let enrolled = try await requests.enroll(named: " Léa ", speakerID: first.id, session: item.id, library: library)
+        XCTAssertEqual(enrolled.outcome, .enrolled(name: "Léa", proposals: 0))
+        XCTAssertNotNil(library.recording(item.id)?.speakers.first?.personID)
+        // The voice no longer bears the name: nothing is memorized.
+        library.edit(item.id) { try? $0.renameSpeaker(first.id, to: "Camille") }
+        let skipped = try await requests.enroll(named: "Léa", speakerID: first.id, session: item.id, library: library)
+        XCTAssertEqual(skipped.outcome, .enrollmentSkipped(name: "Léa"))
+        let samples = await memory.samples
+        XCTAssertEqual(samples.count, 1)
+    }
+
+    func testAWaitingEnrollmentOfAPersonOpposedMeanwhileIsRefused() async throws {
+        var (item, first, _) = fixture()
+        try item.renameSpeaker(first.id, to: "Hugo")
+        let library = SessionLibrary(volatile: [item])
+        let memory = InMemoryVoiceMemory(), people = InMemoryVoicePeople([VoicePerson(name: "Hugo", opposed: true)])
+        let requests = VoiceRequests(people: people, memory: memory)
+        do { _ = try await requests.enroll(named: "Hugo", speakerID: first.id, session: item.id, library: library); XCTFail("Opposed person enrolled") }
+        catch { guard case .opposed? = error as? EnrollmentRefusal else { return XCTFail("\(error)") } }
+        let samples = await memory.samples
+        XCTAssertTrue(samples.isEmpty)
+    }
+
     func testOppositionErasesThenCanBeLifted() async throws {
         let (item, first, _) = fixture()
         let library = SessionLibrary(volatile: [item])
