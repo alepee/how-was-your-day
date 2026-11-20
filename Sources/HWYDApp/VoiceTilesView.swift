@@ -6,8 +6,11 @@ struct VoiceTilesView: View {
     @EnvironmentObject var model: AppModel
     let recording: Recording
     var body: some View {
-        // Ignored voices go last: they are done, like confirmed ones, but rarely revisited.
-        let voices = recording.voiceOverview.filter { $0.state != .ignored } + recording.voiceOverview.filter { $0.state == .ignored }
+        // Voices to name first, then the ones too brief to name, then the ignored ones: those are
+        // done, like confirmed ones, but rarely revisited.
+        let overview = recording.voiceOverview
+        let voices = overview.filter { $0.state != .ignored && $0.state != .minor } + overview.filter { $0.state == .minor } + overview.filter { $0.state == .ignored }
+        let proposals = recording.pendingSplitProposals
         let pending = voices.filter { $0.state == .unidentified || $0.state == .proposed }.count
         let playingID = model.playback.voiceID
         let locked = model.voiceEditingLocked
@@ -16,7 +19,7 @@ struct VoiceTilesView: View {
             HStack(spacing: 6) {
                 Eyebrow(text: voices.isEmpty ? String(localized: "Voix") : pending == 0 ? String(localized: "Voix · \(voices.count)") : String(localized: "Voix · \(pending) à nommer"))
                 if !voices.isEmpty {
-                    HelpButton(text: String(localized: "Cliquez une voix pour écouter ses passages. Glissez-la sur une autre pour regrouper une même personne. Mémorisez une voix pour la reconnaître dans les prochaines sessions."))
+                    HelpButton(text: String(localized: "Cliquez une voix pour écouter ses passages. Glissez-la sur une autre pour regrouper une même personne. Mémorisez une voix pour la reconnaître dans les prochaines sessions. Après la transcription, HWYD regroupe les voix d’une même personne, masque l’écho de l’appel capté par le micro et met de côté les voix trop brèves : chaque décision se défait depuis le menu de la voix."))
                 }
                 if model.work.running?.kind == .voice, model.work.running?.sessionID == recording.id {
                     ProgressView().controlSize(.small).padding(.leading, 4)
@@ -48,6 +51,11 @@ struct VoiceTilesView: View {
                     }.padding(.vertical, 1)
                 }
             }
+            ForEach(proposals) { proposal in
+                SplitProposalRow(proposal: proposal, recording: recording, locked: locked, playing: playingID == proposal.id,
+                                 target: proposal.mergeInto.flatMap { id in recording.speakers.first { $0.id == id && !$0.ignored } },
+                                 person: proposal.proposedIdentity.flatMap { match in known.first { $0.id == match.personID } })
+            }
         }
         .confirmationDialog(enrollmentTitle, isPresented: Binding(get: { model.enrollmentCandidateID != nil }, set: { if !$0 { model.enrollmentCandidateID = nil } }), titleVisibility: .visible) {
             Button("Mémoriser") { model.confirmEnrollment() }
@@ -77,7 +85,15 @@ private struct VoiceTile: View {
     @State private var targeted = false
     /// The model needs about 20 seconds of clean speech; overlaps are left out.
     private var enoughSpeech: Bool { voice.speechDuration >= 20 }
-    private var accent: Color { voice.state == .confirmed ? Studio.mint : voice.state == .ignored ? Studio.muted : Studio.copper }
+    private var accent: Color { voice.state == .confirmed ? Studio.mint : voice.state == .ignored || voice.state == .minor ? Studio.muted : Studio.copper }
+    /// What sets this voice aside, after its track and speech time.
+    private var aside: String? {
+        switch voice.state {
+        case .ignored: voice.speaker.automatic == .echo ? String(localized: "écho probable") : String(localized: "ignorée")
+        case .minor: String(localized: "trop brève")
+        default: separable.contains { $0.automatic == .merged } ? String(localized: "regroupée") : nil
+        }
+    }
     var body: some View {
         HStack(spacing: 0) {
             Button { model.toggleVoicePlayback(voice.id) } label: {
@@ -87,7 +103,7 @@ private struct VoiceTile: View {
                         .frame(width: 24, height: 24).background(playing ? Studio.mint : accent.opacity(0.12), in: Circle())
                     VStack(alignment: .leading, spacing: 3) {
                         Text(voice.speaker.label).font(.system(size: Studio.Size.body, weight: .medium)).lineLimit(1)
-                        Text(verbatim: "\(sourceLabel(voice.speaker.source)) · \(speechLabel(voice.speechDuration))" + (voice.state == .ignored ? " · " + String(localized: "ignorée") : "")).font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted).lineLimit(1)
+                        Text(verbatim: "\(sourceLabel(voice.speaker.source)) · \(speechLabel(voice.speechDuration))" + (aside.map { " · " + $0 } ?? "")).font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted).lineLimit(1)
                     }
                 }.padding(.leading, 10).padding(.trailing, 6).frame(maxHeight: .infinity).contentShape(Rectangle())
             }.buttonStyle(.plain).disabled(!canPlay)
@@ -130,7 +146,7 @@ private struct VoiceTile: View {
         case .unidentified: String(localized: "Nommer")
         case .proposed: proposed == nil ? String(localized: "Nommer") : String(localized: "Confirmer")
         case .confirmed: String(localized: "Modifier")
-        case .ignored: String(localized: "Rétablir")
+        case .ignored, .minor: String(localized: "Rétablir")
         }
     }
     private var stateHelp: String {
@@ -138,11 +154,15 @@ private struct VoiceTile: View {
         case .unidentified: String(localized: "Voix non identifiée")
         case .proposed: voice.speaker.proposedIdentity.map { String(localized: "Proposition à confirmer (score \($0.score.formatted(.number.precision(.fractionLength(2)))))") } ?? String(localized: "Proposition à confirmer")
         case .confirmed: String(localized: "Voix confirmée")
-        case .ignored: String(localized: "Voix ignorée : passages masqués du transcript, de l’export et de la synthèse")
+        case .ignored: voice.speaker.automatic == .echo
+            ? String(localized: "Écho probable : cette voix du micro ne s’entend que pendant que l’appel parle. Passages masqués du transcript, de l’export et de la synthèse")
+            : String(localized: "Voix ignorée : passages masqués du transcript, de l’export et de la synthèse")
+        case .minor: String(localized: "Voix trop brève pour être nommée : ses passages restent dans le transcript sous « Autre voix »")
         }
     }
     private func primaryAction() {
         if voice.state == .ignored { model.setSpeakerIgnored(voice.id, false); return }
+        if voice.state == .minor { model.restoreMinorVoice(voice.id); return }
         if voice.state == .proposed, let proposed { model.linkSpeaker(voice.id, to: proposed) }
         else { model.beginSpeakerEdit(voice.speaker) }
     }
@@ -150,12 +170,18 @@ private struct VoiceTile: View {
         if voice.state == .ignored {
             Button("Rétablir cette voix") { model.setSpeakerIgnored(voice.id, false) }
         } else {
+            if voice.state == .minor {
+                Button("Compter parmi les voix à nommer") { model.restoreMinorVoice(voice.id) }
+                Divider()
+            }
             namingMenu
             Divider()
             rememberButton
             if !separable.isEmpty {
                 Section("Regroupements") {
-                    ForEach(separable) { other in Button("Séparer \(other.label)") { model.separateSpeaker(other.id, from: voice.id) } }
+                    ForEach(separable) { other in
+                        Button(other.automatic == .merged ? "Séparer \(other.label) (regroupée automatiquement)" : "Séparer \(other.label)") { model.separateSpeaker(other.id, from: voice.id) }
+                    }
                 }
             }
             Divider()
@@ -193,6 +219,43 @@ private struct VoiceTile: View {
                 ForEach(people) { person in Button(person.name) { model.linkSpeaker(voice.id, to: person) } }
             }
         }
+    }
+}
+
+/// A voice the post-processing found to hold two people: listen to the part it would move, then answer.
+private struct SplitProposalRow: View {
+    @EnvironmentObject var model: AppModel
+    let proposal: VoiceSplitProposal
+    let recording: Recording
+    let locked: Bool
+    let playing: Bool
+    let target: Speaker?
+    let person: VoicePerson?
+    var body: some View {
+        let name = recording.speakers.first { $0.id == proposal.speakerID }?.label ?? String(localized: "Voix")
+        let part = recording.splitParts(proposal.id)?.smaller ?? []
+        let duration = speechLabel(part.reduce(0) { $0 + max(0, $1.end - $1.start) })
+        HStack(spacing: 8) {
+            Image(systemName: "person.2.wave.2").font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.copper)
+            Text(detail(name: name, duration: duration)).font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.copper)
+                .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            Button(playing ? "Arrêter" : "Écouter ces passages") { model.toggleSplitPartPlayback(proposal.id) }
+                .buttonStyle(StudioButtonStyle(compact: true)).disabled(recording.audioChunks.isEmpty)
+                .help("Écoute uniquement les passages qui seraient séparés de cette voix.")
+            Button("Séparer") { model.acceptSplit(proposal.id) }.buttonStyle(StudioButtonStyle(compact: true)).disabled(locked)
+                .help(target.map { String(localized: "Ces passages rejoignent \($0.label).") } ?? String(localized: "Ces passages deviennent une nouvelle voix. Annulable."))
+            Button("Une seule personne") { model.dismissSplit(proposal.id) }.buttonStyle(StudioButtonStyle(compact: true)).disabled(locked)
+                .help("Laisse la voix telle quelle et retire cette proposition.")
+        }
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .background(Studio.copper.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .contain)
+    }
+    private func detail(name: String, duration: String) -> String {
+        if let target { return String(localized: "\(name) semble regrouper deux personnes : \(duration) ressemblent à \(target.label).") }
+        if let person { return String(localized: "\(name) semble regrouper deux personnes : \(duration) ressemblent à \(person.name).") }
+        return String(localized: "\(name) semble regrouper deux personnes : \(duration) viennent d’une autre voix.")
     }
 }
 

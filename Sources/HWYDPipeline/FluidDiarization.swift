@@ -6,33 +6,28 @@ import HWYDCore
 actor FluidDiarizer: OfflineDiarizing {
     let directory: URL
     init(directory: URL) { self.directory = directory }
-    func diarize(file: URL, source: HWYDCore.AudioSource) async throws -> [SpeakerTurn] {
-        let manager = OfflineDiarizerManager(config: OfflineDiarizerConfig())
+    func diarize(file: URL, source: HWYDCore.AudioSource) async throws -> Diarization {
+        var config = OfflineDiarizerConfig()
+        config.exposeChunkEmbeddings = true
+        let manager = OfflineDiarizerManager(config: config)
+        ModelHub.offlineMode = true
         try await manager.prepareModels(directory: directory)
         let result = try await manager.process(file)
         // Never serialize DiarizationResult: it also contains a speaker embedding database.
-        return result.segments.map { .init(cluster: $0.speakerId, source: source, start: Double($0.startTimeSeconds), end: Double($0.endTimeSeconds)) }
+        return Diarization(turns: result.segments.map { .init(cluster: $0.speakerId, source: source, start: Double($0.startTimeSeconds), end: Double($0.endTimeSeconds)) },
+                           windows: (result.chunkEmbeddings ?? []).map { .init(cluster: $0.speakerId, source: source, start: $0.startTimeSeconds, end: $0.endTimeSeconds, vector: $0.embedding256) })
     }
 }
 
 enum DiarizationStage {
-    /// Whether every model the offline diarizer loads is on disk, as `install` leaves them.
-    static func isInstalled(directory: URL) -> Bool {
-        let folder = directory.appendingPathComponent(Repo.diarizer.folderName, isDirectory: true)
-        return ModelNames.OfflineDiarizer.requiredModels.allSatisfy { FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path) }
-    }
-    static func install(directory: URL) async throws {
-        ModelHub.offlineMode = false
-        let manager = OfflineDiarizerManager(config: OfflineDiarizerConfig())
-        try await manager.prepareModels(directory: directory)
-    }
-    static func run(_ result: TranscriptionResult, audio: any AudioLocator, models: URL, workingDirectory: URL, diagnosticURL: URL? = nil, microphoneOverride: URL? = nil) async throws -> TranscriptionResult {
-        ModelHub.offlineMode = true
+    /// `windows` are the diarizer's embeddings, attached to the voices of the result. They live in
+    /// memory for the voice post-processing and are never written anywhere.
+    static func run(_ result: TranscriptionResult, audio: any AudioLocator, diarizer: any OfflineDiarizing, workingDirectory: URL, diagnosticURL: URL? = nil, microphoneOverride: URL? = nil) async throws -> (result: TranscriptionResult, windows: [VoiceWindow]) {
         let folder = workingDirectory.appendingPathComponent("diarization-\(UUID())")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         defer { try? FileManager.default.removeItem(at: folder) }
-        let diarizer = FluidDiarizer(directory: models)
         var turns: [SpeakerTurn] = []
+        var clusterWindows: [ClusterWindow] = []
         for source in [HWYDCore.AudioSource.mic, .system] {
             let chunks = result.request.chunks.filter { $0.source == source }.sorted { $0.start < $1.start }
             guard !chunks.isEmpty, result.segments.contains(where: { $0.source == source }) else { continue }
@@ -42,7 +37,8 @@ enum DiarizationStage {
                 file = folder.appendingPathComponent("\(source.rawValue).caf")
                 try assemble(chunks, audio: audio, destination: file)
             }
-            turns += try await diarizer.diarize(file: file, source: source)
+            let analysis = try await diarizer.diarize(file: file, source: source)
+            turns += analysis.turns; clusterWindows += analysis.windows
         }
         if let diagnosticURL {
             // Explicit whitelist: never serialize FluidAudio results or voice vectors.
@@ -55,7 +51,12 @@ enum DiarizationStage {
         var output = result
         output.segments = aligned.segments; output.speakers = aligned.speakers
         output.diarizationEngine = "fluidaudio-0.17.7-community-1-exclusive"
-        return output
+        let windows = clusterWindows.compactMap { window in
+            aligned.clusters[SpeakerAlignment.clusterKey(window.cluster, window.source)].map {
+                VoiceWindow(speakerID: $0, start: window.start, end: window.end, vector: window.vector)
+            }
+        }
+        return (output, windows)
     }
     static func assemble(_ chunks: [AudioChunk], audio: any AudioLocator, destination: URL) throws {
         let format = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)!

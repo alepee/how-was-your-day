@@ -9,12 +9,34 @@ public struct SpeakerTurn: Sendable {
         self.cluster = cluster; self.source = source; self.start = start; self.end = end
     }
 }
+/// An embedding the diarizer computed for one cluster in one of its analysis windows.
+/// In memory only: deliberately not `Codable`.
+public struct ClusterWindow: Sendable {
+    public var cluster: String
+    public var source: AudioSource
+    /// First and last moment the cluster is active inside the window.
+    public var start: Double
+    public var end: Double
+    public var vector: [Float]
+    public init(cluster: String, source: AudioSource, start: Double, end: Double, vector: [Float]) {
+        self.cluster = cluster; self.source = source; self.start = start; self.end = end; self.vector = vector
+    }
+}
+/// What a diarizer says of one track: who speaks when, and the embeddings it computed on the way,
+/// which the voice post-processing reuses instead of reading the audio again. A diarizer without
+/// embeddings returns no window, and the steps that need them do nothing.
+public struct Diarization: Sendable {
+    public var turns: [SpeakerTurn]
+    public var windows: [ClusterWindow]
+    public init(turns: [SpeakerTurn], windows: [ClusterWindow] = []) { self.turns = turns; self.windows = windows }
+}
 public protocol OfflineDiarizing: Sendable {
-    func diarize(file: URL, source: AudioSource) async throws -> [SpeakerTurn]
+    func diarize(file: URL, source: AudioSource) async throws -> Diarization
 }
 public enum SpeakerAlignment {
     /// Match timed words only. A tie or a missing timestamp deliberately stays unattributed.
-    public static func apply(segments: [TranscriptSegment], turns: [SpeakerTurn]) -> (segments: [TranscriptSegment], speakers: [Speaker]) {
+    /// `clusters` gives the voice made for each diarizer cluster, by `clusterKey`.
+    public static func apply(segments: [TranscriptSegment], turns: [SpeakerTurn]) -> (segments: [TranscriptSegment], speakers: [Speaker], clusters: [String: UUID]) {
         let valid = turns.filter { !$0.cluster.isEmpty && $0.start.isFinite && $0.end.isFinite && $0.start >= 0 && $0.end > $0.start }
         var speakers: [Speaker] = []
         var ids: [String: UUID] = [:]
@@ -58,7 +80,7 @@ public enum SpeakerAlignment {
             for run in merged {
                 var id: UUID?
                 if let cluster = run.cluster {
-                    let key = original.source.rawValue + ":" + cluster
+                    let key = clusterKey(cluster, original.source)
                     if ids[key] == nil {
                         let speaker = Speaker(label: SummaryLanguage.current.voiceLabel(speakers.count + 1), source: original.source)
                         ids[key] = speaker.id; speakers.append(speaker)
@@ -70,6 +92,7 @@ public enum SpeakerAlignment {
                 segment.words = run.words; output.append(segment)
             }
         }
-        return (output.sorted { $0.start < $1.start }, speakers)
+        return (output.sorted { $0.start < $1.start }, speakers, ids)
     }
+    public static func clusterKey(_ cluster: String, _ source: AudioSource) -> String { source.rawValue + ":" + cluster }
 }

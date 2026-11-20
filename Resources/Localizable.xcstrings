@@ -161,6 +161,22 @@
         }
       }
     },
+    "%@ compte de nouveau parmi les voix à nommer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ counts among the voices to name again."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ compte de nouveau parmi les voix à nommer."
+          }
+        }
+      }
+    },
     "%@ du %@": {
       "localizations": {
         "en": {
@@ -413,6 +429,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ rétablie dans le transcript."
+          }
+        }
+      }
+    },
+    "%@ semble regrouper deux personnes : %@ ressemblent à %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ seems to hold two people: %2$@ sound like %3$@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ semble regrouper deux personnes : %@ ressemblent à %@."
+          }
+        }
+      }
+    },
+    "%@ semble regrouper deux personnes : %@ viennent d’une autre voix.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ seems to hold two people: %2$@ come from another voice."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ semble regrouper deux personnes : %@ viennent d’une autre voix."
           }
         }
       }
@@ -1543,16 +1591,16 @@
     },
     "Arrêter": {
       "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Arrêter"
-          }
-        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Stop"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrêter"
           }
         }
       }
@@ -2421,6 +2469,38 @@
         }
       }
     },
+    "Ces passages deviennent une nouvelle voix. Annulable.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These passages become a new voice. Can be undone."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ces passages deviennent une nouvelle voix. Annulable."
+          }
+        }
+      }
+    },
+    "Ces passages rejoignent %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These passages join %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ces passages rejoignent %@."
+          }
+        }
+      }
+    },
     "Ces voix sont sur deux pistes différentes. Nommez d’abord l’une des deux.": {
       "localizations": {
         "en": {
@@ -2821,18 +2901,18 @@
         }
       }
     },
-    "Cliquez une voix pour écouter ses passages. Glissez-la sur une autre pour regrouper une même personne. Mémorisez une voix pour la reconnaître dans les prochaines sessions.": {
+    "Cliquez une voix pour écouter ses passages. Glissez-la sur une autre pour regrouper une même personne. Mémorisez une voix pour la reconnaître dans les prochaines sessions. Après la transcription, HWYD regroupe les voix d’une même personne, masque l’écho de l’appel capté par le micro et met de côté les voix trop brèves : chaque décision se défait depuis le menu de la voix.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Click a voice to listen to its passages. Drag it onto another to merge the same person. Remember a voice to recognize it in future sessions."
+            "value": "Click a voice to listen to its passages. Drag it onto another one to merge the same person. Remember a voice to recognize it in future sessions. After transcription, HWYD merges the voices of one person, hides the echo of the call picked up by the microphone and sets aside voices that are too brief: each decision can be undone from the voice’s menu."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cliquez une voix pour écouter ses passages. Glissez-la sur une autre pour regrouper une même personne. Mémorisez une voix pour la reconnaître dans les prochaines sessions."
+            "value": "Cliquez une voix pour écouter ses passages. Glissez-la sur une autre pour regrouper une même personne. Mémorisez une voix pour la reconnaître dans les prochaines sessions. Après la transcription, HWYD regroupe les voix d’une même personne, masque l’écho de l’appel capté par le micro et met de côté les voix trop brèves : chaque décision se défait depuis le menu de la voix."
           }
         }
       }
@@ -2945,6 +3025,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Compte rendu prêt"
+          }
+        }
+      }
+    },
+    "Compter parmi les voix à nommer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Count among the voices to name"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compter parmi les voix à nommer"
           }
         }
       }
@@ -4023,32 +4119,32 @@
     },
     "Enregistrement arrêté": {
       "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enregistrement arrêté"
-          }
-        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Recording stopped"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enregistrement arrêté"
           }
         }
       }
     },
     "Enregistrement arrêté : personne n’a parlé pendant %lld min.": {
       "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enregistrement arrêté : personne n’a parlé pendant %lld min."
-          }
-        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Recording stopped: nobody spoke for %lld min."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enregistrement arrêté : personne n’a parlé pendant %lld min."
           }
         }
       }
@@ -5585,6 +5681,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "La transcription utilise les fichiers audio conservés. Vous pouvez continuer à écrire vos notes pendant le traitement."
+          }
+        }
+      }
+    },
+    "Laisse la voix telle quelle et retire cette proposition.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leaves the voice as it is and removes this suggestion."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Laisse la voix telle quelle et retire cette proposition."
           }
         }
       }
@@ -7831,16 +7943,16 @@
     },
     "Pas encore": {
       "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pas encore"
-          }
-        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Not yet"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas encore"
           }
         }
       }
@@ -7975,48 +8087,48 @@
     },
     "Personne n’a parlé depuis %lld min. Arrêt dans %@.": {
       "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Personne n’a parlé depuis %lld min. Arrêt dans %@."
-          }
-        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Nobody has spoken for %lld min. Stopping in %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personne n’a parlé depuis %lld min. Arrêt dans %@."
           }
         }
       }
     },
     "Personne n’a parlé depuis %lld min. Sans réponse, l’enregistrement s’arrête à %@.": {
       "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Personne n’a parlé depuis %lld min. Sans réponse, l’enregistrement s’arrête à %@."
-          }
-        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Nobody has spoken for %lld min. Without an answer, recording stops at %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personne n’a parlé depuis %lld min. Sans réponse, l’enregistrement s’arrête à %@."
           }
         }
       }
     },
     "Personne n’a parlé pendant %lld min. L’audio et les notes sont conservés.": {
       "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Personne n’a parlé pendant %lld min. L’audio et les notes sont conservés."
-          }
-        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Nobody spoke for %lld min. The audio and notes are kept."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personne n’a parlé pendant %lld min. L’audio et les notes sont conservés."
           }
         }
       }
@@ -8119,16 +8231,32 @@
     },
     "Proposer d’arrêter quand personne ne parle": {
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offer to stop when nobody speaks"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Proposer d’arrêter quand personne ne parle"
           }
-        },
+        }
+      }
+    },
+    "Proposition retirée : la voix reste telle quelle.": {
+      "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Offer to stop when nobody speaks"
+            "value": "Suggestion removed: the voice stays as it is."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proposition retirée : la voix reste telle quelle."
           }
         }
       }
@@ -9335,16 +9463,16 @@
     },
     "Si personne ne parle pendant 5 minutes, au micro ou dans le son de la visio, HWYD demande si vous avez fini. Sans réponse, l’enregistrement s’arrête 2 minutes plus tard ; l’audio et les notes sont conservés. La parole est détectée sur ce Mac par le classifieur de sons de macOS ; rien n’est envoyé ni conservé.": {
       "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Si personne ne parle pendant 5 minutes, au micro ou dans le son de la visio, HWYD demande si vous avez fini. Sans réponse, l’enregistrement s’arrête 2 minutes plus tard ; l’audio et les notes sont conservés. La parole est détectée sur ce Mac par le classifieur de sons de macOS ; rien n’est envoyé ni conservé."
-          }
-        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "If nobody speaks for 5 minutes, on the microphone or in the call audio, HWYD asks whether you are done. Without an answer, recording stops 2 minutes later; the audio and notes are kept. Speech is detected on this Mac by the macOS sound classifier; nothing is sent or kept."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si personne ne parle pendant 5 minutes, au micro ou dans le son de la visio, HWYD demande si vous avez fini. Sans réponse, l’enregistrement s’arrête 2 minutes plus tard ; l’audio et les notes sont conservés. La parole est détectée sur ce Mac par le classifieur de sons de macOS ; rien n’est envoyé ni conservé."
           }
         }
       }
@@ -9797,6 +9925,22 @@
         }
       }
     },
+    "Séparer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Separate"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Séparer"
+          }
+        }
+      }
+    },
     "Séparer %@": {
       "localizations": {
         "en": {
@@ -9809,6 +9953,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Séparer %@"
+          }
+        }
+      }
+    },
+    "Séparer %@ (regroupée automatiquement)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Separate %@ (merged automatically)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Séparer %@ (regroupée automatiquement)"
           }
         }
       }
@@ -10597,6 +10757,22 @@
         }
       }
     },
+    "Une seule personne": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One person"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une seule personne"
+          }
+        }
+      }
+    },
     "Une synthèse est en cours.": {
       "localizations": {
         "en": {
@@ -10917,6 +11093,22 @@
         }
       }
     },
+    "Voix séparée : passages attribués à %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice separated: passages given to %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voix séparée : passages attribués à %@."
+          }
+        }
+      }
+    },
     "Voix séparées par piste. Rejet d’écho non appliqué. Les empreintes mémorisées restent sur ce Mac.": {
       "localizations": {
         "en": {
@@ -10929,6 +11121,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Voix séparées par piste. Rejet d’écho non appliqué. Les empreintes mémorisées restent sur ce Mac."
+          }
+        }
+      }
+    },
+    "Voix trop brève pour être nommée : ses passages restent dans le transcript sous « Autre voix »": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice too brief to be named: its passages stay in the transcript under “Other voice”"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voix trop brève pour être nommée : ses passages restent dans le transcript sous « Autre voix »"
           }
         }
       }
@@ -11111,16 +11319,16 @@
     },
     "Vous avez fini ?": {
       "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vous avez fini ?"
-          }
-        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Are you done?"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vous avez fini ?"
           }
         }
       }
@@ -11414,6 +11622,22 @@
         }
       }
     },
+    "regroupée": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "merged"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "regroupée"
+          }
+        }
+      }
+    },
     "reprise du cache": {
       "localizations": {
         "en": {
@@ -11474,6 +11698,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "thèmes"
+          }
+        }
+      }
+    },
+    "trop brève": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "too brief"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "trop brève"
           }
         }
       }
@@ -11718,6 +11958,38 @@
         }
       }
     },
+    "Écho probable : cette voix du micro ne s’entend que pendant que l’appel parle. Passages masqués du transcript, de l’export et de la synthèse": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Probable echo: this microphone voice is only heard while the call speaks. Passages hidden from the transcript, the export and the summary"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Écho probable : cette voix du micro ne s’entend que pendant que l’appel parle. Passages masqués du transcript, de l’export et de la synthèse"
+          }
+        }
+      }
+    },
+    "Écoute uniquement les passages qui seraient séparés de cette voix.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plays only the passages that would be separated from this voice."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Écoute uniquement les passages qui seraient séparés de cette voix."
+          }
+        }
+      }
+    },
     "Écouter %@": {
       "localizations": {
         "en": {
@@ -11730,6 +12002,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Écouter %@"
+          }
+        }
+      }
+    },
+    "Écouter ces passages": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listen to these passages"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Écouter ces passages"
           }
         }
       }
@@ -11810,6 +12098,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "à nommer"
+          }
+        }
+      }
+    },
+    "écho probable": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "probable echo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "écho probable"
           }
         }
       }

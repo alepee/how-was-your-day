@@ -4,11 +4,11 @@ Memorize a voice from its tile in a session. A named voice offers **Mémoriser c
 
 | Step | Behavior |
 | --- | --- |
-| Enrollment | At least 20 seconds, at most 60 seconds of non-overlapping speech from the selected voice |
+| Enrollment | At least 20 seconds, at most 60 seconds of non-overlapping speech from the selected voice, taken as six slices spread over all its passages. Passages a pending split proposal attributes to someone else are left out |
 | Microphone audio | Reuses offline echo cancellation before extracting the voice sample |
 | Embedding | FluidAudio 0.17.7, WeSpeaker 256 dimensions; one speaker is specified only for the already selected enrollment cluster |
 | Channels | `mic` and `remote`, deduced from the voice's track. A voice is compared with the person's exemplars on its own channel; when the person has none there, the other channel is tried with a stricter threshold (0.85 instead of 0.75) and the proposal is flagged `cross_channel` in exports |
-| Matching | Runs automatically after diarization and after each enrollment; threshold and runner-up margin plus one-to-one assignment, so one person is proposed for at most one voice per session |
+| Matching | Runs automatically after diarization, inside the [voice post-processing](voice-post-processing.md) and from the embeddings the diarizer already computed, and after each enrollment, from the audio; threshold and runner-up margin plus one-to-one assignment, so one person is proposed for at most one voice per session |
 | Result | Name suggestions appear on the tiles and transcript rows with **à confirmer**; manual names stay separate from enrollment |
 | Traceability | Each stored sample keeps the session and voice it came from, in the keychain only. Settings › Audio et voix lists, per person, what each session added and can withdraw it. Samples stored before 0.9 are grouped as unknown origin |
 | Withdrawal | **Retirer** removes one session's samples. **Effacer l’empreinte** removes all samples and keeps the person. **Effacer et opposer** also blocks enrollment and recognition until **Lever l’exclusion**, after which a new enrollment is required |

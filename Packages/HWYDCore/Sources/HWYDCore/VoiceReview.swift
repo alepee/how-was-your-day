@@ -9,7 +9,7 @@ public struct VoiceSpan: Equatable, Sendable {
 
 /// Per-voice review data for one recording. Derived from segments, never persisted.
 public struct VoiceOverview: Identifiable, Equatable, Sendable {
-    public enum State: Equatable, Sendable { case unidentified, proposed, confirmed, ignored }
+    public enum State: Equatable, Sendable { case unidentified, proposed, confirmed, ignored, minor }
     public var speaker: Speaker
     public var segmentCount: Int
     public var speechDuration: Double
@@ -17,6 +17,7 @@ public struct VoiceOverview: Identifiable, Equatable, Sendable {
     public var id: UUID { speaker.id }
     public var state: State {
         if speaker.ignored { return .ignored }
+        if speaker.isMinor { return .minor }
         if speaker.confirmed { return .confirmed }
         return speaker.proposedIdentity == nil ? .unidentified : .proposed
     }
@@ -133,7 +134,9 @@ extension Recording {
             speakers[t].confirmed = false; speakers[t].personID = nil; speakers[t].proposedIdentity = nil
             speakers[t].label = SummaryLanguage.current.voiceToName
         }
-        speakers.append(voice)
+        var restored = voice
+        restored.automatic = nil
+        speakers.append(restored)
         transcriptVersion += 1
     }
 
@@ -165,7 +168,7 @@ extension Recording {
     }
 
     /// `originalSpeakerID` is left alone: it names the voice a merge absorbed, which `separateSpeaker` restores.
-    private mutating func moveToNewSpeaker(_ ids: Set<UUID>, from speakerID: UUID?, source: AudioSource? = nil) throws -> UUID {
+    mutating func moveToNewSpeaker(_ ids: Set<UUID>, from speakerID: UUID?, source: AudioSource? = nil) throws -> UUID {
         let position = speakerID.flatMap { id in speakers.firstIndex { $0.id == id } }
         guard let source = source ?? position.map({ speakers[$0].source }) else { throw StoreError.notFound }
         let moved = segments.indices.filter { ids.contains(segments[$0].id) && segments[$0].speakerID == speakerID }
@@ -178,7 +181,7 @@ extension Recording {
     }
 
     /// First "Voix N" no voice of the session, current or merged, already uses.
-    private func nextVoiceLabel() -> String {
+    func nextVoiceLabel() -> String {
         let language = SummaryLanguage.current
         let taken = Set((speakers + (absorbedSpeakers ?? [])).map(\.label))
         var number = speakers.count + 1
@@ -195,6 +198,8 @@ extension Recording {
         for index in speakers.indices where !speakers[index].confirmed && !speakers[index].ignored {
             guard let match = matches[speakers[index].id], let person = people.first(where: { $0.id == match.personID }) else { continue }
             speakers[index].proposedIdentity = match; speakers[index].label = person.name
+            // A recognised voice is never minor, however brief.
+            speakers[index].automatic = nil
             proposed += 1
         }
         return proposed
@@ -215,6 +220,12 @@ extension Recording {
                 speakers[index].proposedIdentity = nil; dropped += 1
             }
         }
+        // The smaller part of a split proposal keeps its suggestion under the same rule.
+        for index in (splitProposals ?? []).indices {
+            guard let match = splitProposals![index].proposedIdentity,
+                  !people.contains(where: { $0.id == match.personID && $0.recognitionEnabled && !$0.channels.isEmpty }) else { continue }
+            splitProposals![index].proposedIdentity = nil; dropped += 1
+        }
         return dropped
     }
 
@@ -227,13 +238,13 @@ extension Recording {
         let name = person.name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, name.count <= 120 else { throw StoreError.invalidName }
         speakers[index].label = name; speakers[index].personID = person.id
-        speakers[index].confirmed = true; speakers[index].proposedIdentity = nil
+        speakers[index].confirmed = true; speakers[index].proposedIdentity = nil; speakers[index].automatic = nil
         transcriptVersion += 1
     }
 
     private mutating func adoptIdentity(of identity: Speaker, at index: Int) {
         speakers[index].label = identity.label; speakers[index].personID = identity.personID
-        speakers[index].confirmed = true; speakers[index].proposedIdentity = nil
+        speakers[index].confirmed = true; speakers[index].proposedIdentity = nil; speakers[index].automatic = nil
     }
 
     /// Hides a voice that is not a participant (echo of the speakers, noise), or restores it.
@@ -242,6 +253,9 @@ extension Recording {
         guard let index = speakers.firstIndex(where: { $0.id == id }) else { throw StoreError.notFound }
         guard speakers[index].ignored != ignored else { return }
         speakers[index].ignored = ignored
+        // The user decided: this is no longer the post-processing's call. A voice restored after
+        // being set aside as an echo is a voice to name like any other.
+        speakers[index].automatic = nil
         transcriptVersion += 1
     }
 
