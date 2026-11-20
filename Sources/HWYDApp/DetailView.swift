@@ -121,7 +121,7 @@ struct DetailView: View {
             let queued = model.work.isQueued(.summary(session: recording.id))
             HStack {
                 Button(model.summaryID == recording.id ? "Génération…" : queued ? "En attente…" : recording.summary == nil ? "Générer une synthèse" : "Régénérer") { model.generateSummary() }
-                    .buttonStyle(StudioButtonStyle(primary: true)).disabled(!model.summaryAvailability.isReady || recording.segments.isEmpty)
+                    .buttonStyle(StudioButtonStyle(primary: true)).disabled(!model.summaryAvailability.canRequest || recording.segments.isEmpty || queued || model.summaryID == recording.id)
                 if model.summaryID == recording.id || queued { Button("Annuler") { model.cancelSummary(of: recording.id) }.buttonStyle(StudioButtonStyle()) }
                 if recording.summary != nil {
                     Menu {

@@ -3589,6 +3589,22 @@
         }
       }
     },
+    "Démarre à la fin du traitement en cours.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starts when the current processing ends."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Démarre à la fin du traitement en cours."
+          }
+        }
+      }
+    },
     "Démarrer l’enregistrement": {
       "localizations": {
         "en": {
@@ -7221,6 +7237,22 @@
         }
       }
     },
+    "Mémorisation de la voix de %@ annulée : son empreinte est modifiée.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Memorizing %@’s voice was cancelled: their voice print is being changed."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mémorisation de la voix de %@ annulée : son empreinte est modifiée."
+          }
+        }
+      }
+    },
     "Mémoriser": {
       "localizations": {
         "en": {
@@ -10533,6 +10565,22 @@
         }
       }
     },
+    "Une modification d’empreinte vocale est en cours.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A voice print change is in progress."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une modification d’empreinte vocale est en cours."
+          }
+        }
+      }
+    },
     "Une réunion va commencer": {
       "localizations": {
         "en": {
@@ -10773,6 +10821,22 @@
         }
       }
     },
+    "Voix de %@ non mémorisée : elle a changé depuis la demande.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@’s voice was not memorized: it changed since the request."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voix de %@ non mémorisée : elle a changé depuis la demande."
+          }
+        }
+      }
+    },
     "Voix ignorée : passages masqués du transcript, de l’export et de la synthèse": {
       "localizations": {
         "en": {
@@ -10993,6 +11057,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Votre agent garde vos notes ou votre mémoire dans un dossier ? Il s’en servira pour situer les personnes et les projets."
+          }
+        }
+      }
+    },
+    "Votre demande démarrera ensuite.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your request will start next."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre demande démarrera ensuite."
           }
         }
       }

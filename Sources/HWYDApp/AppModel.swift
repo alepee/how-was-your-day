@@ -475,7 +475,7 @@ final class AppModel: ObservableObject {
             do { try item.renameSpeaker(speakerID, to: name); update(id) { $0 = item } } catch { notifier.notify(.error(error.localizedDescription)); return }
         }
         editingSpeakerID = nil
-        enrollVoice(speakerID, as: person)
+        enrollVoice(speakerID, named: name, as: person, in: id)
     }
     /// Asks for confirmation before memorizing an already named voice.
     func requestEnrollment(_ speakerID: UUID) { enrollmentCandidateID = speakerID }
@@ -736,14 +736,20 @@ final class AppModel: ObservableObject {
             pendingRequests -= 1
         }
     }
-    /// Hands a job to the coordinator and tells the user why it was refused.
+    /// Hands a job to the coordinator. Every job runs or waits its turn; the user hears why a job
+    /// they asked for waits, or why it was refused. `automatic` requests stay silent: nobody asked
+    /// for them, and the controls they would have used already show their state.
     @discardableResult
-    /// `automatic` requests wait their turn and are refused silently: nobody asked for them, and
-    /// the controls they would have used already say why they cannot run.
     private func request(_ job: WorkJob, automatic: Bool = false, _ run: @escaping @MainActor @Sendable () async -> Void) async -> WorkDecision {
-        let decision = await coordinator.request(job, waits: automatic ? true : nil) { await run() }
+        let decision = await coordinator.request(job) { await run() }
         show(await coordinator.snapshot)
-        if case .refused(let refusal) = decision, !automatic { notifier.notify(.refusal(refusal)) }
+        guard !automatic else { return decision }
+        switch decision {
+        case .refused(let refusal): notifier.notify(.refusal(refusal))
+        // A transcription shows its wait in the session itself.
+        case .queued(let busy) where job.kind != .transcription: notifier.notify(.queued(behind: busy))
+        case .queued, .accepted: break
+        }
         return decision
     }
     /// A request the session or the service cannot serve, said to the user.
@@ -814,9 +820,12 @@ final class AppModel: ObservableObject {
             showSpeechLocales(locales)
             let request = TranscriptionRequest(session: item, language: language, diarize: diarizationEnabled, locales: locales)
             let result = try await workspace.transcription.transcribe(request)
+            // People as they are now: someone erased or opposed during the transcription is not proposed.
+            let everyone = (try? await workspace.store?.people()) ?? people
             do {
                 try await library.apply(id, ifStillAt: originalVersion) { latest in
                     try latest.applyTranscription(result)
+                    latest.resolveProposals(among: everyone)
                     if let language { latest.speechLanguage = language }
                 }
             } catch is StaleResult { throw TranscriptionError.staleResult }
@@ -910,27 +919,42 @@ final class AppModel: ObservableObject {
     }
     // MARK: Voice memory
 
-    /// Requests a voice memory job, about `session` or about people only, and reports its failure.
-    private func runVoiceRequest(session: UUID? = nil, _ body: @escaping @MainActor @Sendable (VoiceRequests, SessionLibrary) async throws -> VoiceResult) {
-        enqueue { [weak self] in await self?.requestVoice(session: session, body) }
+    /// The voice memory use cases, or why they cannot run: the examples, then a missing store.
+    private func voiceRequests() -> Result<(VoiceRequests, SessionLibrary), WorkRefusal> {
+        let workspace = workspace
+        if let refusal = workspace.voiceMemory.refusal { return .failure(refusal) }
+        guard let store = workspace.store else { return .failure(.storeUnavailable) }
+        return .success((VoiceRequests(people: store, memory: workspace.voiceMemory), workspace.library))
+    }
+    /// Requests a voice memory job and reports its failure.
+    private func runVoiceRequest(_ job: WorkJob, _ body: @escaping @MainActor @Sendable (VoiceRequests, SessionLibrary) async throws -> VoiceResult) {
+        enqueue { [weak self] in await self?.requestVoice(job, body) }
     }
     /// The voice memory adapter refuses first (the examples), then a missing store; otherwise the
-    /// job waits for the coordinator. Its typed result becomes the notice.
+    /// job runs or waits its turn. Its typed result becomes the notice. A job reads the session
+    /// when it starts, so a request that waited sees the edits made meanwhile.
     @discardableResult
-    private func requestVoice(session: UUID?, _ body: @escaping @MainActor @Sendable (VoiceRequests, SessionLibrary) async throws -> VoiceResult) async -> WorkDecision {
-        let workspace = workspace
-        if let refusal = workspace.voiceMemory.refusal { return refuse(refusal) }
-        guard let store = workspace.store else { return refuse(.storeUnavailable) }
-        if let session, workspace.library.recording(session)?.state == .recording { return refuse(.unavailable(StoreError.capturing.localizedDescription)) }
-        let requests = VoiceRequests(people: store, memory: workspace.voiceMemory), library = workspace.library
-        return await request(.voice(session: session)) { [weak self] in
-            do { self?.show(try await body(requests, library)) }
-            catch {
-                self?.notifier.notify(.error(String(localized: "Identité vocale : \(error.localizedDescription)")))
-                // A request can fail after changing someone, as an opposition whose erasure failed.
-                if let people = try? await store.people() { self?.people = people }
-            }
+    private func requestVoice(_ job: WorkJob, _ body: @escaping @MainActor @Sendable (VoiceRequests, SessionLibrary) async throws -> VoiceResult) async -> WorkDecision {
+        let (requests, library): (VoiceRequests, SessionLibrary)
+        switch voiceRequests() {
+        case .failure(let refusal): return refuse(refusal)
+        case .success(let ready): (requests, library) = ready
         }
+        if let session = job.sessionID, library.recording(session)?.state == .recording { return refuse(.unavailable(StoreError.capturing.localizedDescription)) }
+        return await request(job) { [weak self] in await self?.perform(body, requests: requests, library: library) }
+    }
+    private func perform(_ body: @MainActor @Sendable (VoiceRequests, SessionLibrary) async throws -> VoiceResult, requests: VoiceRequests, library: SessionLibrary) async {
+        do { show(try await body(requests, library)) }
+        catch let refusal as EnrollmentRefusal { notifier.notify(.enrollmentRefused(refusal)); await reloadPeople(requests) }
+        catch is CancellationError {}
+        catch {
+            notifier.notify(.error(String(localized: "Identité vocale : \(error.localizedDescription)")))
+            // A request can fail after changing someone, as an opposition whose erasure failed.
+            await reloadPeople(requests)
+        }
+    }
+    private func reloadPeople(_ requests: VoiceRequests) async {
+        if let people = try? await requests.people.people() { self.people = people }
     }
     private func show(_ result: VoiceResult) {
         people = result.people
@@ -942,43 +966,72 @@ final class AppModel: ObservableObject {
         }
         if let notice = UserNotice.voice(result.outcome) { notifier.notify(notice) }
     }
-    /// Memorizes a voice of the selected session, then shows who its other voices resemble.
-    private func enrollVoice(_ speakerID: UUID, as person: VoicePerson) {
-        guard let item = selected else { return }
-        runVoiceRequest(session: item.id) { requests, library in try await requests.enroll(person, speakerID: speakerID, in: item, library: library) }
+    /// Memorizes a voice of a session under `name`. The job waits its turn if other work runs, and
+    /// reads the voice again when it starts.
+    private func enrollVoice(_ speakerID: UUID, named name: String, as person: VoicePerson, in session: UUID) {
+        runVoiceRequest(.enrollment(session: session, person: person.id)) { requests, library in
+            try await requests.enroll(named: name, speakerID: speakerID, session: session, library: library)
+        }
     }
     /// Proposes a known person for the unconfirmed voices of the selected session.
     func identifyVoices() {
         guard let id = selected?.id else { return }
         enqueue { [weak self] in await self?.requestIdentification(of: id) }
     }
-    /// Proposes a known person for the session's unconfirmed voices, as it is now.
+    /// Proposes a known person for the session's unconfirmed voices, as they are when the job starts.
     @discardableResult
     func requestIdentification(of id: UUID) async -> WorkDecision {
-        guard let item = recordings.first(where: { $0.id == id }) else { return refuse(.sessionNotFound) }
-        return await requestVoice(session: id) { requests, library in try await requests.identify(in: item, library: library) }
+        guard recordings.contains(where: { $0.id == id }) else { return refuse(.sessionNotFound) }
+        return await requestVoice(.voice(session: id)) { requests, library in try await requests.identify(session: id, library: library) }
     }
-    /// Reads what each session added to a person's voice print.
+    /// The voice jobs of a session that wait their turn.
+    func queuedVoiceWork(of session: UUID) -> [WorkJob] { work.queued.filter { $0.kind == .voice && $0.sessionID == session } }
+    /// Drops the voice jobs of a session that wait their turn; a running one goes on.
+    func cancelQueuedVoiceWork(of session: UUID) {
+        enqueue { [weak self, coordinator] in
+            await coordinator.dropQueued { $0.kind == .voice && $0.sessionID == session }
+            self?.show(await coordinator.snapshot)
+        }
+    }
+    /// Reads what each session added to a person's voice print. A quick read: it waits for no job.
     func loadVoiceSources(of personID: UUID) {
-        runVoiceRequest { requests, _ in try await requests.sources(of: personID) }
+        guard case .success(let (requests, library)) = voiceRequests() else { return }
+        Task { [weak self] in await self?.perform({ requests, _ in try await requests.sources(of: personID) }, requests: requests, library: library) }
     }
     /// Erases a person's voice print. The name stays in sessions; the voice can be memorized again.
     func forgetVoice(of person: VoicePerson) {
-        runVoiceRequest { requests, _ in try await requests.forget(person) }
+        changeVoicePrint(of: person, .forget) { requests, _ in try await requests.forget(person) }
     }
     /// Records the person's opposition, then erases their voice print. Also retries an erasure
     /// that failed after an opposition.
     func opposeVoice(of person: VoicePerson) {
-        runVoiceRequest { requests, _ in try await requests.oppose(person) }
+        changeVoicePrint(of: person, .oppose) { requests, _ in try await requests.oppose(person) }
     }
     /// Withdraws what one session added to a person's voice print.
     func withdrawVoiceSource(_ recordingID: UUID?, of person: VoicePerson) {
-        runVoiceRequest { requests, _ in try await requests.withdraw(recordingID, of: person) }
+        changeVoicePrint(of: person, .withdraw(session: recordingID)) { requests, _ in try await requests.withdraw(recordingID, of: person) }
     }
     /// Ends an opposition. Any sample left by an interrupted erasure goes first, so recognition
     /// resumes only after a new enrollment.
     func liftOpposition(_ person: VoicePerson) {
-        runVoiceRequest { requests, _ in try await requests.liftOpposition(person) }
+        changeVoicePrint(of: person, .liftOpposition) { requests, _ in try await requests.liftOpposition(person) }
+    }
+    /// A voice print change runs on its own lane, beside a transcription, as soon as no voice job
+    /// runs. The enrollments it overrides are cancelled first: erasing or opposing drops every
+    /// enrollment of the person still to come, withdrawing a session drops the one of that session.
+    private func changeVoicePrint(of person: VoicePerson, _ change: VoicePrintChange, _ body: @escaping @MainActor @Sendable (VoiceRequests, SessionLibrary) async throws -> VoiceResult) {
+        enqueue { [weak self, coordinator] in
+            let overridden: @Sendable (WorkJob) -> Bool = { job in
+                guard case .enrollment(let session, let personID) = job, personID == person.id else { return false }
+                switch change {
+                case .forget, .oppose: return true
+                case .withdraw(let source): return source == session
+                case .liftOpposition: return false
+                }
+            }
+            if !(await coordinator.cancel(where: overridden)).isEmpty { self?.notifier.notify(.enrollmentCancelled(name: person.name)) }
+            await self?.requestVoice(.voicePrint(person: person.id, change: change), body)
+        }
     }
     func chooseSummaryAgentDirectory() {
         let panel = NSOpenPanel(); panel.canChooseFiles = false; panel.canChooseDirectories = true

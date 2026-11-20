@@ -15,6 +15,11 @@ Memorize a voice from its tile in a session. A named voice offers **Mémoriser c
 | Failure | A locked keychain leaves a usable transcript and a visible warning |
 | Storage | Vectors and their origin only in the local keychain. SQLite holds person metadata and enrolled channel names |
 
+Voice memory requests are never refused because other work runs:
+
+- **Mémoriser** and **Reconnaître les voix** wait their turn behind a transcription, a summary or a model install. The name is applied at once; the tiles show « En attente… » with **Annuler**. When its turn comes, the enrollment reads the voice again: if it no longer bears that name, or the person opposed meanwhile, nothing is memorized and a notice says so.
+- **Retirer**, **Effacer l’empreinte**, **Effacer et opposer** and **Lever l’exclusion** run at once, even during a transcription. They only wait for an enrollment or a recognition that is running, and go before any that waits. Erasing or opposing cancels the person's enrollments still to come, running or waiting; withdrawing a session cancels its enrollment for that person. A transcription that read a print before it was erased or opposed does not propose that person.
+
 Corrections can be undone: each voice correction shows **Annuler** in its notification, and a voice merged into another on the same track can be split back later with **Séparer** in the tile menu.
 
 When diarization gives one voice to two people who spoke in turn, **Scinder la voix à partir d’ici…** in a passage's menu cuts the voice at that passage. The passages before it and those from it on become two voices on the same track: a named voice lets the user choose which part keeps its name, and the other part becomes a new voice whose name editor opens. **Nouvelle voix…** does the same for one passage. Like naming, splitting edits the transcript only and never reads or writes a voice print. A print already memorized from a voice that held two people is not corrected by the split: withdraw that session's samples in Settings › Audio et voix.

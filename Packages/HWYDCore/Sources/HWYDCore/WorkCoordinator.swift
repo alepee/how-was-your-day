@@ -5,11 +5,14 @@ import Foundation
 /// no condition of its own.
 public enum Availability<Unavailability: Equatable & Sendable>: Equatable, Sendable {
     case ready
-    /// Another job runs or waits; this one would be refused or queued.
+    /// Another job runs or waits; this one would wait its turn.
     case busy(WorkBusy)
     case unavailable(Unavailability)
 
     public var isReady: Bool { if case .ready = self { true } else { false } }
+    /// The work can be asked for: it starts now or waits its turn. Only the service's own
+    /// conditions keep it from being asked.
+    public var canRequest: Bool { if case .unavailable = self { false } else { true } }
 
     /// The service's own conditions come first: a service that cannot run says why even while
     /// other work is busy. A ready service takes the coordinator's state.
@@ -30,40 +33,72 @@ extension Availability where Unavailability: LocalizedError {
     }
 }
 
-/// One piece of heavy work. Only one runs at a time: they share the CPU, the Neural Engine,
-/// the helper's lock and, for summaries, the transcript they read.
+/// What a voice print job changes for one person. These jobs are quick writes that erase or
+/// unblock: they run on their own lane, beside the heavy work.
+public enum VoicePrintChange: Hashable, Sendable {
+    case forget
+    case oppose
+    /// What one session added to the print (nil: samples of unknown origin).
+    case withdraw(session: UUID?)
+    case liftOpposition
+}
+
+/// One piece of work. Heavy jobs run one at a time: they share the CPU, the Neural Engine and,
+/// for summaries, the transcript they read. Voice print changes run on a lane of their own, so an
+/// erasure or an opposition never waits for a transcription.
 public enum WorkJob: Hashable, Sendable {
     case transcription(session: UUID)
     case summary(session: UUID)
-    /// A voice memory job, about one session (enrollment, recognition) or about people only (nil).
+    /// Recognition of a session's voices, or a voice memory job with no session (nil).
     case voice(session: UUID?)
+    /// Memorizing a voice of `session` as `person`.
+    case enrollment(session: UUID, person: UUID)
     case speechModel(locale: String)
     case diarizer
+    /// A change to one person's voice print.
+    case voicePrint(person: UUID, change: VoicePrintChange)
 
-    public enum Kind: Hashable, Sendable { case transcription, summary, voice, modelInstall }
+    public enum Kind: Hashable, Sendable { case transcription, summary, voice, modelInstall, voicePrint }
+    /// Jobs on different lanes run side by side; jobs on one lane run one at a time.
+    public enum Lane: Hashable, Sendable, CaseIterable { case heavy, voicePrints }
 
     public var kind: Kind {
         switch self {
         case .transcription: .transcription
         case .summary: .summary
-        case .voice: .voice
+        case .voice, .enrollment: .voice
         case .speechModel, .diarizer: .modelInstall
+        case .voicePrint: .voicePrint
         }
     }
 
-    /// The session the job reads or writes, if any.
+    public var lane: Lane { kind == .voicePrint ? .voicePrints : .heavy }
+
+    /// The session the job reads or writes, if any. A voice print change names the session it
+    /// withdraws from, but reads and writes no session.
     public var sessionID: UUID? {
         switch self {
         case .transcription(let id), .summary(let id): id
         case .voice(let id): id
-        case .speechModel, .diarizer: nil
+        case .enrollment(let id, _): id
+        case .speechModel, .diarizer, .voicePrint: nil
         }
     }
 
-    /// A transcription asked while other work runs waits its turn: the end of a capture must not
-    /// lose it. Other jobs are started by the user, who sees the refusal and its reason; a request
-    /// that nobody watches (an automatic summary) asks to wait with `request(_:waits:run:)`.
-    public var waitsWhenBusy: Bool { kind == .transcription }
+    /// The person whose print the job writes, if any.
+    public var personID: UUID? {
+        switch self {
+        case .enrollment(_, let person), .voicePrint(let person, _): person
+        default: nil
+        }
+    }
+
+    /// Two jobs on different lanes that must not run at the same time: a voice print change and a
+    /// voice job, which both read or write prints. The helper's print lock covers the short
+    /// recognition step of a transcription.
+    public func conflicts(with other: WorkJob) -> Bool {
+        lane != other.lane && Set([kind, other.kind]) == [.voice, .voicePrint]
+    }
 }
 
 /// The job that keeps other work from starting.
@@ -77,14 +112,13 @@ public struct WorkBusy: LocalizedError, Hashable, Sendable {
         case .summary: String(localized: "Une synthèse est en cours.", bundle: .hwyd)
         case .voice: String(localized: "Un traitement des voix est en cours.", bundle: .hwyd)
         case .modelInstall: String(localized: "Une installation de modèle est en cours.", bundle: .hwyd)
+        case .voicePrint: String(localized: "Une modification d’empreinte vocale est en cours.", bundle: .hwyd)
         }
     }
 }
 
 /// Why a request was not taken.
 public enum WorkRefusal: LocalizedError, Equatable, Sendable {
-    /// Other work runs and this kind of job does not wait.
-    case busy(WorkBusy)
     /// The same job already runs or waits.
     case alreadyRequested(WorkJob)
     /// The service or the session cannot run this job; the reason is already localized.
@@ -102,7 +136,6 @@ public enum WorkRefusal: LocalizedError, Equatable, Sendable {
 
     public var errorDescription: String? {
         switch self {
-        case .busy(let busy): (busy.errorDescription ?? "") + " " + String(localized: "Réessayez une fois ce traitement terminé.", bundle: .hwyd)
         case .alreadyRequested: String(localized: "Ce traitement est déjà en cours ou en attente.", bundle: .hwyd)
         case .unavailable(let reason): reason
         case .examples: String(localized: "Les exemples ne lancent aucun traitement.", bundle: .hwyd)
@@ -126,42 +159,53 @@ public enum WorkDecision: Equatable, Sendable {
 /// The coordinator's state at one moment. `revision` grows with every change, so an observer
 /// can drop a snapshot older than the one it shows.
 public struct WorkSnapshot: Equatable, Sendable {
+    /// The heavy job that runs.
     public var running: WorkJob?
-    /// Jobs waiting, in the order they will start.
+    /// The voice print change that runs, beside the heavy job.
+    public var runningVoicePrint: WorkJob?
+    /// Jobs waiting, in the order they were asked; each lane starts its own in that order.
     public var queued: [WorkJob]
     public var revision: Int
 
-    public init(running: WorkJob? = nil, queued: [WorkJob] = [], revision: Int = 0) {
-        self.running = running; self.queued = queued; self.revision = revision
+    public init(running: WorkJob? = nil, runningVoicePrint: WorkJob? = nil, queued: [WorkJob] = [], revision: Int = 0) {
+        self.running = running; self.runningVoicePrint = runningVoicePrint; self.queued = queued; self.revision = revision
     }
 
     /// Some work runs or waits.
-    public var isBusy: Bool { running != nil || !queued.isEmpty }
-    /// Busy with the running job, or with the first waiting one between two jobs.
+    public var isBusy: Bool { running != nil || runningVoicePrint != nil || !queued.isEmpty }
+    /// Busy with the running heavy job, or with the first waiting one between two jobs. A new
+    /// heavy job would wait behind it.
     public var availability: Availability<Never> {
-        (running ?? queued.first).map { .busy(WorkBusy(job: $0)) } ?? .ready
+        (running ?? queued.first { $0.lane == .heavy }).map { .busy(WorkBusy(job: $0)) } ?? .ready
     }
-    public func isRunning(_ job: WorkJob) -> Bool { running == job }
+    public func isRunning(_ job: WorkJob) -> Bool { running == job || runningVoicePrint == job }
     public func isQueued(_ job: WorkJob) -> Bool { queued.contains(job) }
     /// Jobs that run or wait on this session.
     public func jobs(for session: UUID) -> [WorkJob] {
-        ([running].compactMap { $0 } + queued).filter { $0.sessionID == session }
+        ([running, runningVoicePrint].compactMap { $0 } + queued).filter { $0.sessionID == session }
     }
 }
 
-/// Owns heavy-work exclusivity: transcription, voice jobs, model installs and summaries run one at
-/// a time. Callers request a job and get a decision; they never check a busy flag first.
+/// Owns work exclusivity. Heavy jobs (transcription, voice recognition and enrollment, model
+/// installs, summaries) run one at a time, in the order asked; voice print changes run one at a
+/// time on their own lane, beside them, but never with a voice job. Every request runs or waits:
+/// callers request a job and get a decision; they never check a busy flag first.
 ///
 /// `hwyd-pipeline` keeps its own `flock` on the store, for a second process (another app instance,
-/// a script) that this coordinator cannot see.
+/// a script) that this coordinator cannot see, and a short lock around the voice prints.
 public actor WorkCoordinator {
     private struct Entry {
         let job: WorkJob
         let run: @Sendable () async -> Void
     }
-    private var running: (job: WorkJob, token: UUID, task: Task<Void, Never>)?
-    /// The running job was cancelled: it ends on its own, and the same job asked again waits for it.
-    private var runningCancelled = false
+    private struct Running {
+        let job: WorkJob
+        let token: UUID
+        let task: Task<Void, Never>
+        /// The job was cancelled: it ends on its own, and the same job asked again waits for it.
+        var cancelled = false
+    }
+    private var running: [WorkJob.Lane: Running] = [:]
     private var queue: [Entry] = []
     private var revision = 0
     private var observers: [UUID: AsyncStream<WorkSnapshot>.Continuation] = [:]
@@ -172,41 +216,49 @@ public actor WorkCoordinator {
     public init() {}
 
     public var snapshot: WorkSnapshot {
-        WorkSnapshot(running: running?.job, queued: queue.map(\.job), revision: revision)
+        WorkSnapshot(running: running[.heavy]?.job, runningVoicePrint: running[.voicePrints]?.job, queued: queue.map(\.job), revision: revision)
     }
 
-    /// Starts `run` now if nothing else runs, queues it if it waits, or refuses it. A job waits
-    /// when its kind does (`WorkJob.waitsWhenBusy`), unless `waits` says otherwise: an automatic
-    /// summary waits its turn, one the user asks for is refused with the reason. A cancelled job
-    /// sees `Task.isCancelled`; it still runs to its end, cleanup included, before the next one starts.
-    /// The same job asked again while a cancelled run ends is queued behind it, whatever its kind.
+    /// Starts `run` now if its lane is free and nothing conflicting runs, or queues it behind the
+    /// work before it. A cancelled job sees `Task.isCancelled`; it still runs to its end, cleanup
+    /// included, before the next one of its lane starts. The same job asked again while a
+    /// cancelled run ends is queued behind it.
     @discardableResult
-    public func request(_ job: WorkJob, waits: Bool? = nil, run: @escaping @Sendable () async -> Void) -> WorkDecision {
-        if queue.contains(where: { $0.job == job }) || (running?.job == job && !runningCancelled) { return .refused(.alreadyRequested(job)) }
-        guard let current = running?.job else {
-            start(Entry(job: job, run: run)); changed()
-            return .accepted
+    public func request(_ job: WorkJob, run: @escaping @Sendable () async -> Void) -> WorkDecision {
+        let current = running[job.lane]
+        if queue.contains(where: { $0.job == job }) || (current?.job == job && current?.cancelled == false) { return .refused(.alreadyRequested(job)) }
+        if let blocker = blocker(of: job) {
+            queue.append(Entry(job: job, run: run)); changed()
+            return .queued(behind: WorkBusy(job: blocker))
         }
-        guard waits ?? job.waitsWhenBusy || current == job else { return .refused(.busy(WorkBusy(job: current))) }
-        queue.append(Entry(job: job, run: run)); changed()
-        return .queued(behind: WorkBusy(job: current))
+        start(Entry(job: job, run: run)); changed()
+        return .accepted
     }
 
     /// Cancels the jobs that match: a running one is asked to stop, waiting ones are dropped.
-    public func cancel(where matches: @Sendable (WorkJob) -> Bool) {
+    /// Returns the jobs it cancelled, running ones included.
+    @discardableResult
+    public func cancel(where matches: @Sendable (WorkJob) -> Bool) -> [WorkJob] {
+        var cancelled = queue.map(\.job).filter(matches)
         let before = queue.count
         queue.removeAll { matches($0.job) }
-        if let running, matches(running.job) { running.task.cancel(); runningCancelled = true }
+        for lane in WorkJob.Lane.allCases {
+            guard var current = running[lane], !current.cancelled, matches(current.job) else { continue }
+            current.task.cancel(); current.cancelled = true; running[lane] = current
+            cancelled.insert(current.job, at: 0)
+        }
         if queue.count != before { changed() }
+        return cancelled
     }
 
-    public func cancel(_ job: WorkJob) { cancel { $0 == job } }
+    @discardableResult
+    public func cancel(_ job: WorkJob) -> [WorkJob] { cancel { $0 == job } }
 
-    /// Drops the waiting jobs that match; the running one goes on.
+    /// Drops the waiting jobs that match; the running ones go on.
     public func dropQueued(where matches: @Sendable (WorkJob) -> Bool) {
         let before = queue.count
         queue.removeAll { matches($0.job) }
-        if queue.count != before { changed() }
+        if queue.count != before { startWaiting(); changed() }
     }
     public func cancelAll() { cancel { _ in true } }
 
@@ -243,20 +295,40 @@ public actor WorkCoordinator {
         return stream
     }
 
+    /// What keeps `job` from starting now, if anything: the job running on its lane, a job of
+    /// its lane asked before it, a conflicting job running on the other lane, or, for a voice job,
+    /// a voice print change waiting for its turn, which goes first.
+    private func blocker(of job: WorkJob) -> WorkJob? {
+        running[job.lane]?.job
+            ?? queue.first { $0.job.lane == job.lane }?.job
+            ?? running.values.first { $0.job.conflicts(with: job) }?.job
+            ?? (job.lane == .heavy ? queue.first { $0.job.conflicts(with: job) }?.job : nil)
+    }
+
     private func start(_ entry: Entry) {
         let token = UUID()
         let run = entry.run
         let task = Task { [weak self] in
             await run()
-            await self?.finished(token)
+            await self?.finished(entry.job.lane, token)
         }
-        running = (entry.job, token, task); runningCancelled = false
+        running[entry.job.lane] = Running(job: entry.job, token: token, task: task)
     }
 
-    private func finished(_ token: UUID) {
-        guard running?.token == token else { return }
-        running = nil; runningCancelled = false
-        if !queue.isEmpty { start(queue.removeFirst()) }
+    /// Starts, on each free lane, the first job of that lane that nothing conflicting holds back.
+    /// Voice print changes start first: a voice job waiting beside one waits for it.
+    private func startWaiting() {
+        for lane in [WorkJob.Lane.voicePrints, .heavy] where running[lane] == nil {
+            guard let index = queue.firstIndex(where: { $0.job.lane == lane }),
+                  !running.values.contains(where: { $0.job.conflicts(with: queue[index].job) }) else { continue }
+            start(queue.remove(at: index))
+        }
+    }
+
+    private func finished(_ lane: WorkJob.Lane, _ token: UUID) {
+        guard running[lane]?.token == token else { return }
+        running[lane] = nil
+        startWaiting()
         changed()
     }
 

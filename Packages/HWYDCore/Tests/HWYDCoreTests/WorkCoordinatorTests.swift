@@ -41,32 +41,83 @@ final class WorkCoordinatorTests: XCTestCase {
         XCTAssertEqual(after.availability, .ready)
     }
 
-    func testUserStartedJobsAreRefusedWithTheRunningJobAsReason() async {
-        let coordinator = WorkCoordinator(), gate = Gate()
-        await coordinator.request(.transcription(session: first)) { await gate.wait() }
-        let busy = WorkBusy(job: .transcription(session: first))
-        for job in [WorkJob.summary(session: second), .voice(session: nil), .voice(session: second), .speechModel(locale: "en-US"), .diarizer] {
-            let decision = await coordinator.request(job) { XCTFail("refused job ran") }
-            XCTAssertEqual(decision, .refused(.busy(busy)), "\(job)")
-        }
-        let again = await coordinator.request(.transcription(session: first)) {}
-        XCTAssertEqual(again, .refused(.alreadyRequested(.transcription(session: first))))
-        XCTAssertEqual(WorkRefusal.busy(busy).localizedDescription.isEmpty, false)
-        await gate.release()
-        await coordinator.idle()
-    }
-
-    func testASummaryAskedToWaitIsQueuedBehindTheRunningJob() async {
+    func testEveryHeavyJobWaitsItsTurnInTheOrderAsked() async {
         let coordinator = WorkCoordinator(), gate = Gate()
         await coordinator.request(.transcription(session: first)) { await gate.record("transcription"); await gate.wait() }
-        let decision = await coordinator.request(.summary(session: second), waits: true) { await gate.record("summary") }
-        XCTAssertEqual(decision, .queued(behind: WorkBusy(job: .transcription(session: first))))
+        let busy = WorkBusy(job: .transcription(session: first))
+        let jobs: [(WorkJob, String)] = [(.summary(session: second), "summary"), (.enrollment(session: second, person: first), "enrollment"),
+                                         (.voice(session: second), "identification"), (.speechModel(locale: "en-US"), "model"), (.diarizer, "diarizer")]
+        for (job, name) in jobs {
+            let decision = await coordinator.request(job) { await gate.record(name) }
+            XCTAssertEqual(decision, .queued(behind: busy), "\(job)")
+        }
         let again = await coordinator.request(.summary(session: second)) {}
         XCTAssertEqual(again, .refused(.alreadyRequested(.summary(session: second))))
         await gate.release()
         await coordinator.idle()
         let log = await gate.log
-        XCTAssertEqual(log, ["transcription", "summary"])
+        XCTAssertEqual(log, ["transcription", "summary", "enrollment", "identification", "model", "diarizer"])
+    }
+
+    func testAVoicePrintChangeRunsBesideATranscription() async {
+        let coordinator = WorkCoordinator(), gate = Gate()
+        await coordinator.request(.transcription(session: first)) { await gate.wait(); await gate.record("transcription") }
+        let erasure = WorkJob.voicePrint(person: second, change: .oppose)
+        let decision = await coordinator.request(erasure) { await gate.record("opposition") }
+        XCTAssertEqual(decision, .accepted)
+        // The opposition ends while the transcription still runs.
+        while await coordinator.snapshot.runningVoicePrint != nil { await Task.yield() }
+        let snapshot = await coordinator.snapshot
+        XCTAssertEqual(snapshot.running, .transcription(session: first))
+        XCTAssertEqual(snapshot.availability, .busy(WorkBusy(job: .transcription(session: first))))
+        await gate.release()
+        await coordinator.idle()
+        let log = await gate.log
+        XCTAssertEqual(log, ["opposition", "transcription"])
+    }
+
+    func testAVoicePrintChangeAndAVoiceJobNeverRunTogether() async {
+        let coordinator = WorkCoordinator(), gate = Gate()
+        let enrollment = WorkJob.enrollment(session: first, person: second)
+        await coordinator.request(enrollment) { await gate.record("enrollment"); await gate.wait() }
+        let erasure = WorkJob.voicePrint(person: second, change: .forget)
+        let decision = await coordinator.request(erasure) { await gate.record("erasure") }
+        XCTAssertEqual(decision, .queued(behind: WorkBusy(job: enrollment)))
+        // A voice job asked meanwhile waits behind the enrollment, and then for the erasure.
+        await coordinator.request(.voice(session: first)) { await gate.record("identification") }
+        await gate.release()
+        await coordinator.idle()
+        let log = await gate.log
+        XCTAssertEqual(log, ["enrollment", "erasure", "identification"])
+    }
+
+    func testVoicePrintChangesRunOneAtATimeInOrder() async {
+        let coordinator = WorkCoordinator(), gate = Gate()
+        let forget = WorkJob.voicePrint(person: first, change: .forget)
+        await coordinator.request(forget) { await gate.record("forget"); await gate.wait() }
+        let decision = await coordinator.request(.voicePrint(person: second, change: .withdraw(session: nil))) { await gate.record("withdraw") }
+        XCTAssertEqual(decision, .queued(behind: WorkBusy(job: forget)))
+        let other = await coordinator.request(.voicePrint(person: second, change: .withdraw(session: first))) { await gate.record("withdraw session") }
+        XCTAssertEqual(other, .queued(behind: WorkBusy(job: forget)), "another session is another job")
+        await gate.release()
+        await coordinator.idle()
+        let log = await gate.log
+        XCTAssertEqual(log, ["forget", "withdraw", "withdraw session"])
+    }
+
+    func testCancelReturnsWhatItCancelled() async {
+        let coordinator = WorkCoordinator(), gate = Gate()
+        let running = WorkJob.enrollment(session: first, person: first), waiting = WorkJob.enrollment(session: second, person: first)
+        await coordinator.request(running) { await gate.wait() }
+        await coordinator.request(waiting) { XCTFail("dropped job ran") }
+        await coordinator.request(.summary(session: first)) {}
+        let person = first
+        let cancelled = await coordinator.cancel { $0.personID == person }
+        XCTAssertEqual(cancelled, [running, waiting])
+        let again = await coordinator.cancel { $0.personID == person }
+        XCTAssertEqual(again, [], "a cancelled run is not cancelled twice")
+        await gate.release()
+        await coordinator.idle()
     }
 
     func testCancellingStopsTheRunningJobAndDropsWaitingOnes() async {
@@ -105,7 +156,7 @@ final class WorkCoordinatorTests: XCTestCase {
     func testDroppingQueuedJobsLeavesTheRunningOne() async {
         let coordinator = WorkCoordinator(), gate = Gate()
         await coordinator.request(.summary(session: first)) { await gate.wait(); await gate.record("first") }
-        await coordinator.request(.summary(session: second), waits: true) { await gate.record("second") }
+        await coordinator.request(.summary(session: second)) { await gate.record("second") }
         await coordinator.dropQueued { $0.kind == .summary }
         let snapshot = await coordinator.snapshot
         XCTAssertEqual(snapshot.running, .summary(session: first))
@@ -178,12 +229,20 @@ final class WorkCoordinatorTests: XCTestCase {
         XCTAssertNotNil(SummaryAvailability.ready.combined(with: busy).reason)
     }
 
-    func testJobsKnowTheirSessionAndWhetherTheyWait() {
+    func testJobsKnowTheirSessionLaneAndConflicts() {
         XCTAssertEqual(WorkJob.voice(session: first).sessionID, first)
         XCTAssertNil(WorkJob.voice(session: nil).sessionID)
         XCTAssertNil(WorkJob.diarizer.sessionID)
+        XCTAssertEqual(WorkJob.enrollment(session: first, person: second).sessionID, first)
+        XCTAssertEqual(WorkJob.enrollment(session: first, person: second).personID, second)
+        XCTAssertNil(WorkJob.voicePrint(person: second, change: .withdraw(session: first)).sessionID, "a print change reads no session")
         XCTAssertEqual(WorkJob.speechModel(locale: "fr-FR").kind, .modelInstall)
-        XCTAssertTrue(WorkJob.transcription(session: first).waitsWhenBusy)
-        XCTAssertFalse(WorkJob.summary(session: first).waitsWhenBusy)
+        XCTAssertEqual(WorkJob.voicePrint(person: first, change: .forget).lane, .voicePrints)
+        XCTAssertEqual(WorkJob.transcription(session: first).lane, .heavy)
+        let change = WorkJob.voicePrint(person: first, change: .oppose)
+        XCTAssertTrue(change.conflicts(with: .voice(session: nil)))
+        XCTAssertTrue(WorkJob.enrollment(session: first, person: second).conflicts(with: change))
+        XCTAssertFalse(change.conflicts(with: .transcription(session: first)))
+        XCTAssertFalse(change.conflicts(with: .voicePrint(person: second, change: .forget)), "same lane: ordered, not a conflict")
     }
 }

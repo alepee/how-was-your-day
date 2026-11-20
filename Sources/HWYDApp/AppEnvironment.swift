@@ -199,6 +199,14 @@ struct CaptureSource {
 extension UserNotice {
     /// A request that was not taken, with its reason.
     static func refusal(_ refusal: WorkRefusal) -> UserNotice { .info(refusal.localizedDescription) }
+    /// A job the user asked for waits behind the work in progress.
+    static func queued(behind busy: WorkBusy) -> UserNotice {
+        .info((busy.errorDescription ?? "") + " " + String(localized: "Votre demande démarrera ensuite."))
+    }
+    /// An erasure or an opposition dropped an enrollment that had not run yet.
+    static func enrollmentCancelled(name: String) -> UserNotice {
+        .info(String(localized: "Mémorisation de la voix de \(name) annulée : son empreinte est modifiée."))
+    }
 
     /// What the user is told after a voice memory request; nil when the screen shows it already.
     static func voice(_ outcome: VoiceOutcome) -> UserNotice? {
@@ -208,6 +216,7 @@ extension UserNotice {
                 : String(localized: "\(proposed) autres voix ressemblent à des personnes connues, à confirmer.")
             return .info([String(localized: "Voix de \(name) mémorisée."), found].compactMap { $0 }.joined(separator: " "))
         case .enrolledSessionChanged(let name): return .info(String(localized: "Voix de \(name) mémorisée."))
+        case .enrollmentSkipped(let name): return .info(String(localized: "Voix de \(name) non mémorisée : elle a changé depuis la demande."))
         case .identified(let proposed): return .info(String(localized: "\(proposed) correspondance(s) proposée(s), à confirmer."))
         case .identificationSessionChanged: return .info(String(localized: "La session a changé pendant la reconnaissance. Aucune proposition appliquée."))
         case .sourcesRead: return nil

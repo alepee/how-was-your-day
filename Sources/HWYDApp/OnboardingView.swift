@@ -93,7 +93,7 @@ private struct OnboardingStepView: View {
             } else if model.installedSpeechLocales.isEmpty {
                 if let locale = suggestedLocale {
                     Button("Installer le modèle \(SpeechLanguage.displayName(locale))") { model.installSpeechModel(locale) }
-                        .buttonStyle(StudioButtonStyle(primary: true)).disabled(!model.workAvailability.isReady)
+                        .buttonStyle(StudioButtonStyle(primary: true))
                 }
                 languageMenu(String(localized: "Une autre langue"))
                 Text("Environ 350 Mo, téléchargés une fois.").font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted)
@@ -110,7 +110,7 @@ private struct OnboardingStepView: View {
             Button("Activer") { model.diarizationEnabled = true }.buttonStyle(StudioButtonStyle(primary: true))
         } else {
             Button("Installer le modèle") { model.installDiarizer() }
-                .buttonStyle(StudioButtonStyle(primary: true)).disabled(!model.workAvailability.isReady)
+                .buttonStyle(StudioButtonStyle(primary: true))
         }
     }
     @ViewBuilder private var context: some View {
@@ -138,7 +138,7 @@ private struct OnboardingStepView: View {
             ForEach(model.supportedSpeechLocales.filter { !installed.contains(SpeechLanguage.languageCode(of: $0)) }, id: \.self) { locale in
                 Button(SpeechLanguage.displayName(locale)) { model.installSpeechModel(locale) }
             }
-        }.menuStyle(.borderlessButton).fixedSize().font(.system(size: Studio.Size.body)).disabled(!model.workAvailability.isReady)
+        }.menuStyle(.borderlessButton).fixedSize().font(.system(size: Studio.Size.body))
     }
     private func progress(_ text: String) -> some View {
         HStack(spacing: 8) { ProgressView().controlSize(.small); Text(text).font(.system(size: Studio.Size.body)).foregroundStyle(Studio.muted) }

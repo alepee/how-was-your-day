@@ -6,6 +6,9 @@ public enum VoiceOutcome: Equatable, Sendable {
     case enrolled(name: String, proposals: Int)
     /// The voice was memorized, but the session changed meanwhile: its transcript was left as it is.
     case enrolledSessionChanged(name: String)
+    /// The request waited, and the voice no longer bears that name when its turn came, or the
+    /// session is gone: nothing was memorized.
+    case enrollmentSkipped(name: String)
     /// `proposals` voices of the session resemble a known person.
     case identified(proposals: Int)
     /// The session changed during recognition: nothing was proposed.
@@ -63,6 +66,27 @@ public enum VoiceContributionChange: Equatable, Sendable {
             // The proposals stay pending; the library reported the save failure.
         }
         return VoiceResult(outcome: .enrolled(name: name, proposals: proposed), people: outcome.people)
+    }
+
+    /// Memorizes a voice of session `id` under `name`, as the session is when the job starts: a
+    /// request that waited its turn reads the voice again. The voice must still bear the name it
+    /// was given; otherwise nothing is memorized. The person is resolved among people as they are
+    /// now, so an opposition recorded meanwhile refuses it.
+    public func enroll(named name: String, speakerID: UUID, session id: UUID, library: SessionLibrary) async throws -> VoiceResult {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let everyone = try await people.people()
+        guard let recording = library.recording(id), recording.state != .recording,
+              let speaker = recording.speakers.first(where: { $0.id == speakerID && !$0.ignored && $0.label == name }) else {
+            return VoiceResult(outcome: .enrollmentSkipped(name: name), people: everyone)
+        }
+        let person = try EnrollVoice.person(named: name, for: speaker, among: everyone)
+        return try await enroll(person, speakerID: speakerID, in: recording, library: library)
+    }
+
+    /// Proposes a known person for the unconfirmed voices of session `id`, as it is when the job starts.
+    public func identify(session id: UUID, library: SessionLibrary) async throws -> VoiceResult {
+        guard let recording = library.recording(id) else { throw WorkRefusal.sessionNotFound }
+        return try await identify(in: recording, library: library)
     }
 
     /// Proposes a known person for the unconfirmed voices of `recording`.
