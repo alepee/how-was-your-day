@@ -35,8 +35,8 @@ final class CaptureInactivityTests: XCTestCase {
         session.inactivityPolicy = InactivityPolicy(silence: 10, countdown: 5)
         return session
     }
-    private func start(_ capture: CaptureSession, simulated: Bool = false) async throws -> UUID {
-        let device = SimulatedCapture(animatesLevels: false, simulated: simulated, audio: CapturedAudio(chunks: [chunk]))
+    private func start(_ capture: CaptureSession, simulated: Bool = false, detectsSpeech: Bool = true) async throws -> UUID {
+        let device = SimulatedCapture(animatesLevels: false, simulated: simulated, detectsSpeech: detectsSpeech, audio: CapturedAudio(chunks: [chunk]))
         let id = try await capture.start(CaptureRequest(), with: device, in: SessionLibrary(volatile: []))
         return try XCTUnwrap(id)
     }
@@ -118,6 +118,14 @@ final class CaptureInactivityTests: XCTestCase {
     func testASimulationIsNeverStopped() async throws {
         let capture = session()
         let id = try await start(capture, simulated: true)
+        run(capture, for: 60, session: id)
+        XCTAssertNil(capture.inactivity)
+        XCTAssertEqual(capture.phase, .recording(id))
+    }
+
+    func testACaptureThatCannotDetectSpeechIsNeverStopped() async throws {
+        let capture = session()
+        let id = try await start(capture, detectsSpeech: false)
         run(capture, for: 60, session: id)
         XCTAssertNil(capture.inactivity)
         XCTAssertEqual(capture.phase, .recording(id))

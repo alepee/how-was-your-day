@@ -46,6 +46,7 @@ actor CoreAudioCapture: AudioCapture {
     /// The microphone recorded, the devices as last reported and what changes mean (`CaptureDevices`).
     private var devices: CaptureDevices?
     var microphone: MicrophoneDevice? { devices?.microphone }
+    var detectsSpeech: Bool { writer?.detectsSpeech ?? false }
     var microphones: MicrophoneList { devices?.reported ?? MicrophoneList() }
     /// Paused: the devices are stopped, so neither the microphone nor system audio is captured.
     private var isPaused = false
@@ -596,6 +597,8 @@ private final class AudioWriter: @unchecked Sendable {
     private let speech: SpeechDetector?
     /// How many analysis windows held speech so far, on either track.
     var speechHeard: Int { speech?.heard ?? 0 }
+    /// False when the classifier could not start: `speechHeard` then stays at zero.
+    var detectsSpeech: Bool { speech != nil }
     /// - Parameters:
     ///   - folder: the session's audio folder, created by the locator.
     ///   - startFrames: where the first chunk starts on the session's timeline, at 16 kHz: zero

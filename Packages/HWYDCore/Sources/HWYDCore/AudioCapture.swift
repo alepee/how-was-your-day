@@ -16,6 +16,9 @@ public protocol AudioCapture: Sendable {
     /// A simulation records no audio: its sessions are examples and are never transcribed.
     var isSimulated: Bool { get }
     var events: AsyncStream<CaptureEvent> { get }
+    /// The running capture reports `speech`. False when the speech classifier is not available:
+    /// the session then does not watch for a capture in which nobody speaks.
+    var detectsSpeech: Bool { get async }
     /// Returns once audio flows. Throws, with a message for the user, when the capture cannot
     /// start; nothing is left running then. `continuation` says where the chunks go on the
     /// session's timeline and which file number they start from: `.start` for a new session,
@@ -112,6 +115,7 @@ public struct CapturedAudio: Equatable, Sendable {
 /// continuation's offset, as a device would write them.
 public actor SimulatedCapture: AudioCapture {
     public nonisolated let isSimulated: Bool
+    public nonisolated let detectsSpeech: Bool
     public nonisolated let events: AsyncStream<CaptureEvent>
     private let continuation: AsyncStream<CaptureEvent>.Continuation
     private let audio: CapturedAudio
@@ -146,16 +150,17 @@ public actor SimulatedCapture: AudioCapture {
     /// - Parameters:
     ///   - animatesLevels: sends moving levels five times per second, as demo mode shows them.
     ///   - simulated: false lets a test stand in for a real capture, whose sessions are transcribed.
+    ///   - detectsSpeech: a test sends `speech` itself; false stands for a Mac without the classifier.
     ///   - microphone: the input name the capture reports, whatever device it records.
     ///   - microphones: the inputs it pretends to see.
     ///   - switchGap: how long a switch takes; `elapse` makes that time pass on the caller's clock.
-    public init(animatesLevels: Bool = true, simulated: Bool = true, audio: CapturedAudio = CapturedAudio(),
+    public init(animatesLevels: Bool = true, simulated: Bool = true, detectsSpeech: Bool = true, audio: CapturedAudio = CapturedAudio(),
                 startFailure: (any Error & Sendable)? = nil, microphone: String? = nil,
                 microphones: MicrophoneList = .simulated, switchGap: TimeInterval = 0,
                 elapse: (@MainActor @Sendable (TimeInterval) async -> Void)? = nil) {
         fixedName = microphone; self.microphones = microphones; self.switchGap = switchGap; self.elapse = elapse
         (events, continuation) = AsyncStream.makeStream(of: CaptureEvent.self)
-        isSimulated = simulated
+        isSimulated = simulated; self.detectsSpeech = detectsSpeech
         self.audio = audio; self.startFailure = startFailure; self.animatesLevels = animatesLevels
     }
 

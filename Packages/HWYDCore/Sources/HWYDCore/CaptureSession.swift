@@ -231,7 +231,9 @@ public final class CaptureSession: ObservableObject {
         clock = SessionClock(); clock.shift(by: offset); clock.run(at: now()); restartFrozenAt = nil
         microphone = await capture.microphone; microphones = await capture.microphones; offer = nil
         inactivity = nil
-        watch = capture.isSimulated ? nil : InactivityWatch(policy: inactivityPolicy, at: now())
+        // Without speech detection, every capture would look silent and stop: nothing is watched then.
+        let listens = capture.isSimulated ? false : await capture.detectsSpeech
+        watch = listens ? InactivityWatch(policy: inactivityPolicy, at: now()) : nil
         phase = .recording(id)
         let events = capture.events
         listener = Task { [weak self] in
