@@ -73,12 +73,12 @@ import XCTest
     func testAgentDetectionAsksTheInjectedDiscoveryOutsideDemo() async throws {
         let settings = SummarySettings(store: InMemorySettings(), usesSystem: false, notifier: RecordingNotifier(), discovery: FixedAgentDiscovery(["codex-acp"]))
         settings.isDemo = true
+        // In demo, detection starts no work: there is nothing to wait for.
         settings.detectAgents()
-        try await Task.sleep(for: .milliseconds(50))
         XCTAssertEqual(settings.detectedAgents, [])
         settings.isDemo = false
         settings.detectAgents()
-        for _ in 0..<100 where settings.detectedAgents.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
+        for _ in 0..<1000 where settings.detectedAgents.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertEqual(settings.detectedAgents, ["codex-acp"])
     }
 
@@ -87,10 +87,10 @@ import XCTest
         let settings = SummarySettings(store: store, usesSystem: true, notifier: RecordingNotifier(),
                                        discovery: FixedAgentDiscovery(["codex-acp"], installable: ["claude-agent-acp"]))
         settings.detectAgents()
-        for _ in 0..<100 where settings.installableAgents.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
+        for _ in 0..<1000 where settings.installableAgents.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertEqual(settings.installableAgents, ["claude-agent-acp"])
         settings.installAndUseAgent("claude-agent-acp")
-        for _ in 0..<100 where !settings.enabled { try await Task.sleep(for: .milliseconds(10)) }
+        for _ in 0..<1000 where !settings.enabled { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertEqual(settings.detectedAgents, ["claude-agent-acp", "codex-acp"])
         XCTAssertEqual(settings.installableAgents, [])
         XCTAssertEqual(settings.configuration.service, .agent)

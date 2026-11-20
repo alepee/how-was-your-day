@@ -21,6 +21,17 @@ struct Toast: Identifiable {
     @ObservationIgnored private var timers: [UUID: Task<Void, Never>] = [:]
     /// Resolves a navigation intent; set by the owner of the screens.
     @ObservationIgnored var navigate: (NavigationIntent) -> Void = { _ in }
+    /// Returns a wait until `delay` from now, the deadline taken when the toast is scheduled.
+    @ObservationIgnored private let wait: (Duration) -> @Sendable () async throws -> Void
+
+    convenience init() { self.init(clock: ContinuousClock()) }
+    /// Times the toasts on `clock`; a check passes a clock it advances itself.
+    init<C: Clock<Duration>>(clock: C) {
+        wait = { delay in
+            let deadline = clock.now.advanced(by: delay)
+            return { try await clock.sleep(until: deadline, tolerance: nil) }
+        }
+    }
 
     func notify(_ notice: UserNotice) {
         let toast = Toast(notice: notice)
@@ -52,8 +63,9 @@ struct Toast: Identifiable {
     }
     private func scheduleDismissal(_ toast: Toast, after delay: Duration? = nil) {
         guard !toast.staysOnScreen else { return }
+        let wait = wait(delay ?? toast.lifetime)
         timers[toast.id] = Task { [weak self] in
-            try? await Task.sleep(for: delay ?? toast.lifetime)
+            try? await wait()
             guard !Task.isCancelled else { return }
             self?.toasts.removeAll { $0.id == toast.id }
             self?.timers[toast.id] = nil
