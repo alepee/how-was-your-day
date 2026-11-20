@@ -54,6 +54,7 @@ public struct VoiceMeasure: Codable, Equatable, Sendable {
         public var smallLastMinute: Double
         /// Speech of the passages that would move, once levels passed. Nil when the check stopped before.
         public var movedSeconds: Double?
+        public var movedPassages: Int?
         public var proposed = false
     }
 }
@@ -70,6 +71,9 @@ public struct VoicePostProcessor {
     /// Two groups of one voice less similar than this are two people; so are two voices more similar one person.
     public static let samePersonSimilarity = 0.75
     public static let splitMinimumSeconds = 30.0
+    /// Mean length of the passages a split would move. A second person speaks in turns; interjections
+    /// of the same person under someone else are short and score like another voice.
+    public static let splitMinimumPassageSeconds = 4.0
     /// Both groups must be at a normal speech level and close to each other: a distant voice or a
     /// very low microphone gain scores like two people.
     public static let splitMinimumLevelDB = -40.0
@@ -150,8 +154,11 @@ public struct VoicePostProcessor {
             }
             // The 30 s also hold for the passages themselves: windows can cover a minute around a few
             // scattered words, which are interjections under another speaker, not a second person.
-            measure.movedSeconds = moved.reduce(0) { $0 + $1.end - $1.start }
-            guard moved.count < passages.count, (measure.movedSeconds ?? 0) >= Self.splitMinimumSeconds else { continue }
+            let movedSeconds = moved.reduce(0) { $0 + $1.end - $1.start }
+            measure.movedSeconds = movedSeconds
+            measure.movedPassages = moved.count
+            guard moved.count < passages.count, movedSeconds >= Self.splitMinimumSeconds,
+                  movedSeconds / Double(moved.count) >= Self.splitMinimumPassageSeconds else { continue }
             let proposal = VoiceSplitProposal(speakerID: speaker.id, segmentIDs: moved.map(\.id), similarity: split.between)
             proposals.append(proposal)
             measure.proposed = true
