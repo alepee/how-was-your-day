@@ -9,6 +9,8 @@ Entries describe what a user observes. The detailed release notes published on G
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-21
+
 ### Added
 - Voices are tidied up after each transcription with voice separation. A microphone voice that is only the call picked up by the microphone is hidden as « écho probable ». Voices of the same track that are one person are merged, and « Séparer » in the tile menu undoes it. A voice too brief to name keeps its passages in the transcript under « Autre voix », is not counted among the voices to name and does not hold back the automatic summary. When a voice seems to hold two people, a line under the tiles says so: listen to the passages concerned, then « Séparer » or « Une seule personne ». Sessions already transcribed are unchanged until transcribed again.
 - A forgotten recording stops on its own. When nobody has spoken for 5 minutes, on the microphone or in the call audio, HWYD asks « Vous avez fini ? » in the capture screen and as a notification, with « Pas encore » and « Arrêter ». Without an answer, the recording stops 2 minutes later, keeps its audio and notes, and a notification says so. Speech coming back withdraws the question. Speech is detected on the Mac by the macOS sound classifier, so a fan, typing or music without voices does not keep a recording alive; nothing it hears is stored. It can be turned off in Settings › Audio & Voice.
@@ -251,7 +253,8 @@ Entries describe what a user observes. The detailed release notes published on G
 ### Added
 - First experimental release for Apple Silicon and macOS 26+: separate microphone and system audio recording, local French transcription, optional diarization, notes and speaker corrections, optional local summaries, calendar reminders, Markdown/JSON exports and a standalone MCP server.
 
-[Unreleased]: https://github.com/alepee/how-was-your-day/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/alepee/how-was-your-day/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/alepee/how-was-your-day/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/alepee/how-was-your-day/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/alepee/how-was-your-day/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/alepee/how-was-your-day/compare/v0.14.0...v0.15.0
