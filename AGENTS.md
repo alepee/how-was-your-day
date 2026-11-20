@@ -67,6 +67,7 @@ Documentation is part of the definition of done, like tests. A PR that changes b
 | MCP tools or resources | [docs/mcp.md](docs/mcp.md), README § MCP |
 | Summary providers, prompts, schema | [docs/summary-workflow.md](docs/summary-workflow.md), [docs/review-integrations.md](docs/review-integrations.md) |
 | Voice memory, identity, consent | [docs/voice-memory.md](docs/voice-memory.md) |
+| Voice post-processing (echo, split, merge, minor voices) | [docs/voice-post-processing.md](docs/voice-post-processing.md) |
 | UI strings, languages | [docs/localization.md](docs/localization.md) |
 | Visual language | [docs/ui/design-direction.md](docs/ui/design-direction.md) |
 | Build, signing, release | [docs/distribution.md](docs/distribution.md), [docs/development/release-template.md](docs/development/release-template.md) |

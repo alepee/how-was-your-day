@@ -33,11 +33,23 @@ extension AppModel {
         guard let voice = item.voiceOverview.first(where: { $0.id == speakerID }), !voice.spans.isEmpty else {
             notifier.notify(.info(String(localized: "Aucun passage attribué à cette voix."))); return
         }
+        playVoice(speakerID, spans: voice.spans, source: voice.speaker.source, in: item, audio: audio)
+    }
+    /// Plays only the passages a split proposal would move out of its voice. A second click stops.
+    func toggleSplitPartPlayback(_ proposalID: UUID) {
+        if playback.voiceID == proposalID { stopPlayback(); return }
+        guard let item = selected, let audio, !item.audioChunks.isEmpty, let part = item.splitParts(proposalID)?.smaller, let source = part.first?.source else {
+            notifier.notify(.info(String(localized: "Aucun fichier audio disponible pour cette session."))); return
+        }
+        playVoice(proposalID, spans: part.map { VoiceSpan(start: $0.start, end: $0.end) }, source: source, in: item, audio: audio)
+    }
+    /// `id` names what plays: a voice, or a split proposal for the part it would move.
+    private func playVoice(_ id: UUID, spans: [VoiceSpan], source: AudioSource, in item: Recording, audio: any AudioLocator) {
         stopPlayback()
         do {
-            try player.start(playlist: VoicePlaylist(spans: voice.spans), source: voice.speaker.source, chunks: item.audioChunks, audio: audio)
+            try player.start(playlist: VoicePlaylist(spans: spans), source: source, chunks: item.audioChunks, audio: audio)
             playbackTime = player.position; isPlaying = true
-            playback.voiceID = speakerID; playback.generation += 1
+            playback.voiceID = id; playback.generation += 1
             updatePlaybackFocus(); startPlaybackClock()
         } catch { notifier.notify(.error(String(localized: "Lecture impossible : \(error.localizedDescription)"))) }
     }
@@ -65,6 +77,7 @@ extension AppModel {
         }
         update(id) { item in
             item.speakers = before.speakers; item.absorbedSpeakers = before.absorbedSpeakers
+            item.splitProposals = before.splitProposals
             item.segments = before.segments
             item.transcriptVersion = version + 1
             // The transcript is back to what it was: a summary that was current then is current again.
@@ -111,6 +124,22 @@ extension AppModel {
         editVoices({ ignored ? String(localized: "\(self.label(speakerID, in: $0)) ignorée : ses passages sont masqués du transcript, de l’export et de la synthèse.") : String(localized: "\(self.label(speakerID, in: $0)) rétablie dans le transcript.") }) {
             try $0.setSpeakerIgnored(speakerID, ignored)
         }
+    }
+    /// "Yes, this voice held two people." The part the proposal names becomes a voice, or joins the
+    /// one it sounds like. Transcript correction only, no enrollment.
+    func acceptSplit(_ proposalID: UUID) {
+        var holder: UUID?
+        editVoices({ String(localized: "Voix séparée : passages attribués à \(self.label(holder ?? UUID(), in: $0)).") }) {
+            holder = try $0.acceptSplit(proposalID, people: self.people)
+        }
+    }
+    /// "No, this voice is one person." The proposal goes away; nothing else changes.
+    func dismissSplit(_ proposalID: UUID) {
+        editVoices({ _ in String(localized: "Proposition retirée : la voix reste telle quelle.") }) { try $0.dismissSplit(proposalID) }
+    }
+    /// Puts a voice set aside as too brief back among the voices to name.
+    func restoreMinorVoice(_ speakerID: UUID) {
+        editVoices({ String(localized: "\(self.label(speakerID, in: $0)) compte de nouveau parmi les voix à nommer.") }) { try $0.restoreMinorVoice(speakerID) }
     }
     /// Names a voice after a known person. Does not enroll and does not read any voice print.
     func linkSpeaker(_ speakerID: UUID, to person: VoicePerson) {

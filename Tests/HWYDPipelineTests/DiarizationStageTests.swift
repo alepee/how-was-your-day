@@ -21,18 +21,28 @@ final class DiarizationStageTests: XCTestCase {
         let diarizer = ScriptedDiarizer([
             .mic: [SpeakerTurn(cluster: "a", source: .mic, start: 0, end: 1), SpeakerTurn(cluster: "b", source: .mic, start: 1, end: 2)],
             .system: [SpeakerTurn(cluster: "a", source: .system, start: 0, end: 2)]
+        ], windows: [
+            .mic: [ClusterWindow(cluster: "b", source: .mic, start: 1, end: 2, vector: [0, 1])],
+            .system: [ClusterWindow(cluster: "a", source: .system, start: 0, end: 2, vector: [1, 0]),
+                      ClusterWindow(cluster: "silent", source: .system, start: 0, end: 2, vector: [1, 1])]
         ])
         let cleaned = folder.root.appendingPathComponent("mic.caf")
         let diagnostic = folder.root.appendingPathComponent("alignment.json")
 
-        let output = try await DiarizationStage.run(result, audio: folder.audio, diarizer: diarizer, workingDirectory: folder.root,
-                                                    diagnosticURL: diagnostic, microphoneOverride: cleaned)
+        let diarized = try await DiarizationStage.run(result, audio: folder.audio, diarizer: diarizer, workingDirectory: folder.root,
+                                                      diagnosticURL: diagnostic, microphoneOverride: cleaned)
+        let output = diarized.result
 
         // Two voices on the microphone, one on the call: a cluster name is local to its track.
         XCTAssertEqual(output.speakers?.map(\.source), [.mic, .mic, .system])
         XCTAssertEqual(output.segments.map(\.text), ["Bonjour à", "Hello", "tous"])
         XCTAssertEqual(Set(output.segments.compactMap(\.speakerID)).count, 3)
         XCTAssertEqual(output.diarizationEngine, "fluidaudio-0.17.7-community-1-exclusive")
+        // The diarizer's embeddings follow their cluster to its voice, per track; one of a cluster
+        // that got no word is dropped.
+        let voices = output.speakers ?? []
+        XCTAssertEqual(diarized.windows.map(\.speakerID), [voices[1].id, voices[2].id])
+        XCTAssertEqual(diarized.windows.map(\.vector), [[0, 1], [1, 0]])
 
         // The echo-cancelled microphone is read as given; the call audio is assembled for the diarizer.
         let requests = await diarizer.requests
@@ -57,7 +67,7 @@ final class DiarizationStageTests: XCTestCase {
                                          segments: [segment(.system, [("Hello", 0.2, 0.9)])])
         let diarizer = ScriptedDiarizer([.system: [SpeakerTurn(cluster: "a", source: .system, start: 0, end: 1)]])
 
-        let output = try await DiarizationStage.run(result, audio: folder.audio, diarizer: diarizer, workingDirectory: folder.root)
+        let output = try await DiarizationStage.run(result, audio: folder.audio, diarizer: diarizer, workingDirectory: folder.root).result
 
         let requests = await diarizer.requests
         XCTAssertEqual(requests.map(\.source), [.system])

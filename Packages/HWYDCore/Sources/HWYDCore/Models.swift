@@ -24,6 +24,15 @@ public enum SessionKind: String, Codable, CaseIterable, Sendable {
 public enum CaptureState: String, Codable, Sendable { case recording, sealed, interrupted, demo }
 public enum ArtifactState: String, Codable, Sendable { case unavailable, pending, ready, failed }
 public enum AudioSource: String, Codable, Sendable { case mic, system }
+/// What the voice post-processing decided for a voice. The user can always undo it.
+public enum AutomaticVoiceDecision: String, Codable, Equatable, Sendable {
+    /// Microphone voice heard almost only while the other track speaks: the call picked up by the microphone.
+    case echo
+    /// Too little speech to be a participant worth naming.
+    case minor
+    /// Same person as a longer voice of the same track, merged into it.
+    case merged
+}
 public struct Speaker: Codable, Identifiable, Equatable, Sendable {
     public var id: UUID
     public var label: String
@@ -31,9 +40,14 @@ public struct Speaker: Codable, Identifiable, Equatable, Sendable {
     public var proposedIdentity: VoiceMatch?
     public var confirmed: Bool
     public var source: AudioSource
-    /// Set by the user for a voice that is not a participant (speaker echo, noise).
+    /// A voice that is not a participant (speaker echo, noise): set by the user, or by the voice
+    /// post-processing for a probable echo (`automatic` then says so).
     /// Its segments stay stored but leave the transcript, exports, search and summaries.
     public var ignored: Bool = false
+    /// Decision of the voice post-processing still in force. Nil once the user overrides it.
+    public var automatic: AutomaticVoiceDecision?
+    /// A voice with too little speech to be named: its text stays, it is not a participant.
+    public var isMinor: Bool { automatic == .minor }
     public init(id: UUID = UUID(), label: String, confirmed: Bool = false, source: AudioSource = .mic) {
         self.id = id; self.label = label; self.confirmed = confirmed; self.source = source
     }
@@ -44,6 +58,7 @@ public struct Speaker: Codable, Identifiable, Equatable, Sendable {
         proposedIdentity = try c.decodeIfPresent(VoiceMatch.self, forKey: .proposedIdentity)
         confirmed = try c.decode(Bool.self, forKey: .confirmed); source = try c.decode(AudioSource.self, forKey: .source)
         ignored = try c.decodeIfPresent(Bool.self, forKey: .ignored) ?? false
+        automatic = try c.decodeIfPresent(AutomaticVoiceDecision.self, forKey: .automatic)
     }
 }
 public struct TranscriptSegment: Codable, Identifiable, Equatable, Sendable {
@@ -131,6 +146,8 @@ public struct Recording: Codable, Identifiable, Equatable, Sendable {
     public var speakers: [Speaker]
     /// Voices merged into another one on the same track, kept so the merge can be undone.
     public var absorbedSpeakers: [Speaker]?
+    /// Voices the post-processing found to hold two people, waiting for the user's answer.
+    public var splitProposals: [VoiceSplitProposal]?
     public var segments: [TranscriptSegment]
     public var summaryProvenance: SummaryProvenance?
     public var summary: String?
@@ -174,7 +191,7 @@ public struct Recording: Codable, Identifiable, Equatable, Sendable {
     }
     public var participantNames: String {
         let names = participants.map(\.label)
-        let unknown = speakers.filter { !$0.confirmed && !$0.ignored }.count
+        let unknown = speakers.filter { !$0.confirmed && !$0.ignored && !$0.isMinor }.count
         return (names + (unknown > 0 ? [String(localized: "\(unknown) voix à nommer", bundle: .hwyd)] : [])).joined(separator: ", ")
     }
     public var searchableText: String { ([title, notes, summary ?? ""] + heardSegments.map(\.text) + speakers.filter { !$0.ignored }.map(\.label)).joined(separator: " ") }
@@ -183,8 +200,9 @@ public struct Recording: Codable, Identifiable, Equatable, Sendable {
         let ignored = Set(speakers.lazy.filter(\.ignored).map(\.id))
         return ignored.isEmpty ? segments : segments.filter { $0.speakerID.map { !ignored.contains($0) } ?? true }
     }
-    /// Every voice the user kept is named or confirmed: no unidentified voice, no pending proposal.
-    public var voicesResolved: Bool { speakers.allSatisfy { $0.ignored || $0.confirmed } }
+    /// Every voice worth naming is named or confirmed: no unidentified voice, no pending proposal,
+    /// no voice suspected of holding two people.
+    public var voicesResolved: Bool { speakers.allSatisfy { $0.ignored || $0.confirmed || $0.isMinor } && pendingSplitProposals.isEmpty }
     /// Ready for an automatic summary: transcript done, speech heard, every voice resolved, no summary yet.
     public var isReadyForSummary: Bool {
         !isDemo && state != .recording && transcriptState == .ready && summary == nil && voicesResolved
@@ -215,6 +233,7 @@ public struct Recording: Codable, Identifiable, Equatable, Sendable {
         guard !trimmed.isEmpty, trimmed.count <= 120 else { throw StoreError.invalidName }
         guard let index = speakers.firstIndex(where: { $0.id == id }) else { throw StoreError.notFound }
         speakers[index].label = trimmed; speakers[index].confirmed = true; speakers[index].personID = nil; speakers[index].proposedIdentity = nil
+        speakers[index].automatic = nil
         transcriptVersion += 1
     }
 }

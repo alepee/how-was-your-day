@@ -41,9 +41,10 @@ struct LevelEmbedder: VoiceEmbedding {
 actor ScriptedDiarizer: OfflineDiarizing {
     private let turns: [AudioSource: [SpeakerTurn]]
     private(set) var requests: [(file: URL, source: AudioSource, existed: Bool)] = []
-    init(_ turns: [AudioSource: [SpeakerTurn]]) { self.turns = turns }
-    func diarize(file: URL, source: AudioSource) async throws -> [SpeakerTurn] {
+    private let windows: [AudioSource: [ClusterWindow]]
+    init(_ turns: [AudioSource: [SpeakerTurn]], windows: [AudioSource: [ClusterWindow]] = [:]) { self.turns = turns; self.windows = windows }
+    func diarize(file: URL, source: AudioSource) async throws -> Diarization {
         requests.append((file, source, FileManager.default.fileExists(atPath: file.path)))
-        return turns[source] ?? []
+        return Diarization(turns: turns[source] ?? [], windows: windows[source] ?? [])
     }
 }

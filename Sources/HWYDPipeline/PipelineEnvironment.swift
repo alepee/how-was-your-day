@@ -35,6 +35,8 @@ struct PipelineWorkspace: Sendable {
     /// Voice prints over the environment's vault. Vectors never leave it.
     var prints: VoicePrints
     var voices: VoiceModels
+    /// The versions the store keeps of one session, oldest first: a diagnostic reads an earlier one.
+    var versions: @Sendable (UUID) async throws -> [Recording]
 }
 
 /// The composition root of one helper run: every adapter it uses, chosen once. `launch(_:)`
@@ -64,10 +66,12 @@ struct PipelineEnvironment: Sendable {
                            install: { try await FluidModels.install(directory: models) })
     }
 
-    /// Opens the store of `directory` and gives what serves it.
-    func workspace(at directory: URL) throws -> PipelineWorkspace {
-        let store = try SessionStore(directory: directory)
+    /// Opens the store of `directory` and gives what serves it. `readOnly` is for a diagnostic:
+    /// nothing is migrated or written.
+    func workspace(at directory: URL, readOnly: Bool = false) throws -> PipelineWorkspace {
+        let store = try SessionStore(directory: directory, readOnly: readOnly)
         return PipelineWorkspace(directory: store.directory, recordings: store, people: store, audio: store.audio,
-                                 prints: VoicePrints(vault: secrets), voices: voiceModels(in: store.directory))
+                                 prints: VoicePrints(vault: secrets), voices: voiceModels(in: store.directory),
+                                 versions: { try await store.versions(for: $0) })
     }
 }

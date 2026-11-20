@@ -54,27 +54,11 @@ import HWYDCore
                 var result = try await TranscriptionPipeline.run(request, audio: workspace.audio, recognizer: environment.recognizer, audioOverrides: prepared.chunks)
                 result.echoCancellationEngine = prepared.engine
                 if request.diarize == true {
-                    result = try await DiarizationStage.run(result, audio: workspace.audio, diarizer: workspace.voices.diarizer, workingDirectory: URL(fileURLWithPath: args[3]).deletingLastPathComponent(), diagnosticURL: command == "transcribe-calibration" ? URL(fileURLWithPath: args[3] + ".alignment.json") : nil, microphoneOverride: prepared.microphone)
-                    let people = try await workspace.people.people().filter(\.recognitionEnabled)
-                    if !people.isEmpty {
-                        var recording = Recording(id: request.recordingID, title: "Voice identification", speakers: result.speakers ?? [], segments: result.segments)
-                        recording.audioChunks = request.chunks
-                        do {
-                            let matches = try await VoiceStage.identify(recording: recording, people: workspace.people, audio: workspace.audio, prints: workspace.prints, embedder: workspace.voices.embedder, directory: workspace.directory, audioOverrides: prepared.chunks)
-                            result.speakers = recording.speakers.map { speaker in
-                                var speaker = speaker
-                                // The app names the voice when it applies the result, after checking the
-                                // person can still be recognized.
-                                if let match = matches[speaker.id.uuidString], people.contains(where: { $0.id == match.personID }) {
-                                    speaker.proposedIdentity = match
-                                }
-                                return speaker
-                            }
-                        } catch {
-                            // A locked keychain must not discard a successfully transcribed session.
-                            result.identityWarning = String(localized: "Reconnaissance vocale indisponible : \(error.localizedDescription)", bundle: .hwyd)
-                        }
-                    }
+                    let diarized = try await DiarizationStage.run(result, audio: workspace.audio, diarizer: workspace.voices.diarizer, workingDirectory: URL(fileURLWithPath: args[3]).deletingLastPathComponent(), diagnosticURL: command == "transcribe-calibration" ? URL(fileURLWithPath: args[3] + ".alignment.json") : nil, microphoneOverride: prepared.microphone)
+                    // The app names a recognised voice when it applies the result, after checking the
+                    // person can still be recognized.
+                    result = await VoiceProcessingStage.run(diarized.result, windows: diarized.windows, people: workspace.people, audio: workspace.audio,
+                                                            prints: workspace.prints, directory: workspace.directory, audioOverrides: prepared.chunks).result
                 }
                 result.segments = EchoTranscriptGuard.annotate(result.segments)
                 try JSONEncoder().encode(result).write(to: URL(fileURLWithPath: args[3]), options: .atomic)
@@ -84,11 +68,25 @@ import HWYDCore
                 let output = URL(fileURLWithPath: args[3])
                 let report = try EchoStage.run(request: request, audio: workspace.audio, workingDirectory: output.deletingLastPathComponent())
                 try JSONEncoder().encode(report).write(to: output, options: .atomic)
+            case "voice-processing" where args.count == 4 || args.count == 5:
+                // Read-only diagnostic: no lock, no write to the store, voice memory never opened. An optional
+                // revision reads an earlier version of the session, such as the one before a voice was split.
+                let workspace = try environment.workspace(at: URL(fileURLWithPath: args[1]), readOnly: true)
+                guard let id = UUID(uuidString: args[2]) else { throw StoreError.notFound }
+                let recording: Recording?
+                if args.count == 5, let revision = Int(args[4]) { recording = try await workspace.versions(id).last { $0.revision == revision } }
+                else { recording = try await workspace.recordings.all().first { $0.id == id } }
+                guard let recording else { throw StoreError.notFound }
+                let output = URL(fileURLWithPath: args[3])
+                let report = try await VoiceProcessingStage.diagnose(recording: recording, audio: workspace.audio, people: workspace.people, diarizer: workspace.voices.diarizer,
+                                                                     directory: workspace.directory, workingDirectory: output.deletingLastPathComponent())
+                let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                try encoder.encode(report).write(to: output, options: .atomic)
             case "inspect" where args.count == 2:
                 let recordings = try await environment.workspace(at: URL(fileURLWithPath: args[1])).recordings.all()
                 for item in recordings { print("\(item.id)  \(item.state.rawValue)  v\(item.revision)  \(item.title)") }
             default:
-                FileHandle.standardError.write(Data("Usage: hwyd-pipeline echo-diagnostic <store> <request.json> <report.json> | diagnose | languages | install-model [locale] | install-diarizer <store> | diarizer-status <store> | inspect <store> | transcribe[-calibration] <store> <request.json> <result.json>\n".utf8)); exit(2)
+                FileHandle.standardError.write(Data("Usage: hwyd-pipeline echo-diagnostic <store> <request.json> <report.json> | voice-processing <store> <recording-id> <report.json> [revision] | diagnose | languages | install-model [locale] | install-diarizer <store> | diarizer-status <store> | inspect <store> | transcribe[-calibration] <store> <request.json> <result.json>\n".utf8)); exit(2)
             }
         } catch { FileHandle.standardError.write(Data("\(error.localizedDescription)\n".utf8)); exit(1) }
     }

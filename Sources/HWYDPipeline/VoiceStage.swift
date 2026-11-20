@@ -19,16 +19,26 @@ enum VoiceStage {
     }
 
     static func embedding(recording: Recording, speaker: HWYDCore.Speaker, audio: any AudioLocator, embedder: any VoiceEmbedding, audioOverrides: [UUID: URL] = [:]) async throws -> [Float] {
+        // Passages a pending split proposal attributes to someone else stay out of the sample, which
+        // is spread over the whole voice: its first minute alone can be another person's.
+        let doubted = Set(recording.pendingSplitProposals.filter { $0.speakerID == speaker.id }.flatMap(\.segmentIDs))
+        let spans = VoiceCoherence.spread(VoiceCoherence.usableSegments(of: speaker.id, in: recording.segments).filter { !doubted.contains($0.id) }
+            .map { VoiceCoherence.Span(start: $0.start, end: $0.end) })
+        let samples = try readSpeech(spans, source: speaker.source, chunks: recording.audioChunks, audio: audio, overrides: audioOverrides, limit: 960_000)
+        guard samples.count >= 320_000 else { throw VoiceError.insufficientSpeech }
+        return try VoicePrints.normalized(await embedder.embedding(of: samples))
+    }
+    /// Concatenates the audio of `spans` from one track, in order, up to `limit` samples at 16 kHz.
+    static func readSpeech(_ spans: [VoiceCoherence.Span], source: HWYDCore.AudioSource, chunks: [AudioChunk], audio: any AudioLocator,
+                           overrides: [UUID: URL], limit: Int) throws -> [Float] {
         var samples: [Float] = []
-        for segment in recording.segments.filter({ $0.speakerID == speaker.id }).sorted(by: { $0.start < $1.start }) {
-            guard segment.end - segment.start >= 0.5,
-                  !recording.segments.contains(where: { $0.id != segment.id && $0.source == segment.source && $0.speakerID != segment.speakerID && $0.start < segment.end && $0.end > segment.start }) else { continue }
-            for chunk in recording.audioChunks.filter({ $0.source == speaker.source && $0.start < segment.end && $0.start + $0.duration > segment.start }).sorted(by: { $0.start < $1.start }) {
-                let file = try AVAudioFile(forReading: audioOverrides[chunk.id] ?? audio.url(for: chunk), commonFormat: .pcmFormatFloat32, interleaved: false)
+        for span in spans {
+            for chunk in chunks.filter({ $0.source == source && $0.start < span.end && $0.start + $0.duration > span.start }).sorted(by: { $0.start < $1.start }) {
+                let file = try AVAudioFile(forReading: overrides[chunk.id] ?? audio.url(for: chunk), commonFormat: .pcmFormatFloat32, interleaved: false)
                 guard file.processingFormat.sampleRate == 16000, file.processingFormat.channelCount == 1 else { throw VoiceError.insufficientSpeech }
-                let start = Int64(max(0, segment.start - chunk.start) * 16000)
-                let end = min(file.length, Int64((segment.end - chunk.start) * 16000))
-                let frames = min(max(0, end - start), Int64(960_000 - samples.count))
+                let start = Int64(max(0, span.start - chunk.start) * 16000)
+                let end = min(file.length, Int64((span.end - chunk.start) * 16000))
+                let frames = min(max(0, end - start), Int64(limit - samples.count))
                 guard frames > 0 else { continue }
                 file.framePosition = start
                 let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(frames))!
@@ -40,10 +50,9 @@ enum VoiceStage {
                     remaining -= Int64(buffer.frameLength)
                 }
             }
-            if samples.count >= 960_000 { break }
+            if samples.count >= limit { break }
         }
-        guard samples.count >= 320_000 else { throw VoiceError.insufficientSpeech }
-        return try VoicePrints.normalized(await embedder.embedding(of: samples))
+        return samples
     }
     /// Runs one voice command. The result is JSON: matches for enrollment and identification,
     /// contributions for `voice-sources`, nothing otherwise. It never carries a vector.
@@ -114,6 +123,21 @@ enum VoiceStage {
     /// Proposes a known person for each voice. A voice is compared with the exemplars of its own channel;
     /// a person known only on the other channel can still be proposed, above a stricter threshold.
     static func identify(recording: Recording, people store: any VoicePeople, audio: any AudioLocator, prints: VoicePrints, embedder: any VoiceEmbedding, directory: URL, audioOverrides: [UUID: URL] = [:]) async throws -> [String: VoiceMatch] {
+        guard try await hasExemplars(people: store, prints: prints, directory: directory) else { return [:] }
+        var rows: [(key: String, source: HWYDCore.AudioSource, vector: [Float])] = []
+        for speaker in recording.speakers where !speaker.ignored {
+            do { rows.append((speaker.id.uuidString, speaker.source, try await embedding(recording: recording, speaker: speaker, audio: audio, embedder: embedder, audioOverrides: audioOverrides))) }
+            catch VoiceError.insufficientSpeech { continue }
+        }
+        return try await identify(rows, people: store, prints: prints, directory: directory)
+    }
+    private static func hasExemplars(people store: any VoicePeople, prints: VoicePrints, directory: URL) async throws -> Bool {
+        try await withPrintLock(directory) {
+            try await store.people().filter(\.recognitionEnabled).contains { person in try VoiceChannel.allCases.contains { try !prints.vectors(person: person.id, channel: $0).isEmpty } }
+        }
+    }
+    /// Compares voice embeddings with voice memory. Each row is one voice; each person names at most one row.
+    static func identify<Key: Hashable>(_ rows: [(key: Key, source: HWYDCore.AudioSource, vector: [Float])], people store: any VoicePeople, prints: VoicePrints, directory: URL) async throws -> [Key: VoiceMatch] {
         let (people, exemplars): ([VoicePerson], [[VoiceChannel: [[Float]]]]) = try await withPrintLock(directory) {
             let people = try await store.people().filter(\.recognitionEnabled)
             return (people, try people.map { person in
@@ -122,22 +146,16 @@ enum VoiceStage {
         }
         guard !people.isEmpty else { return [:] }
         guard exemplars.contains(where: { $0.values.contains { !$0.isEmpty } }) else { return [:] }
-        var speakers: [HWYDCore.Speaker] = []
-        var candidates: [[VoiceResolver.Candidate?]] = []
-        for speaker in recording.speakers where !speaker.ignored {
-            do {
-                let vector = try await embedding(recording: recording, speaker: speaker, audio: audio, embedder: embedder, audioOverrides: audioOverrides)
-                speakers.append(speaker)
-                candidates.append(exemplars.map { VoiceResolver.candidate(vector, channel: VoiceChannel(source: speaker.source), exemplars: $0) })
-            } catch VoiceError.insufficientSpeech { continue }
+        let candidates: [[VoiceResolver.Candidate?]] = rows.map { row in
+            exemplars.map { VoiceResolver.candidate(row.vector, channel: VoiceChannel(source: row.source), exemplars: $0) }
         }
         let scores = candidates.map { row in row.map { $0?.adjusted ?? -1 } }
         let assignment = VoiceResolver.assign(scores: scores)
-        var result: [String: VoiceMatch] = [:]
-        for i in speakers.indices {
+        var result: [Key: VoiceMatch] = [:]
+        for i in rows.indices {
             guard let index = assignment[i], let candidate = candidates[i][index] else { continue }
             let ranked = scores[i].sorted(by: >)
-            result[speakers[i].id.uuidString] = VoiceMatch(personID: people[index].id, score: candidate.score, margin: ranked.count > 1 ? ranked[0] - ranked[1] : nil,
+            result[rows[i].key] = VoiceMatch(personID: people[index].id, score: candidate.score, margin: ranked.count > 1 ? ranked[0] - ranked[1] : nil,
                                                            channel: candidate.channel, crossChannel: candidate.crossChannel)
         }
         // Opposed or erased meanwhile: no longer proposed. The app checks again when it applies the result.

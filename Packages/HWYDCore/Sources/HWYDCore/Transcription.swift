@@ -57,6 +57,8 @@ public struct TranscriptionProvenance: Codable, Equatable, Sendable {
     public var engine: String
     public var diarizationEngine: String?
     public var echoCancellationEngine: String?
+    /// Version of the voice post-processing that ran after diarization. Absent when none did.
+    public var voiceProcessingEngine: String?
     public var locale: String
     public var createdAt: Date
     /// One entry per track when the locale was detected rather than chosen.
@@ -75,6 +77,10 @@ public struct TranscriptionResult: Codable, Sendable {
     public var createdAt: Date
     public var segments: [TranscriptSegment]
     public var speakers: [Speaker]?
+    /// Voices the post-processing merged into a longer one, so the merge can be undone.
+    public var absorbedSpeakers: [Speaker]?
+    public var splitProposals: [VoiceSplitProposal]?
+    public var voiceProcessingEngine: String?
     public var languageDetection: [LanguageDetection]?
     public init(request: TranscriptionRequest, segments: [TranscriptSegment]) {
         self.request = request; self.segments = segments; engine = "apple-speech-transcriber-v1"; createdAt = Date()
@@ -372,6 +378,8 @@ extension Recording {
     public mutating func applyTranscription(_ result: TranscriptionResult) throws {
         guard id == result.request.recordingID, audioChunks == result.request.chunks, state != .recording else { throw TranscriptionError.staleResult }
         transcription = .init(engine: result.engine, diarizationEngine: result.diarizationEngine, echoCancellationEngine: result.echoCancellationEngine, locale: result.request.locale, createdAt: result.createdAt, languageDetection: result.languageDetection)
-        segments = result.segments; speakers = result.speakers ?? []; absorbedSpeakers = nil; transcriptVersion += 1; transcriptState = .ready
+        transcription?.voiceProcessingEngine = result.voiceProcessingEngine
+        segments = result.segments; speakers = result.speakers ?? []; absorbedSpeakers = result.absorbedSpeakers
+        splitProposals = result.splitProposals; transcriptVersion += 1; transcriptState = .ready
     }
 }

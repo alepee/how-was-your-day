@@ -78,6 +78,7 @@ import HWYDCore
         renderResumedSession(preferences: preferences, to: directory.appendingPathComponent("studio-transcript-resumed.png"))
         renderVoiceTiles(preferences: preferences, to: directory.appendingPathComponent("studio-voices.png"))
         renderVoiceTiles(preferences: preferences, to: directory.appendingPathComponent("studio-voices-queued.png"), queued: true)
+        renderVoiceProcessing(preferences: preferences, to: directory.appendingPathComponent("studio-voices-processed.png"))
         var splitExample = TranscriptSegment(start: 12, end: 16, speakerID: nil, source: .mic, text: "Oui. Bonjour à tous.") // l10n:ignore
         splitExample.words = [.init(text: "Oui.", start: 12, end: 12.5), .init(text: " Bonjour", start: 13, end: 14), .init(text: " à", start: 14, end: 14.5), .init(text: " tous.", start: 14.5, end: 16)] // l10n:ignore
         render(SegmentSplitView(recordingID: model.selectedID!, segment: splitExample).environmentObject(model), size: .init(width: 580, height: 490), to: directory.appendingPathComponent("studio-split.png"))
@@ -272,6 +273,28 @@ import HWYDCore
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-settings-summary-remote.png"))
         model.summarySettings.select(.agent)
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 790), to: directory.appendingPathComponent("studio-settings-summary-agent.png"))
+    }
+    /// Synthetic voices as the post-processing leaves them: one suspected of holding two people, one
+    /// merged into another, one too brief to name, one probable echo. Nothing is read or played.
+    private static func renderVoiceProcessing(preferences: InMemorySettings, to url: URL) {
+        let camille = Speaker(label: "Camille", confirmed: true, source: .system), mixed = Speaker(label: "Voix 2", source: .system) // l10n:ignore
+        var merged = Speaker(label: "Voix 5", source: .system); merged.automatic = .merged // l10n:ignore
+        var brief = Speaker(label: SummaryLanguage.current.otherVoice, source: .system); brief.automatic = .minor
+        var echo = Speaker(label: "Voix 4"); echo.ignored = true; echo.automatic = .echo // l10n:ignore
+        let moved = TranscriptSegment(start: 300, end: 374, speakerID: mixed.id, source: .system, text: "c")
+        var absorbed = TranscriptSegment(start: 400, end: 460, speakerID: camille.id, source: .system, text: "d")
+        absorbed.originalSpeakerID = merged.id
+        var example = Recording(title: "Voix traitées", speakers: [camille, mixed, brief, echo], segments: [ // l10n:ignore
+            .init(start: 0, end: 140, speakerID: camille.id, source: .system, text: "a"),
+            .init(start: 150, end: 290, speakerID: mixed.id, source: .system, text: "b"), moved, absorbed,
+            .init(start: 470, end: 476, speakerID: brief.id, source: .system, text: "e"),
+            .init(start: 150, end: 162, speakerID: echo.id, source: .mic, text: "f")])
+        example.absorbedSpeakers = [merged]
+        example.splitProposals = [VoiceSplitProposal(speakerID: mixed.id, segmentIDs: [moved.id], similarity: 0.56)]
+        example.audioChunks = [.init(source: .system, relativePath: "preview-system.caf", start: 0, duration: 480)]
+        let model = AppModel(environment: .preview(examples: DemoContent.recordings() + [example], preferences: preferences, coordinator: WorkCoordinator()))
+        model.selectedID = example.id
+        render(VoiceTilesView(recording: example).environmentObject(model).padding(16), size: .init(width: 1040, height: 150), to: url)
     }
     /// Synthetic voices covering the three states. Audio chunks are references only; nothing is read or played.
     /// `queued`: an enrollment waits behind a transcription of another session.

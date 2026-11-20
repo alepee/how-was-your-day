@@ -145,7 +145,8 @@ Les champs racine du frontmatter sont repris avec les mêmes types. `type` vaut 
 | `speakers[].label` | string | Speaker N ou nom confirmé ; nom affiché séparé de l'ID |
 | `speakers[].track_id` | UUID | Référence une piste |
 | `speakers[].channel` | enum | near/room/remote |
-| `speakers[].ignored` | bool | `true` si l'utilisateur a ignoré cette voix (écho des enceintes, bruit). Ses segments restent dans le JSON avec le flag `speaker_ignored`, mais sont absents du Markdown, de la recherche et de la synthèse |
+| `speakers[].ignored` | bool | `true` si l'utilisateur a ignoré cette voix (écho des enceintes, bruit), ou si le traitement des voix l'a jugée écho probable (`automatic: echo`). Ses segments restent dans le JSON avec le flag `speaker_ignored`, mais sont absents du Markdown, de la recherche et de la synthèse |
+| `speakers[].automatic` | enum, optionnel | `echo` ou `minor` : décision du traitement des voix après diarisation, tant que l'utilisateur ne l'a pas défaite. Clé absente sinon. `echo` va avec `ignored: true` ; une voix `minor` garde ses segments, sous le libellé « Autre voix », et ne figure pas dans `participants` |
 | `speakers[].identity` | object | `{status, person_id, persistent_speaker_id, name, alias, proposed_person_id, scores}` |
 | `identity.status` | enum | anonymous/proposed/confirmed/opposed |
 | `identity.person_id`, `name`, `alias` | string ou null | Non null seulement pour identité confirmée ; alias peut rester null |

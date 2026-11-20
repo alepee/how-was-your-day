@@ -61,6 +61,8 @@ extension SummaryLanguage {
     public func voiceLabel(_ number: Int) -> String { (self == .english ? "Voice " : "Voix ") + String(number) } // l10n:ignore (stored label)
     /// Label of a voice that gave back the identity it had lent when merged. Stored like `voiceLabel`.
     public var voiceToName: String { self == .english ? "Voice to name" : "Voix à nommer" } // l10n:ignore (stored label)
+    /// Label shared by the voices too brief to be named. Stored like `voiceLabel`.
+    public var otherVoice: String { self == .english ? "Other voice" : "Autre voix" } // l10n:ignore (stored label)
     /// Speaker name sent to models for a passage without a voice.
     public var unidentifiedSpeaker: String { self == .english ? "Unidentified voice" : "Voix non identifiée" } // l10n:ignore (model-facing)
 }
