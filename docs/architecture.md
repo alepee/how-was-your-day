@@ -336,6 +336,25 @@ Tests and snapshots inject doubles through the environment instead of setting mo
 
 Known gap: `SummarySettings.isDemo` is still a flag the model sets on a workspace switch, not a capability of the workspace.
 
+### Helper composition root
+
+`hwyd-pipeline` follows the same rule in its own process. `PipelineRoot` (`Sources/HWYDPipeline/PipelineEnvironment.swift`) builds one `PipelineEnvironment` from the process environment, and nothing else reads it. `main.swift` parses the arguments, takes the locks, reads and writes the job's JSON, and hands the adapters to the stages; it names no adapter.
+
+| Type | Holds | Production choice (`PipelineEnvironment.launch`) |
+|---|---|---|
+| `PipelineEnvironment` | `recognizer` (`SpeechRecognizing`), `speechModels`, `secrets` (`SecretVault`) | `AppleSpeechRecognizer`; the vault named by `HWYD_SECRET_VAULT` (`HelperSecrets`, § Audio paths and secrets) |
+| `SpeechModels` | `locales`, `install(locale)`, `diagnostics`, as closures | `AppleSpeechRecognizer` |
+| `VoiceModels` (`voiceModels(in: directory)`) | `diarizer` (`OfflineDiarizing`), `embedder` (`VoiceEmbedding`), `isInstalled`, `install`, over `<directory>/models/diarization` | `FluidDiarizer`, `FluidVoiceEmbedder`, `FluidModels` |
+| `PipelineWorkspace` (`workspace(at: directory)`) | `directory`, `recordings` (`RecordingRepository`), `people` (`VoicePeople`), `audio` (`AudioLocator`), `prints` (`VoicePrints` over the environment's vault), `voices` | `SessionStore` for the first three, its `DataDirectoryAudio` |
+
+- **Who opens the store.** `workspace(at:)` opens the `SessionStore` of the data directory: `transcribe`, `transcribe-calibration`, `echo-diagnostic`, `inspect` and the voice commands use it. `diarizer-status` and `install-diarizer` only ask `voiceModels(in:)`, which opens no store, and `diagnose`, `languages` and `install-model` take no directory.
+- **Stages.** A stage builds no adapter. `TranscriptionPipeline.run` takes the `AudioLocator` and the `SpeechRecognizing`; `DiarizationStage.run` the `AudioLocator` and the `OfflineDiarizing`; `EchoCancellation.prepare` and `EchoStage.run` the `AudioLocator`; `VoiceStage.run` and `VoiceStage.identify` the `VoicePeople`, the `AudioLocator`, the `VoicePrints`, the `VoiceEmbedding` and the data directory, where `voiceprints.lock` and the job's working folder live.
+- **Voice vectors.** `VoiceEmbedding` (`Sources/HWYDPipeline/VoiceModels.swift`) turns the clean speech of one voice into its vector. It is declared in the helper, not in HWYDCore: a vector goes from it to `VoicePrints` or to a comparison in `VoiceStage`, and into no file, job result or log. `VoiceStage` gathers the samples and refuses a voice with less than 20 s of speech before the model is asked.
+- **FluidAudio.** `FluidDiarizer`, `FluidVoiceEmbedder` and `FluidModels` are the only code that calls FluidAudio. Each sets its own offline mode: the two that run a model load it from disk only, `FluidModels.install` alone downloads.
+- **Tests.** `Tests/HWYDPipelineTests` runs `DiarizationStage` over a scripted `OfflineDiarizing`, and the voice commands over `InMemoryVoicePeople`, `InMemorySecretVault` and a fake `VoiceEmbedding`: enrollment, the consent check repeated after the model run, identification, sources and erasure, with no model, keychain or store.
+
+Known gaps: the subcommands are one `switch` in `main.swift`, so the locks, the argument parsing and the JSON files are covered by the app's synthetic checks only, not by unit tests. `SpeechModels` and the model files of `VoiceModels` are closures over one call each, not ports. `DiarizationStage` still writes the FluidAudio engine label (`diarizationEngine`) itself, since `OfflineDiarizing` does not name its engine. `EchoCancellation` calls the bundled speexdsp (`HWYDEcho`) directly, without a port.
+
 ### Audio paths and secrets
 
 Two more ports keep adapters from depending on the store, a data directory or the keychain.
@@ -349,7 +368,7 @@ Two more ports keep adapters from depending on the store, a data directory or th
 - **Audio.** `CoreAudioCapture(audio:)`, `SessionPlayback`, `WaveformReader`, `TranscriptionPipeline.run(_:audio:recognizer:)` and the helper's assembly, echo and diarization stages take an `AudioLocator`, not a store or a folder. The layout is unchanged (`audio/<session>/<chunk>.caf`, `cache/waveforms`, `capture.lock`), and `SessionFiles` takes the session folder and the waveform folder from `DataDirectoryAudio` instead of spelling them, so the store, `hwyd-pipeline`, `hwyd-mcp` and recovery keep reading the same files. The path rule moved with it: a chunk whose relative path leaves the data directory (`..`, an absolute path, a symbolic link to an existing file outside) is refused with `StoreError.invalidPath`. The examples and previews have no locator: they hold no audio.
 - **Secrets.** `SummaryKeys` (API keys, service `dev.lepee.hwyd.summary-api-key`, one account per provider) and `VoicePrints` (voice exemplars, service `dev.lepee.hwyd.voice.we-speaker-v1`, account `<person>.<channel>`, former `near` and `room` folded into `mic`) replace the static `SummaryKeychain` and `VoiceKeychain`. `KeychainVault` writes generic passwords with the attributes every version used (not synchronized, `WhenUnlockedThisDeviceOnly`), so existing keys and prints still resolve; a vault failure keeps each caller's message.
 - **Note images.** `AppEnvironment.installed` gives `FolderNoteImageStore` to the user's store; the examples, previews and synthetic checks get `InMemoryNoteImageStore`, so they write no image. A note entry holds a `NoteImage` (id, width, height), never the bytes, and nothing goes to SQLite. Deleting a session and the orphan sweep remove `notes/<session>/`; removing an image from the notes keeps its file, since earlier note versions reference it.
-- **Who gets the keychain.** `AppEnvironment.installed` gives `KeychainVault` to `SummarySettings` and the summarizer factory; every other environment gives an `InMemorySecretVault`. `hwyd-pipeline` picks its vault from `HWYD_SECRET_VAULT`, which `PipelineRunner` sets from `HelperLocator.secrets`: `keychain` for the installed app (and the default for a helper started by hand, as `scripts/test-voice-memory.sh` does on purpose), `memory` for the synthetic checks' helper. `--ui-test` checks every synthetic environment's vault. Voice prints never leave the vault: no export, SQLite row, job file or log carries one.
+- **Who gets the keychain.** `AppEnvironment.installed` gives `KeychainVault` to `SummarySettings` and the summarizer factory; every other environment gives an `InMemorySecretVault`. `hwyd-pipeline` picks its vault from `HWYD_SECRET_VAULT` in its composition root (`PipelineEnvironment.launch`), which `PipelineRunner` sets from `HelperLocator.secrets`: `keychain` for the installed app (and the default for a helper started by hand, as `scripts/test-voice-memory.sh` does on purpose), `memory` for the synthetic checks' helper. `--ui-test` checks every synthetic environment's vault. Voice prints never leave the vault: no export, SQLite row, job file or log carries one.
 
 ### Ports after the refactor
 
@@ -367,7 +386,8 @@ Two more ports keep adapters from depending on the store, a data directory or th
 | Composition | none (`AppRoot`, `AppEnvironment`, `Workspace`, `LaunchMode`) | | | 7 |
 | Audio paths | `AudioLocator` | `DataDirectoryAudio` | `TemporaryAudioLocator` | 8 |
 | Secrets | `SecretVault` | `KeychainVault` | `InMemorySecretVault` | 8 |
-| Helper internals | `SpeechRecognizing`, `OfflineDiarizing` | `AppleSpeechRecognizer`, `FluidDiarizer` (helper) | test fakes | before |
+| Helper internals | `SpeechRecognizing`, `OfflineDiarizing`; `VoiceEmbedding` (declared in the helper) | `AppleSpeechRecognizer`, `FluidDiarizer` (helper), `FluidVoiceEmbedder` (helper) | test fakes | before; `VoiceEmbedding` with the helper's root |
+| Helper composition | none (`PipelineRoot`, `PipelineEnvironment`, `PipelineWorkspace`) | | | after 8 |
 
 ### Later: splitting HWYDCore
 
@@ -451,7 +471,7 @@ Status: the code after the port refactor (step 8 of the refactor stack, on top o
 | Executable | SwiftPM target | Role |
 |---|---|---|
 | `How Was Your Day.app` | `HWYDApp` (+ `HWYDRealtime`, Sparkle) | UI, composition root (`AppRoot`, `AppEnvironment`), app adapters: `CoreAudioCapture`, the `Helper…` pipeline adapters, `ToastCenter`, `LoginShellAgentDiscovery` |
-| `hwyd-pipeline` | `HWYDPipeline` (+ `HWYDEcho`, FluidAudio) | One-shot subcommands: `transcribe`, `languages`, `install-model`, `diarizer-status`, `install-diarizer`, voice commands (`enroll-voice`, `identify-voices`, `probe-voice`, `forget-voice`, `forget-voice-source`, `voice-sources`), `echo-diagnostic`, `inspect`, `diagnose`. One process per job: JSON request in, JSON result out, `pipeline.lock` held for transcription and voice commands |
+| `hwyd-pipeline` | `HWYDPipeline` (+ `HWYDEcho`, FluidAudio) | One-shot subcommands: `transcribe`, `languages`, `install-model`, `diarizer-status`, `install-diarizer`, voice commands (`enroll-voice`, `identify-voices`, `probe-voice`, `forget-voice`, `forget-voice-source`, `voice-sources`), `echo-diagnostic`, `inspect`, `diagnose`. One process per job: JSON request in, JSON result out, `pipeline.lock` held for transcription and the voice commands that run a model. Its own composition root (`PipelineRoot`, `PipelineEnvironment`) picks its adapters: `AppleSpeechRecognizer`, `FluidDiarizer`, `FluidVoiceEmbedder`, `SessionStore`, the vault of the voice prints |
 | `hwyd-mcp` | `HWYDMCP` | MCP server over stdio (§ 13) |
 
 `HWYDCore` is one target. It holds the domain, the application services, every port with its in-memory double, and a few adapters (GRDB store, `KeychainVault`, `DataDirectoryAudio`, `AppleSpeechRecognizer`, `ACPSummaryAgent`, the HTTP providers). Splitting it is a later step (§ 11, « Later: splitting HWYDCore »).
@@ -459,6 +479,8 @@ Status: the code after the port refactor (step 8 of the refactor stack, on top o
 ### 15.2 Application layer
 
 SwiftUI views read `AppModel`, which keeps the published projection, turns user actions into requests and words most notices. The rules live in HWYDCore services (`SessionLibrary`, `CaptureSession`, `WorkCoordinator`, `VoiceRequests`, `EnrollVoice`, `SummarySettings`), which reach the outside only through ports. `AppEnvironment` picks every adapter once from the launch mode; no mode flag is tested in the use cases. A capability states its own availability, and a caller requests work and gets it accepted, queued or refused with a reason.
+
+The helper is composed the same way: `PipelineEnvironment` picks its adapters once, and its stages take them as ports (§ 11, « Helper composition root »).
 
 Session files follow the same path: `RecordingRepository.remove` deletes the session, then its files (`SessionFiles`, with paths from `DataDirectoryAudio`), and returns what it could not remove; `SessionLibrary.load` sweeps the files of sessions deleted earlier, in the background, once the library is ready, when the composition root asks it to (the installed app on its data folder, a synthetic check on its own folder).
 
@@ -481,4 +503,5 @@ Session files follow the same path: `RecordingRepository.remove` deletes the ses
 - Transcription, summary and library notices are still worded in `AppModel` (§ 11, « User notices »).
 - `SummarySettings.isDemo` is a flag set on a workspace switch, not a capability of the workspace (§ 11, « Composition root »).
 - The heavy-work queue lives in memory: quitting drops waiting work (§ 11, « Heavy work »).
+- The helper's subcommands are one `switch` in `main.swift`, unit-tested only through the stages; `DiarizationStage` writes the FluidAudio engine label, and echo cancellation has no port (§ 11, « Helper composition root »).
 - The launch sweep takes `pipeline.lock` outside the `WorkCoordinator`. A helper job that starts during the sweep is refused by the helper's lock, as on 0.13.0; the sweep skips its run when a job already holds the lock.

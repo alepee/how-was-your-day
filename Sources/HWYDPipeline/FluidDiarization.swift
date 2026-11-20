@@ -8,6 +8,7 @@ actor FluidDiarizer: OfflineDiarizing {
     init(directory: URL) { self.directory = directory }
     func diarize(file: URL, source: HWYDCore.AudioSource) async throws -> [SpeakerTurn] {
         let manager = OfflineDiarizerManager(config: OfflineDiarizerConfig())
+        ModelHub.offlineMode = true
         try await manager.prepareModels(directory: directory)
         let result = try await manager.process(file)
         // Never serialize DiarizationResult: it also contains a speaker embedding database.
@@ -16,22 +17,10 @@ actor FluidDiarizer: OfflineDiarizing {
 }
 
 enum DiarizationStage {
-    /// Whether every model the offline diarizer loads is on disk, as `install` leaves them.
-    static func isInstalled(directory: URL) -> Bool {
-        let folder = directory.appendingPathComponent(Repo.diarizer.folderName, isDirectory: true)
-        return ModelNames.OfflineDiarizer.requiredModels.allSatisfy { FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path) }
-    }
-    static func install(directory: URL) async throws {
-        ModelHub.offlineMode = false
-        let manager = OfflineDiarizerManager(config: OfflineDiarizerConfig())
-        try await manager.prepareModels(directory: directory)
-    }
-    static func run(_ result: TranscriptionResult, audio: any AudioLocator, models: URL, workingDirectory: URL, diagnosticURL: URL? = nil, microphoneOverride: URL? = nil) async throws -> TranscriptionResult {
-        ModelHub.offlineMode = true
+    static func run(_ result: TranscriptionResult, audio: any AudioLocator, diarizer: any OfflineDiarizing, workingDirectory: URL, diagnosticURL: URL? = nil, microphoneOverride: URL? = nil) async throws -> TranscriptionResult {
         let folder = workingDirectory.appendingPathComponent("diarization-\(UUID())")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         defer { try? FileManager.default.removeItem(at: folder) }
-        let diarizer = FluidDiarizer(directory: models)
         var turns: [SpeakerTurn] = []
         for source in [HWYDCore.AudioSource.mic, .system] {
             let chunks = result.request.chunks.filter { $0.source == source }.sorted { $0.start < $1.start }
