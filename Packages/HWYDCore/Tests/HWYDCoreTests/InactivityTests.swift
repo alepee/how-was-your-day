@@ -45,7 +45,7 @@ final class CaptureInactivityTests: XCTestCase {
         for _ in 0..<Int((seconds * 5).rounded()) { time += 0.2; capture.handle(.levels(mic: 0.3, system: 0), session: id) }
     }
     private func waitUntil(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async {
-        for _ in 0..<1000 where !condition() { try? await Task.sleep(for: .milliseconds(1)) }
+        for _ in 0..<10_000 where !condition() { try? await Task.sleep(for: .milliseconds(1)) }
         XCTAssertTrue(condition(), "condition not met in time", file: file, line: line)
     }
 

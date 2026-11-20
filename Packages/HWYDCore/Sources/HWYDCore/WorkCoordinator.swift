@@ -210,6 +210,9 @@ public actor WorkCoordinator {
     }
     public func cancelAll() { cancel { _ in true } }
 
+    /// Callers of `idle()` waiting for the work to end, for tests.
+    var idleWaiterCount: Int { idleWaiters.count }
+
     /// Returns once nothing runs or waits. Returns early if the calling task is cancelled.
     public func idle() async {
         guard snapshot.isBusy else { return }

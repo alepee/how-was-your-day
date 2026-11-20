@@ -161,7 +161,11 @@ final class WorkCoordinatorTests: XCTestCase {
         let coordinator = WorkCoordinator(), gate = Gate()
         await coordinator.request(.diarizer) { await gate.wait() }
         let waiter = Task { await coordinator.idle() }
-        try? await Task.sleep(for: .milliseconds(20))
+        // Cancelled while it waits, not before.
+        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+        while await coordinator.idleWaiterCount == 0, ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(1)) }
+        let waiting = await coordinator.idleWaiterCount
+        XCTAssertEqual(waiting, 1)
         waiter.cancel()
         await waiter.value
         let busy = await coordinator.snapshot.isBusy

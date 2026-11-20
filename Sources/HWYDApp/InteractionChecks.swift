@@ -51,8 +51,8 @@ import HWYDCore
     }
     /// The summarizer a check puts in place of the configured one, through the environment.
     @MainActor private final class SummarizerSlot { var fixture: (any Summarizer)? }
-    /// Returns once `condition` holds, failing after `seconds`.
-    private static func waitUntil(_ failure: String, seconds: Double = 3, _ condition: () -> Bool) async throws {
+    /// Returns once `condition` holds. `seconds` only limits a failure: it never decides success.
+    private static func waitUntil(_ failure: String, seconds: Double = 10, _ condition: () -> Bool) async throws {
         let deadline = Date().addingTimeInterval(seconds)
         while !condition() {
             guard Date() < deadline else { throw CaptureFailure(message: failure) }
@@ -86,7 +86,7 @@ import HWYDCore
         guard finished else { throw CaptureFailure(message: failure) }
     }
     private static func waitForSummary(_ model: AppModel) async throws {
-        try await waitIdle(model, seconds: 3, "Summary did not finish")
+        try await waitIdle(model, seconds: 10, "Summary did not finish")
     }
     /// Holds a job until the check releases it.
     /// The in-memory voice memory, whose recognition waits for a gate: it holds a voice job.
@@ -162,7 +162,7 @@ import HWYDCore
         }
         print("Summary availability, pending-edit flush, unselected target, demo exclusion and cancellation: PASS")
     }
-    private actor Counter { var value = 0; func add() { value += 1 } }
+    @MainActor private final class Counter { var value = 0; func add() { value += 1 } }
     /// Automatic summaries: a fixture summarizer stands in for the provider, so no model, network or
     /// microphone is used. The setting lives in this model's in-memory preferences.
     private static func checkAutomaticSummary(directory: URL) async throws {
@@ -170,15 +170,19 @@ import HWYDCore
         let keyless = SummarizerEnvironment(dataDirectory: directory, mcpExecutable: HelperLocator.app.mcp) { _ in nil }
         let model = AppModel(environment: try .synthetic(directory: directory, notifier: notices,
                                                          summarizer: { slot.fixture ?? SummarizerFactory.make($0, environment: keyless) },
-                                                         automaticSummaryDelay: .milliseconds(50)))
+                                                         automaticSummaryDelay: .zero))
         await model.load()
-        guard model.automaticSummary != nil, !model.summarySettings.automatic else { throw CaptureFailure(message: "Automatic summary must be off by default") }
+        guard let trigger = model.automaticSummary, !model.summarySettings.automatic else { throw CaptureFailure(message: "Automatic summary must be off by default") }
         let runs = Counter()
         slot.fixture = FixtureSummarizer { _ in await runs.add() }
-        // Waits past the trigger's delay and the library's save, then for the requests and work.
+        // Saves the edits, has the trigger look at the saved sessions, then waits until what it
+        // requested is decided and done. What it decides is a function of the sessions, so a check
+        // that nothing ran holds without waiting for time to pass.
         func settle() async throws {
-            try await Task.sleep(for: .milliseconds(600))
-            try await waitIdle(model, seconds: 3, "Automatic summary did not finish")
+            await model.flush()
+            trigger.sessionsChanged()
+            try await waitUntil("Automatic summary trigger did not fire") { trigger.waitingSessions.isEmpty }
+            try await waitIdle(model, seconds: 10, "Automatic summary did not finish")
         }
         func session(_ title: String, startedAt: Date = Date(), voice: Speaker) -> Recording {
             Recording(title: title, startedAt: startedAt, speakers: [voice], segments: [.init(start: 0, end: 1, speakerID: voice.id, source: .mic, text: "Bonjour")]) // l10n:ignore
@@ -192,26 +196,28 @@ import HWYDCore
         let item = session("Automatic summary fixture", voice: voice)
         model.sessionLibrary.insert(item)
         try await settle()
-        guard await runs.value == 0 else { throw CaptureFailure(message: "Automatic summary ran before every voice was resolved, or for a session recorded before the setting") }
+        guard runs.value == 0 else { throw CaptureFailure(message: "Automatic summary ran before every voice was resolved, or for a session recorded before the setting") }
         model.update(item.id) { try? $0.renameSpeaker(voice.id, to: "Alice") } // l10n:ignore
+        // The library's save alone starts it.
+        try await waitUntil("Automatic summary did not start once the session was ready") { runs.value == 1 }
         try await settle()
-        guard await runs.value == 1,
+        guard runs.value == 1,
               notices.notices.contains(where: { $0.message == String(localized: "Synthèse automatique lancée : \(item.title)") && $0.actions.first?.title == String(localized: "Annuler") }) else {
             throw CaptureFailure(message: "Automatic summary did not start, or was not announced with a cancel action, once the session was ready")
         }
         notices.clear()
         model.update(item.id) { $0.notes = "Edit after a failed run" }
         try await settle()
-        guard await runs.value == 1 else { throw CaptureFailure(message: "Automatic summary retried an unchanged transcript") }
+        guard runs.value == 1 else { throw CaptureFailure(message: "Automatic summary retried an unchanged transcript") }
         // Busy: the request waits its turn behind other work instead of being refused.
         let gate = Gate()
         await model.coordinator.request(.voice(session: nil)) { await gate.wait() }
         model.update(item.id) { try? $0.renameSpeaker(voice.id, to: "Alice B.") } // l10n:ignore
-        try await Task.sleep(for: .milliseconds(600))
-        guard model.work.isQueued(.summary(session: item.id)) else { await gate.release(); throw CaptureFailure(message: "Automatic summary was not queued behind running work") }
+        do { try await waitUntil("Automatic summary was not queued behind running work") { model.work.isQueued(.summary(session: item.id)) } }
+        catch { await gate.release(); throw error }
         await gate.release()
         try await settle()
-        guard await runs.value == 2 else { throw CaptureFailure(message: "Queued automatic summary did not run") }
+        guard runs.value == 2 else { throw CaptureFailure(message: "Queued automatic summary did not run") }
         notices.clear()
         // Unavailable: the summarizer refuses, and the automatic request says nothing.
         slot.fixture = nil
@@ -224,22 +230,21 @@ import HWYDCore
         let busy = Gate()
         await model.coordinator.request(.voice(session: nil)) { await busy.wait() }
         model.update(item.id) { try? $0.renameSpeaker(voice.id, to: "Alice D.") } // l10n:ignore
-        try await Task.sleep(for: .milliseconds(600))
-        guard model.work.isQueued(.summary(session: item.id)) else { await busy.release(); throw CaptureFailure(message: "Automatic summary was not queued before the setting was turned off") }
-        model.summarySettings.automatic = false
-        let dropDeadline = ContinuousClock.now.advanced(by: .seconds(2))
-        while model.work.isQueued(.summary(session: item.id)), ContinuousClock.now < dropDeadline { try await Task.sleep(for: .milliseconds(10)) }
-        guard !model.work.isQueued(.summary(session: item.id)) else { await busy.release(); throw CaptureFailure(message: "Turning the setting off kept the queued automatic summary") }
+        do {
+            try await waitUntil("Automatic summary was not queued before the setting was turned off") { model.work.isQueued(.summary(session: item.id)) }
+            model.summarySettings.automatic = false
+            try await waitUntil("Turning the setting off kept the queued automatic summary") { !model.work.isQueued(.summary(session: item.id)) }
+        } catch { await busy.release(); throw error }
         // A request already handed over when the setting went off checks it again when it runs.
         await model.requestSummary(item.id, automatic: true)
         guard model.work.isQueued(.summary(session: item.id)) else { await busy.release(); throw CaptureFailure(message: "Automatic request was not queued behind running work") }
         await busy.release()
         try await settle()
-        guard await runs.value == 2, notices.notices.isEmpty else { throw CaptureFailure(message: "Automatic summary ran after the setting was turned off") }
+        guard runs.value == 2, notices.notices.isEmpty else { throw CaptureFailure(message: "Automatic summary ran after the setting was turned off") }
         // Off: nothing starts.
         model.update(item.id) { try? $0.renameSpeaker(voice.id, to: "Alice E.") } // l10n:ignore
         try await settle()
-        guard await runs.value == 2 else { throw CaptureFailure(message: "Automatic summary ran while the setting was off") }
+        guard runs.value == 2 else { throw CaptureFailure(message: "Automatic summary ran while the setting was off") }
         print("Automatic summary: off by default, resolved voices, once per transcript, queued when busy, silent when unavailable, dropped when turned off: PASS")
     }
     /// Synthetic placeholder files stand in for audio and derived files; no microphone.
@@ -586,16 +591,21 @@ import HWYDCore
         guard let memo = model.activeCapture, !memo.consentAnnounced, memo.consentAnnouncedAt == nil else { throw CaptureFailure(message: "A voice memo must start without a consent declaration") }
         await model.stopCapture().value
 
-        // A fresh model: its toasts hold none of the capture notices above.
-        let shown = AppModel(environment: .preview())
+        // A fresh model: its toasts hold none of the capture notices above. Their time is the check's.
+        let toastClock = ManualClock()
+        var toastEnvironment = AppEnvironment.preview()
+        toastEnvironment.toasts = ToastCenter(clock: toastClock)
+        let shown = AppModel(environment: toastEnvironment)
         let toasts = shown.toastCenter
         shown.notifier.notify(.info("Premier")); shown.notifier.notify(.info("Premier"))
         shown.notifier.notify(.error("Décision", actions: [.perform("Réessayer") {}])) // l10n:ignore
         guard toasts.toasts.count == 2, toasts.toasts.last?.staysOnScreen == true, toasts.toasts.last?.message == "Décision" else { throw CaptureFailure(message: "Toasts did not deduplicate or keep their actions") } // l10n:ignore
         for index in 0..<5 { shown.notifier.notify(.info("Message \(index)")) }
         guard toasts.toasts.count == 4, toasts.toasts.contains(where: { $0.message == "Décision" }) else { throw CaptureFailure(message: "Overflow must drop transient toasts before decisions") } // l10n:ignore
-        try await Task.sleep(for: .seconds(5.5))
-        guard toasts.toasts.map(\.message) == ["Décision"] else { throw CaptureFailure(message: "Transient toasts must expire, decisions must stay: \(toasts.toasts.map(\.message))") } // l10n:ignore
+        toastClock.advance(by: .seconds(4))
+        guard toasts.toasts.count == 4 else { throw CaptureFailure(message: "Transient toasts left before their lifetime") }
+        toastClock.advance(by: .seconds(1))
+        try await waitUntil("Transient toasts must expire, decisions must stay") { toasts.toasts.map(\.message) == ["Décision"] } // l10n:ignore
         // A navigating action is handed to the model, which opens the destination.
         let target = shown.recordings[0]
         shown.showSettings = true
@@ -696,7 +706,11 @@ import HWYDCore
         try await checkNoMicrophone(directory: directory.appendingPathComponent("no-microphone-test"))
         try await checkSyntheticEnvironments(directory: directory.appendingPathComponent("environments-test"))
         let notices = RecordingNotifier(), coordinator = WorkCoordinator()
-        let model = AppModel(environment: try .synthetic(directory: directory, notifier: notices, coordinator: coordinator))
+        // The capture clock is the check's: the timer moves only when the check advances it.
+        let captureClock = ManualClock()
+        var environment = try AppEnvironment.synthetic(directory: directory, notifier: notices, coordinator: coordinator)
+        environment.clock = { captureClock.seconds }
+        let model = AppModel(environment: environment)
         // Synthetic checks read no user preference: voice separation starts off.
         guard !model.diarizationEnabled else { throw CaptureFailure(message: "A test model read the user's preferences") }
         await model.load()
@@ -815,15 +829,16 @@ import HWYDCore
         }
         notices.clear()
         await model.startCapture().value
-        try await Task.sleep(for: .milliseconds(650))
-        guard let active = model.activeCapture, model.elapsed > 0, model.micLevel > 0 else { throw CaptureFailure(message: "Demo capture timer or levels failed") }
+        guard let active = model.activeCapture else { throw CaptureFailure(message: "Demo capture did not start") }
+        captureClock.advance(by: .seconds(2))
+        try await waitUntil("Demo capture timer or levels failed") { model.elapsed == 2 && model.micLevel > 0 }
         await model.toggleCapturePause().value
-        let frozen = model.elapsed
-        try await Task.sleep(for: .milliseconds(450))
-        guard model.isCapturePaused, model.elapsed == frozen, model.micLevel == 0 else { throw CaptureFailure(message: "Paused capture clock moved") }
+        guard model.isCapturePaused, model.elapsed == 2, model.micLevel == 0 else { throw CaptureFailure(message: "Pause did not freeze the capture clock or silence the levels") }
+        captureClock.advance(by: .seconds(5))
+        guard model.captureSession.elapsed == 2, model.elapsed == 2 else { throw CaptureFailure(message: "Paused capture clock moved") }
         await model.toggleCapturePause().value
-        try await Task.sleep(for: .milliseconds(450))
-        guard !model.isCapturePaused, model.elapsed > frozen, model.elapsed < frozen + 1 else { throw CaptureFailure(message: "Resumed capture clock wrong: \(model.elapsed) after \(frozen)") }
+        captureClock.advance(by: .seconds(3))
+        try await waitUntil("Resumed capture clock did not count on from where it paused") { !model.isCapturePaused && model.elapsed == 5 }
         model.update(active.id) { $0.notes = "Note pendant la session" } // l10n:ignore
         model.addTimestamp()
         await model.stopCapture().value

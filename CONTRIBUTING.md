@@ -27,6 +27,14 @@ Read [AGENTS.md](AGENTS.md) first: it holds the project rules (privacy, realtime
 5. Update the affected documentation (see [Documentation](#documentation)).
 6. Commit using the [conventional commit](https://www.conventionalcommits.org/) format.
 
+## Tests
+
+Tests and synthetic checks must not depend on wall-clock timing. A fixed sleep followed by an assertion passes on a fast machine and fails on a slow CI runner.
+
+- Make time injectable: pass a clock, a delay or a sleep function, and advance it from the test (`ManualClock` in the app's checks, the capture clock's `now`, `AutomaticSummaryTrigger`'s `sleep`).
+- Otherwise wait on an observable condition (`waitUntil`, `model.idle()`, `coordinator.idle()`) with a generous upper bound. The bound only limits a failure; it never decides success.
+- To assert that something did not happen, first reach a deterministic point where it would have happened (the trigger has looked at the sessions, the queued work is done), then assert.
+
 ## Pull requests
 
 - **Base branch**: always `main`.

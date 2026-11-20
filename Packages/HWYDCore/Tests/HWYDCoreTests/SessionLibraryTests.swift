@@ -208,7 +208,7 @@ final class SessionLibraryTests: XCTestCase {
         XCTAssertTrue(library.recordings.isEmpty)
 
         await repository.failLoad(false)
-        for _ in 0..<1000 where library.recordings.isEmpty { try await Task.sleep(for: .milliseconds(5)) }
+        for _ in 0..<2000 where library.recordings.isEmpty { try await Task.sleep(for: .milliseconds(5)) }
         XCTAssertEqual(library.recordings.map(\.title), ["Hier"])
     }
 

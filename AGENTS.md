@@ -15,6 +15,7 @@ Public repository. Discussion and UI remain in French. New documentation, issues
 - Never present a future feature as active. The README describes the limits of the current version.
 - No voice vector in exports or SQLite. A speaker correction is not consent to enrollment.
 - The C audio callback must not allocate, write to disk or take a blocking lock.
+- Tests and checks never depend on wall-clock timing: no fixed sleep followed by an assertion. Inject the clock or the delay, or wait on an observable condition with a generous upper bound that only limits a failure and never decides success.
 
 ## Development commands
 

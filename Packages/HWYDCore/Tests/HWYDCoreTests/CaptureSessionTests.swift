@@ -55,7 +55,7 @@ final class CaptureSessionTests: XCTestCase {
     }
     /// Waits for the session to handle what the capture sent.
     private func waitUntil(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async {
-        for _ in 0..<1000 where !condition() { try? await Task.sleep(for: .milliseconds(1)) }
+        for _ in 0..<10_000 where !condition() { try? await Task.sleep(for: .milliseconds(1)) }
         XCTAssertTrue(condition(), "condition not met in time", file: file, line: line)
     }
 
@@ -277,7 +277,7 @@ final class CaptureSessionTests: XCTestCase {
         time += 5
         await capture.pause()
         let first = Task { await capture.resume() }
-        for _ in 0..<1000 { if await device.isHolding { break }; try? await Task.sleep(for: .milliseconds(1)) }
+        for _ in 0..<10_000 { if await device.isHolding { break }; try? await Task.sleep(for: .milliseconds(1)) }
         await capture.resume()
         let resumes = await device.resumes
         XCTAssertEqual(resumes, 1, "the second request does not reach the capture")
@@ -342,7 +342,7 @@ final class CaptureMicrophoneTests: XCTestCase {
                          })
     }
     private func waitUntil(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async {
-        for _ in 0..<1000 where !condition() { try? await Task.sleep(for: .milliseconds(1)) }
+        for _ in 0..<10_000 where !condition() { try? await Task.sleep(for: .milliseconds(1)) }
         XCTAssertTrue(condition(), "condition not met in time", file: file, line: line)
     }
     private func start(_ capture: CaptureSession, _ device: SimulatedCapture, in library: SessionLibrary, microphone: String? = nil) async throws -> UUID {
@@ -653,8 +653,8 @@ final class CaptureMicrophoneTests: XCTestCase {
         _ = try await start(capture, device, in: library, microphone: "usb")
         duringSwitch = { await capture.stop() }
         await device.remove("usb")
-        await waitUntil { capture.phase == .idle && !endings.isEmpty }
-        try? await Task.sleep(for: .milliseconds(20))
+        // The switch that was rebuilding ends once the session stopped: what follows it is decided.
+        await waitUntil { capture.phase == .idle && !endings.isEmpty && !capture.isSwitchingMicrophone }
         XCTAssertEqual(endings.map(\.cause), [.requested])
         XCTAssertEqual(forced, 0)
         XCTAssertFalse(notifier.messages.contains { $0.contains("L’enregistrement continue") })
