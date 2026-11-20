@@ -97,21 +97,23 @@ None of these corrections is consent to enrollment: no voice print is read or wr
 
 ## Thresholds
 
-The thresholds are constants of `VoicePostProcessor`, not settings: they describe the models, not a preference. They were set on the author's own sessions (45 sessions, 192 voices), comparing each rule with what the user had done by hand:
+The thresholds are constants of `VoicePostProcessor`, not settings: they describe the models, not a preference. They were measured by running the diagnostic below on the author's own sessions (45 sessions, 209 detected voices) and comparing each decision with what the user had done by hand:
 
-| Rule | Measured |
-| --- | --- |
-| Echo at 70 % overlap | 10 microphone voices above it: 9 had been ignored by hand, 1 was left untreated, none had been named. The highest overlap of a kept microphone voice was 48 % |
-| Same person at 0.75 | Across 208 pairs of distinct named people on one track, the highest similarity was 0.62 (median 0.17). Pairs of the same person cut in two were mostly at 0.80 to 0.96 |
-| Minor under 30 s and 1 % | 11 voices: 4 ignored by hand, 7 left untreated, none named |
-| Split under 0.75, 30 s, level guard | One real fusion of two people (0.56, 74 s). Three other alerts were one person at a very different or very low level, which the guard removes |
+| Rule | Decisions | Against the user's own corrections |
+| --- | --- | --- |
+| Echo at 70 % overlap | 9 voices, overlap from 75 % to 100 % | All 9 had been ignored by hand. Among the microphone voices kept, the highest overlap was 67 % (a 1 s fragment), then 66 % and 54 % |
+| Same person at 0.75 | 14 voices merged, similarity from 0.76 to 0.99 | 10 were a second voice of a person named in the session, merged into the right one; 4 were fragments the user had ignored. The most similar pair of distinct people was at 0.63, and no pair fell between 0.73 and 0.76 |
+| Minor under 30 s and 1 % | 24 voices | 5 ignored by hand, 8 left untreated, 11 named: fragments of 2 to 17 s of a person present elsewhere in the session, which now read « Autre voix » instead of that name |
+| Split under 0.75, 30 s, level guard | 11 proposals, all on the remote track | 2 confirmed (the meeting of the worked example, at 0.50 and 0.56). The 9 others, from 0.29 to 0.74, are not yet checked by ear |
 
 Limits to keep in mind:
 
-- The split rule rests on few real cases. It only proposes; it never moves a passage on its own.
-- A session recorded at a very low level never gets a split proposal, since its level cannot be trusted.
-- A duplicate whose two halves sound different (for instance 0.55 between them) is not merged and stays a manual merge.
-- Some voices the user would ignore are neither echo nor minor and stay a manual decision.
+- The split rule is the least proven. Only two of its proposals are confirmed, and it may propose too often: this is why it only proposes and never moves a passage on its own. Its similarity threshold is expected to change once the open proposals are checked.
+- The level guard carries the microphone track: without it, 20 more microphone voices would get a proposal, nearly all the user's own voice at two very different levels. A session recorded at a very low level therefore never gets a split proposal.
+- The echo margin is thin: 75 % for the lowest echo, 67 % for the highest kept voice.
+- A duplicate whose two halves sound different is not merged (the measured ones sit between 0.56 and 0.71) and stays a manual merge. Short fragments of a known person are in the same case and end as minor voices.
+- The diagnostic does not open voice memory, so the figures above do not include what recognition rescues from the minor voices.
+- Some voices the user ignored (12 here) are neither echo, duplicate nor minor, and stay a manual decision.
 
 ## Diagnostic
 
