@@ -1541,6 +1541,22 @@
         }
       }
     },
+    "Arrêter": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrêter"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop"
+          }
+        }
+      }
+    },
     "Arrêter l’écoute": {
       "localizations": {
         "en": {
@@ -3985,6 +4001,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Enregistrement"
+          }
+        }
+      }
+    },
+    "Enregistrement arrêté": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enregistrement arrêté"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recording stopped"
+          }
+        }
+      }
+    },
+    "Enregistrement arrêté : personne n’a parlé pendant %lld min.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enregistrement arrêté : personne n’a parlé pendant %lld min."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recording stopped: nobody spoke for %lld min."
           }
         }
       }
@@ -7749,6 +7797,22 @@
         }
       }
     },
+    "Pas encore": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas encore"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not yet"
+          }
+        }
+      }
+    },
     "Pas encore de synthèse": {
       "localizations": {
         "en": {
@@ -7877,6 +7941,54 @@
         }
       }
     },
+    "Personne n’a parlé depuis %lld min. Arrêt dans %@.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personne n’a parlé depuis %lld min. Arrêt dans %@."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nobody has spoken for %lld min. Stopping in %@."
+          }
+        }
+      }
+    },
+    "Personne n’a parlé depuis %lld min. Sans réponse, l’enregistrement s’arrête à %@.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personne n’a parlé depuis %lld min. Sans réponse, l’enregistrement s’arrête à %@."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nobody has spoken for %lld min. Without an answer, recording stops at %@."
+          }
+        }
+      }
+    },
+    "Personne n’a parlé pendant %lld min. L’audio et les notes sont conservés.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personne n’a parlé pendant %lld min. L’audio et les notes sont conservés."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nobody spoke for %lld min. The audio and notes are kept."
+          }
+        }
+      }
+    },
     "Personnes connues": {
       "localizations": {
         "en": {
@@ -7969,6 +8081,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Position de lecture"
+          }
+        }
+      }
+    },
+    "Proposer d’arrêter quand personne ne parle": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proposer d’arrêter quand personne ne parle"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offer to stop when nobody speaks"
           }
         }
       }
@@ -9169,6 +9297,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sessions fictives, sans micro"
+          }
+        }
+      }
+    },
+    "Si personne ne parle pendant 5 minutes, au micro ou dans le son de la visio, HWYD demande si vous avez fini. Sans réponse, l’enregistrement s’arrête 2 minutes plus tard ; l’audio et les notes sont conservés. La parole est détectée sur ce Mac par le classifieur de sons de macOS ; rien n’est envoyé ni conservé.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si personne ne parle pendant 5 minutes, au micro ou dans le son de la visio, HWYD demande si vous avez fini. Sans réponse, l’enregistrement s’arrête 2 minutes plus tard ; l’audio et les notes sont conservés. La parole est détectée sur ce Mac par le classifieur de sons de macOS ; rien n’est envoyé ni conservé."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If nobody speaks for 5 minutes, on the microphone or in the call audio, HWYD asks whether you are done. Without an answer, recording stops 2 minutes later; the audio and notes are kept. Speech is detected on this Mac by the macOS sound classifier; nothing is sent or kept."
           }
         }
       }
@@ -10881,6 +11025,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Votre transcript viendra ici"
+          }
+        }
+      }
+    },
+    "Vous avez fini ?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vous avez fini ?"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Are you done?"
           }
         }
       }

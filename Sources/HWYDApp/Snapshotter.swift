@@ -242,6 +242,10 @@ import HWYDCore
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 980), to: directory.appendingPathComponent("studio-capture-microphone-offer.png"))
         render(NotepadWindow().environmentObject(model), size: .init(width: 500, height: 650), to: directory.appendingPathComponent("studio-notepad-microphone-offer.png"))
         model.declineMicrophoneOffer()
+        // A simulation never asks: the question is drawn on its own.
+        let prompt = InactivityPrompt(silence: 300, stopsAt: Date().addingTimeInterval(102))
+        render(InactivityCallout(prompt: prompt).padding(24).background(Studio.background).environmentObject(model), size: .init(width: 620, height: 170),
+               to: directory.appendingPathComponent("studio-capture-inactivity.png"))
         render(SpeakerEditor().environmentObject(model), size: .init(width: 600, height: 360), to: directory.appendingPathComponent("studio-speaker.png"))
         render(MenuContentView().environmentObject(model), size: .init(width: 340, height: 350), to: directory.appendingPathComponent("studio-menu.png"))
         model.calendar.enabled = true

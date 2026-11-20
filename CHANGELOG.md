@@ -9,6 +9,9 @@ Entries describe what a user observes. The detailed release notes published on G
 
 ## [Unreleased]
 
+### Added
+- A forgotten recording stops on its own. When nobody has spoken for 5 minutes, on the microphone or in the call audio, HWYD asks « Vous avez fini ? » in the capture screen and as a notification, with « Pas encore » and « Arrêter ». Without an answer, the recording stops 2 minutes later, keeps its audio and notes, and a notification says so. Speech coming back withdraws the question. Speech is detected on the Mac by the macOS sound classifier, so a fan, typing or music without voices does not keep a recording alive; nothing it hears is stored. It can be turned off in Settings › Audio & Voice.
+
 ### Fixed
 - The update prompt showed the GitHub release page, with its header and menus, in its small notes pane. It now shows the release notes text, with a link to the full page. This applies from the next published release, whatever version is installed.
 

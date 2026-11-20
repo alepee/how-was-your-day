@@ -61,6 +61,8 @@ public enum CaptureStop: Equatable, Sendable {
     case requested
     /// The Mac is going to sleep. The capture does not resume on wake.
     case systemSleep
+    /// Nobody spoke for `silence` seconds and the user did not answer « Vous avez fini ? ».
+    case inactivity(silence: TimeInterval)
     case failed(CaptureFault)
 }
 
@@ -114,6 +116,11 @@ public final class CaptureSession: ObservableObject {
     @Published public private(set) var offer: MicrophoneOffer?
     /// A microphone change is in progress or waits its turn.
     @Published public private(set) var isSwitchingMicrophone = false
+    /// Nobody spoke for a while and the capture asks whether the user is done, until speech comes
+    /// back, the user answers or the capture stops.
+    @Published public private(set) var inactivity: InactivityPrompt?
+    /// When a capture without speech asks and stops. The setting `inactivityStop` turns it off.
+    public var inactivityPolicy = InactivityPolicy.standard
     private var switches = 0 { didSet { isSwitchingMicrophone = switches > 0 } }
     private var lastSwitch: Task<Void, Never>?
     /// Called for every capture that ended, whatever ended it, before the transcription is requested.
@@ -135,6 +142,8 @@ public final class CaptureSession: ObservableObject {
     private var restartFrozenAt: TimeInterval?
     /// A resume waits for audio (up to 8 s for a Bluetooth headset): a second request meanwhile is ignored.
     private var isResuming = false
+    /// Counts the time without speech of a real capture; nil for a simulation.
+    private var watch: InactivityWatch?
 
     /// - Parameters:
     ///   - transcribe: requests a session's transcription; the decision says whether it starts or waits.
@@ -221,6 +230,8 @@ public final class CaptureSession: ObservableObject {
         self.capture = capture; self.library = library
         clock = SessionClock(); clock.shift(by: offset); clock.run(at: now()); restartFrozenAt = nil
         microphone = await capture.microphone; microphones = await capture.microphones; offer = nil
+        inactivity = nil
+        watch = capture.isSimulated ? nil : InactivityWatch(policy: inactivityPolicy, at: now())
         phase = .recording(id)
         let events = capture.events
         listener = Task { [weak self] in
@@ -234,7 +245,7 @@ public final class CaptureSession: ObservableObject {
     public func pause() async {
         guard case .recording(let id) = phase, let capture else { return }
         clock.freeze(at: now())
-        phase = .paused(id); levels = .silent
+        phase = .paused(id); levels = .silent; inactivity = nil
         await capture.pause()
     }
 
@@ -250,7 +261,29 @@ public final class CaptureSession: ObservableObject {
         // A restart that began before the pause ended with it (`AudioCapture.pause`).
         restartFrozenAt = nil
         clock.run(at: now())
+        watch?.reset(at: now())
         phase = .recording(id)
+    }
+
+    /// The user answered « Pas encore »: the capture goes on and the time without speech is counted again from now.
+    public func keepRecording() {
+        guard inactivity != nil else { return }
+        inactivity = nil
+        watch?.reset(at: now())
+    }
+
+    /// While recording, a few times per second: asks once nobody spoke for long enough, and stops
+    /// the capture when the countdown runs out.
+    private func checkInactivity() {
+        guard watch != nil else { return }
+        guard settings()?.value(.inactivityStop) ?? SettingKey<Bool>.inactivityStop.defaultValue else {
+            inactivity = nil; watch?.reset(at: now()); return
+        }
+        switch watch?.check(at: now()) ?? .none {
+        case .none: break
+        case .ask(let silence): inactivity = InactivityPrompt(silence: silence, stopsAt: date().addingTimeInterval(inactivityPolicy.countdown))
+        case .stop(let silence): Task { await stop(.inactivity(silence: silence)) }
+        }
     }
 
     /// Ends the capture: the session is sealed, or interrupted after a fault, with the audio
@@ -262,7 +295,7 @@ public final class CaptureSession: ObservableObject {
         guard let id = phase.sessionID, phase != .stopping(id), let capture, let library else { return nil }
         let duration = elapsed
         clock.freeze(at: now())
-        phase = .stopping(id); levels = .silent
+        phase = .stopping(id); levels = .silent; inactivity = nil; watch = nil
         listener?.cancel(); listener = nil
         let audio = await capture.stop()
         self.capture = nil; self.library = nil
@@ -281,6 +314,10 @@ public final class CaptureSession: ObservableObject {
         if capture.isSimulated { notifier.notify(.info(String(localized: "Simulation terminée. Les notes restent disponibles.", bundle: .hwyd))) }
         else if audio.chunks.isEmpty { notifier.notify(.info(String(localized: "Aucun audio reçu. Vos notes sont conservées.", bundle: .hwyd))) }
         if case .failed(let fault) = cause { notifier.notify(.error(fault.message)) }
+        if case .inactivity(let silence) = cause {
+            let minutes = Int((silence / 60).rounded())
+            notifier.notify(.info(String(localized: "Enregistrement arrêté : personne n’a parlé pendant \(minutes) min.", bundle: .hwyd)))
+        }
         let ending = CaptureEnding(sessionID: id, cause: cause, finalizationError: audio.finalizationError)
         onEnd?(ending)
         // A resumed session is transcribed again as a whole, even when this capture received nothing.
@@ -305,7 +342,7 @@ public final class CaptureSession: ObservableObject {
         guard let capture, let id = phase.sessionID, phase != .stopping(id) else { return }
         listener?.cancel(); listener = nil
         self.capture = nil; library = nil
-        phase = .idle; levels = .silent; clock = SessionClock()
+        phase = .idle; levels = .silent; clock = SessionClock(); inactivity = nil; watch = nil
         resetMicrophones()
         _ = await capture.stop()
     }
@@ -411,7 +448,12 @@ public final class CaptureSession: ObservableObject {
         guard phase.sessionID == id else { return }
         switch event {
         case .levels(let mic, let system):
-            if phase == .recording(id) { levels = CaptureLevels(mic: mic, system: system) }
+            guard phase == .recording(id) else { return }
+            levels = CaptureLevels(mic: mic, system: system)
+            checkInactivity()
+        case .speech:
+            guard phase == .recording(id) else { return }
+            watch?.reset(at: now()); inactivity = nil
         case .restarting:
             guard phase == .recording(id) else { return }
             let time = now()

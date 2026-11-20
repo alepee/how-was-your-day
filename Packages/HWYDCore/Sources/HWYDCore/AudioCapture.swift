@@ -53,6 +53,8 @@ extension AudioCapture {
 public enum CaptureEvent: Equatable, Sendable {
     /// Peak levels of the microphone and system audio, from 0 to 1, a few times per second.
     case levels(mic: Float, system: Float)
+    /// Someone spoke, on the microphone or in the system audio, since the previous report.
+    case speech
     /// The microphone stream is about to restart, for instance because a meeting app switched on
     /// voice processing after the capture started. Like a pause, the restart is left out of the
     /// audio timeline.
