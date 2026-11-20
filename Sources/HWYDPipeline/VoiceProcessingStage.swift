@@ -75,6 +75,8 @@ enum VoiceProcessingStage {
             if let proposal = after.splitProposals?.first(where: { $0.speakerID == voice.id }) {
                 entry.proposalMergeIntoLabel = proposal.mergeInto.flatMap { (names[$0] ?? nil)?.label }
                 entry.proposalSegmentCount = proposal.segmentIDs.count
+                let moved = Set(proposal.segmentIDs)
+                entry.proposalSpans = VoiceCoherence.union(after.segments.filter { moved.contains($0.id) }.map { .init(start: $0.start, end: $0.end) })
             }
             return entry
         }
@@ -106,5 +108,7 @@ struct VoiceProcessingReport: Codable {
         var nearestLongerLabel: String?
         var proposalMergeIntoLabel: String?
         var proposalSegmentCount: Int?
+        /// Where the passages of the proposal are on the session's timeline, to listen to them.
+        var proposalSpans: [VoiceCoherence.Span]?
     }
 }

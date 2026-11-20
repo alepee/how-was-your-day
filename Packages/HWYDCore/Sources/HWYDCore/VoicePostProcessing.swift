@@ -52,6 +52,8 @@ public struct VoiceMeasure: Codable, Equatable, Sendable {
         public var largeLevelDB: Double?
         public var smallFirstMinute: Double
         public var smallLastMinute: Double
+        /// Speech of the passages that would move, once levels passed. Nil when the check stopped before.
+        public var movedSeconds: Double?
         public var proposed = false
     }
 }
@@ -146,7 +148,10 @@ public struct VoicePostProcessor {
                 let span = VoiceCoherence.Span(start: segment.start, end: segment.end)
                 return VoiceCoherence.overlap(span, with: covered[1]) > VoiceCoherence.overlap(span, with: covered[0])
             }
-            guard !moved.isEmpty, moved.count < passages.count else { continue }
+            // The 30 s also hold for the passages themselves: windows can cover a minute around a few
+            // scattered words, which are interjections under another speaker, not a second person.
+            measure.movedSeconds = moved.reduce(0) { $0 + $1.end - $1.start }
+            guard moved.count < passages.count, (measure.movedSeconds ?? 0) >= Self.splitMinimumSeconds else { continue }
             let proposal = VoiceSplitProposal(speakerID: speaker.id, segmentIDs: moved.map(\.id), similarity: split.between)
             proposals.append(proposal)
             measure.proposed = true

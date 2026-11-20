@@ -72,6 +72,17 @@ final class VoicePostProcessingTests: XCTestCase {
         XCTAssertEqual(proposals(two, level: normalLevel), 1)
     }
 
+    func testNoProposalWhenTheSecondGroupOnlyCoversScatteredWords() {
+        let voice = Speaker(label: "Voix 1", source: .system)
+        // The diarizer hears a second voice during 60 s, but only 6 s of words fall in it.
+        let segments = [segment(0, 300, voice.id), segment(310, 312, voice.id), segment(330, 332, voice.id), segment(350, 352, voice.id)]
+        var processor = VoicePostProcessor(recording: recording([voice], segments), windows: windows(voice.id, anna, 0...300) + windows(voice.id, boris, 300...360))
+        processor.detect(level: normalLevel)
+        XCTAssertTrue(processor.recording.pendingSplitProposals.isEmpty)
+        XCTAssertEqual(processor.measures[voice.id]?.split?.movedSeconds, 6)
+        XCTAssertEqual(processor.measures[voice.id]?.split?.proposed, false)
+    }
+
     func testShorterVoiceJoinsTheLongerOneItSoundsLikeAndCanLeaveAgain() throws {
         let long = Speaker(label: "Voix 1", source: .system), short = Speaker(label: "Voix 2", source: .system)
         let distinct = Speaker(label: "Voix 3", source: .system), mic = Speaker(label: "Voix 4", source: .mic)
