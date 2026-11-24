@@ -65,6 +65,9 @@ extension SummaryLanguage {
     public var otherVoice: String { self == .english ? "Other voice" : "Autre voix" } // l10n:ignore (stored label)
     /// Speaker name sent to models for a passage without a voice.
     public var unidentifiedSpeaker: String { self == .english ? "Unidentified voice" : "Voix non identifiée" } // l10n:ignore (model-facing)
+    /// Whether a note's image follows the agent prompt.
+    var imageAttached: String { self == .english ? "attached" : "jointe" } // l10n:ignore (model-facing)
+    var imageNotSent: String { self == .english ? "not sent" : "non transmise" } // l10n:ignore (model-facing)
 }
 
 /// Words of a summary document, in the language the summary was written in. Kept apart from the

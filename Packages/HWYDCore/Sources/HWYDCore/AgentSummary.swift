@@ -5,11 +5,11 @@ import CryptoKit
 /// Both sides derive `S<n>` references from the same ordered segments, so references stay short
 /// and an agent never handles segment UUIDs.
 public enum AgentSummaryTask {
-    public static let promptVersion = "agent-summary-v1"
+    public static let promptVersion = "agent-summary-v2"
     public static let handoffFileName = "summary.json"
     /// French keeps the historical version; English has its own.
     static func promptVersion(for language: SummaryLanguage) -> String { language == .english ? Self.promptVersion + "+english" : Self.promptVersion }
-    /// Hash of the fixed instructions, without the session-specific title and transcript.
+    /// Hash of the fixed instructions, without the session-specific title, transcript and notes.
     static func promptHash(for language: SummaryLanguage) -> String {
         let text = (try? prompt(Recording(title: ""), language: language)) ?? promptVersion(for: language)
         return SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
@@ -17,14 +17,35 @@ public enum AgentSummaryTask {
     static let maximumEvidenceReferences = 5
     static let maximumDetails = 32
     static let maximumContextNotes = 8
+    /// Images sent with the prompt, in note order; the others are described by their caption only.
+    static let maximumImages = 8
+    /// Larger images are described by their caption only: hosted models refuse them.
+    static let maximumImageBytes = 5 * 1024 * 1024
 
-    /// What the session sends: title, voice labels and passages, never notes, audio or vectors.
+    /// What the session sends: title, voice labels, passages and the user's notes, never audio or vectors.
     static func segments(_ recording: Recording) -> [TranscriptSegment] { recording.withoutIgnoredVoices.segments }
     static func references(_ recording: Recording) -> [String: String] {
         Dictionary(uniqueKeysWithValues: segments(recording).enumerated().map { ("S\($0.offset + 1)", $0.element.id.uuidString) })
     }
 
-    public static func prompt(_ recording: Recording, language: SummaryLanguage = .french) throws -> String {
+    /// Timed note entries in order, numbered `N<n>`.
+    static func noteEntries(_ recording: Recording) -> [(id: String, entry: NoteEntry)] {
+        recording.noteEntries.sorted { $0.offset == $1.offset ? $0.id.uuidString < $1.id.uuidString : $0.offset < $1.offset }
+            .enumerated().map { ("N\($0.offset + 1)", $0.element) }
+    }
+
+    /// The images to attach, labelled by their note: the first `maximumImages` that exist and fit.
+    static func images(_ recording: Recording, store: any NoteImageStore) async -> [(id: String, png: Data)] {
+        var attached: [(id: String, png: Data)] = []
+        for (id, entry) in noteEntries(recording) where attached.count < maximumImages {
+            guard let image = entry.image, let png = await store.data(of: image, in: recording.id), png.count <= maximumImageBytes else { continue }
+            attached.append((id, png))
+        }
+        return attached
+    }
+
+    /// `attached` lists the notes whose image follows the prompt.
+    public static func prompt(_ recording: Recording, language: SummaryLanguage = .french, attached: Set<String> = []) throws -> String {
         let labels = Dictionary(uniqueKeysWithValues: recording.speakers.map { ($0.id, $0.label) })
         // `resumed`, absent unless recording resumed just before the passage, tells the agent the session was cut there.
         struct Row: Encodable { let id: String; let speaker: String; let start: String; let text: String; let resumed: String? }
@@ -36,15 +57,25 @@ public enum AgentSummaryTask {
         }
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         let transcript = String(decoding: try encoder.encode(rows), as: UTF8.self)
+        // `near` is the passage under way when the note was taken, so the agent can anchor it.
+        struct NoteRow: Encodable { let id: String; let at: String; let near: String?; let text: String; let image: String? }
+        let ordered = passages.enumerated().sorted { $0.element.start < $1.element.start }
+        let noteRows = noteEntries(recording).map { id, entry in
+            NoteRow(id: id, at: timeLabel(entry.offset), near: ordered.last { $0.element.start <= entry.offset }.map { "S\($0.offset + 1)" },
+                    text: entry.text.trimmingCharacters(in: .whitespacesAndNewlines),
+                    image: entry.image.map { _ in attached.contains(id) ? language.imageAttached : language.imageNotSent })
+        }
+        let timedNotes = String(decoding: try encoder.encode(noteRows), as: UTF8.self)
+        let freeNotes = recording.notes.trimmingCharacters(in: .whitespacesAndNewlines)
         let date = recording.startedAt.formatted(.iso8601.year().month().day())
         if language == .english {
             return """
-            HWYD hands you the summary of a recorded session: "\(recording.title)", on \(date). The transcript is at the end of this message.
+            HWYD hands you the summary of a recorded session: "\(recording.title)", on \(date). The user's notes and the transcript are at the end of this message.
 
             Your only task is to produce this summary and send it with the submit_summary tool of the "hwyd" MCP server. Do not write, modify or delete any file, and do not run any command: HWYD refuses these actions.
 
             HWYD hands it to you rather than to an isolated model because you know the user. Proceed as follows:
-            1. Read the transcript and note the people, projects, tools and decisions that matter.
+            1. Read the user's notes, then the transcript, and note the people, projects, tools and decisions that matter.
             2. Consult your context read-only (instructions, memory, notes, documents you can access) to place them: who these people are, which projects or earlier decisions the topics relate to, what is already known.
             3. Write the summary, then send it.
 
@@ -52,23 +83,31 @@ public enum AgentSummaryTask {
             - overview, key_points, details, decisions and action_items describe only what was said in the session, sourced by the S<n> identifiers of the passages (1 to \(maximumEvidenceReferences) per element, in evidence_segment_ids). Import no fact from your context into them.
             - What your context brings (who a person is, which project or earlier decision a topic relates to, what extends or contradicts a known decision) goes in context, with the sources consulted in sources (note path, document name, link). context stays empty if you have nothing useful to add.
             - assignee_name repeats exactly the voice label (speaker) of the person who commits, or null. assignee_person_id is always null. due_date is null unless a YYYY-MM-DD date appears in the cited passages.
+            - The user's notes show what they judged important during the session. Each noted point must appear in the summary when passages support it: look for it around its near passage, and reuse the names and terms of the notes. The notes are never evidence: evidence_segment_ids cite passages only. A noted point the transcript does not support goes in context, with "session notes" in sources.
+            - Timed notes carry the time they were taken (at) and the passage under way then (near). An image entry has its caption as text; image says whether the image follows this message, introduced by its N<n> identifier.
             - Write in English, whatever the language of the transcript.
 
             \(SummaryPipeline.instructionsEnglish)
 
             If submit_summary refuses the summary, read the reason, correct it and send it again. Stop as soon as it is accepted.
 
+            TIMED NOTES (JSON):
+            \(timedNotes)
+
+            FREE NOTES:
+            \(freeNotes.isEmpty ? "(none)" : freeNotes)
+
             TRANSCRIPT (JSON, one line per passage):
             \(transcript)
             """
         }
         return """
-        HWYD te confie la synthèse d'une session enregistrée : « \(recording.title) », du \(date). Le transcript est en fin de message.
+        HWYD te confie la synthèse d'une session enregistrée : « \(recording.title) », du \(date). Les notes de l'utilisateur et le transcript sont en fin de message.
 
         Ta mission est seulement de produire cette synthèse et de l'envoyer avec l'outil submit_summary du serveur MCP « hwyd ». N'écris, ne modifie et ne supprime aucun fichier, et n'exécute aucune commande : HWYD refuse ces actions.
 
         HWYD te la confie plutôt qu'à un modèle isolé parce que tu connais l'utilisateur. Procède ainsi :
-        1. Lis le transcript et relève les personnes, projets, outils et décisions qui comptent.
+        1. Lis les notes de l'utilisateur, puis le transcript, et relève les personnes, projets, outils et décisions qui comptent.
         2. Consulte ton contexte en lecture seule (instructions, mémoire, notes, documents auxquels tu as accès) pour les situer : qui sont ces personnes, à quels projets ou décisions antérieures les sujets se rattachent, ce qui est déjà connu.
         3. Rédige la synthèse, puis envoie-la.
 
@@ -76,11 +115,19 @@ public enum AgentSummaryTask {
         - overview, key_points, details, decisions et action_items décrivent uniquement ce qui a été dit dans la session, sourcé par les identifiants S<n> des passages (1 à \(maximumEvidenceReferences) par élément, dans evidence_segment_ids). N'y importe aucun fait de ton contexte.
         - Ce que ton contexte apporte (qui est une personne, à quel projet ou à quelle décision antérieure un sujet se rattache, ce qui prolonge ou contredit une décision connue) va dans context, avec les sources consultées dans sources (chemin de note, nom de document, lien). context reste vide si tu n'as rien d'utile à ajouter.
         - assignee_name reprend exactement le libellé de voix (speaker) de la personne qui s'engage, ou null. assignee_person_id est toujours null. due_date est null sauf si une date AAAA-MM-JJ figure dans les passages cités.
+        - Les notes de l'utilisateur montrent ce qu'il a jugé important pendant la session. Chaque point noté doit figurer dans la synthèse quand des passages l'appuient : cherche-le autour de son passage near, et reprends les noms et termes des notes. Les notes ne sont jamais des preuves : evidence_segment_ids ne cite que des passages. Un point noté que le transcript n'appuie pas va dans context, avec « notes de session » dans sources.
+        - Les notes horodatées portent l'heure de prise (at) et le passage en cours à ce moment (near). Une entrée image a sa légende pour texte ; image indique si l'image suit ce message, introduite par son identifiant N<n>.
         - Écris en français.
 
         \(SummaryPipeline.instructions)
 
         Si submit_summary refuse la synthèse, lis la raison, corrige et renvoie-la. Arrête-toi dès qu'elle est acceptée.
+
+        NOTES HORODATÉES (JSON) :
+        \(timedNotes)
+
+        NOTES LIBRES :
+        \(freeNotes.isEmpty ? "(aucune)" : freeNotes)
 
         TRANSCRIPT (JSON, une ligne par passage) :
         \(transcript)
@@ -336,7 +383,7 @@ public enum ACPSummaryAgent {
     public static let timeout: Duration = .seconds(20 * 60)
 
     public static func run(_ recording: Recording, command: String, workingDirectory: URL, mcpExecutable: URL, storeDirectory: URL,
-                           language: SummaryLanguage = .french,
+                           language: SummaryLanguage = .french, noteImages: (any NoteImageStore)? = nil,
                            progress: @escaping @Sendable (SummaryProgress) async -> Void = { _ in }) async throws -> SummaryProvenance {
         let command = command.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !command.isEmpty else { throw AgentSummaryFailure.commandMissing }
@@ -369,6 +416,8 @@ public enum ACPSummaryAgent {
             "clientCapabilities": ["fs": ["readTextFile": false, "writeTextFile": false], "terminal": false],
             "clientInfo": ["name": "hwyd", "title": "How Was Your Day", "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"]]))
         let agentInfo = (try? JSONSerialization.jsonObject(with: initialize) as? [String: Any])?["agentInfo"] as? [String: Any]
+        let capabilities = (try? JSONSerialization.jsonObject(with: initialize) as? [String: Any])?["agentCapabilities"] as? [String: Any]
+        let acceptsImages = (capabilities?["promptCapabilities"] as? [String: Any])?["image"] as? Bool == true
         let agentName = [agentInfo?["name"] as? String, agentInfo?["version"] as? String].compactMap { $0 }.joined(separator: " ")
 
         let server: [String: Any] = ["name": "hwyd", "command": mcpExecutable.path, "env": [Any](),
@@ -377,7 +426,13 @@ public enum ACPSummaryAgent {
         guard let sessionID = (try? JSONSerialization.jsonObject(with: session) as? [String: Any])?["sessionId"] as? String else { throw AgentSummaryFailure.protocolError("session/new sans sessionId") }
 
         await progress(.init(stage: String(localized: "L’agent rédige la synthèse", bundle: .hwyd), completed: 0, total: 1, cached: false))
-        let promptParams = try json(["sessionId": sessionID, "prompt": [["type": "text", "text": try AgentSummaryTask.prompt(recording, language: language)]]])
+        // Images go only to an agent that declares it reads them; otherwise their caption stands in.
+        let images = acceptsImages ? await AgentSummaryTask.images(recording, store: noteImages ?? FolderNoteImageStore(directory: storeDirectory)) : []
+        let text = try AgentSummaryTask.prompt(recording, language: language, attached: Set(images.map(\.id)))
+        let blocks: [[String: Any]] = [["type": "text", "text": text]] + images.flatMap { id, png in
+            [["type": "text", "text": id], ["type": "image", "mimeType": "image/png", "data": png.base64EncodedString()]]
+        }
+        let promptParams = try json(["sessionId": sessionID, "prompt": blocks])
         let response: Data
         do {
             response = try await withTaskCancellationHandler {

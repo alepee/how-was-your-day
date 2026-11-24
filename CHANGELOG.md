@@ -9,6 +9,9 @@ Entries describe what a user observes. The detailed release notes published on G
 
 ## [Unreleased]
 
+### Changed
+- A summary written by your agent now starts from your notes. Timed notes, free notes and the images pasted during the session (up to eight, when the agent reads images) go with the transcript, each timed note tied to the passage under way when it was taken. The agent covers every point you noted that the transcript supports, with the words you used; a noted point nobody said goes in the context section, sourced « notes de session ». Hosted providers still receive no notes.
+
 ## [0.18.0] - 2026-11-21
 
 ### Added
