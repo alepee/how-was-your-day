@@ -111,11 +111,13 @@ import HWYDCore
                 try? SummaryPDF.write(copy, to: directory.appendingPathComponent("summary-export-long.pdf"))
             }
             try? SummaryExport.markdown(item)?.write(to: directory.appendingPathComponent("summary-export.md"), atomically: true, encoding: .utf8)
-            // Agent summary with a synthetic context note: the export sheet, and an export that keeps the note but not the details.
+            // Agent summary written with notes, with a synthetic context note: the export sheet and its notes warning,
+            // and an export that keeps the note but not the details.
             if var agent = item.summaryProvenance {
+                agent.usedNotes = true
                 agent.structured.context = [SummaryContextNote(title: "Projet exemple", text: "Prolonge une décision fictive du mois précédent.", sources: ["notes/exemple.md"])] // l10n:ignore
                 var copy = item; copy.summaryProvenance = agent; copy.summary = agent.markdown
-                render(SummaryExportSheet(recording: copy, format: .pdf) { _ in }, size: .init(width: 440, height: 420), to: directory.appendingPathComponent("studio-summary-export-sheet.png"))
+                render(SummaryExportSheet(recording: copy, format: .pdf) { _ in }, size: .init(width: 440, height: 480), to: directory.appendingPathComponent("studio-summary-export-sheet.png"))
                 let chosen = SummarySection.exportDefault.union([.context]).subtracting([.details])
                 try? SummaryPDF.write(copy, sections: chosen, to: directory.appendingPathComponent("summary-export-context.pdf"))
                 try? SummaryExport.markdown(copy, sections: chosen)?.write(to: directory.appendingPathComponent("summary-export-context.md"), atomically: true, encoding: .utf8)

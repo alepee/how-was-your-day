@@ -11189,6 +11189,22 @@
         }
       }
     },
+    "Vos notes de session ont servi à rédiger cette synthèse. Vérifiez qu’elle ne reprend pas un point que vous souhaitiez garder privé.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your session notes were used to write this summary. Check that it does not carry a point you wanted to keep private."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vos notes de session ont servi à rédiger cette synthèse. Vérifiez qu’elle ne reprend pas un point que vous souhaitiez garder privé."
+          }
+        }
+      }
+    },
     "Vos notes sont disponibles dans la bibliothèque.": {
       "localizations": {
         "en": {

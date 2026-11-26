@@ -15,6 +15,11 @@ struct SummaryExportSheet: View {
             Text("Exporter la synthèse").font(.system(size: Studio.Size.heading, weight: .semibold))
             Text(format == .pdf ? "Choisissez les sections du PDF. Le titre, la date et les participants sont toujours inclus." : "Choisissez les sections du fichier Markdown. Le titre, la date et les participants sont toujours inclus.")
                 .font(.system(size: Studio.Size.body)).foregroundStyle(Studio.muted).fixedSize(horizontal: false, vertical: true)
+            if recording.summaryProvenance?.usedNotes == true {
+                // The writer had the session notes in mind: a private point noted there may show through.
+                Label("Vos notes de session ont servi à rédiger cette synthèse. Vérifiez qu’elle ne reprend pas un point que vous souhaitiez garder privé.", systemImage: "exclamationmark.triangle")
+                    .font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.copper).fixedSize(horizontal: false, vertical: true)
+            }
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(SummaryExport.sections(recording), id: \.self) { section in
                     VStack(alignment: .leading, spacing: 3) {
