@@ -10,7 +10,7 @@ Entries describe what a user observes. The detailed release notes published on G
 ## [Unreleased]
 
 ### Changed
-- A summary written by your agent now starts from your notes. Timed notes, free notes and the images pasted during the session (up to eight, when the agent reads images) go with the transcript, each timed note tied to the passage under way when it was taken. The agent writes with them in mind (who speaks, the right names, what you found important) without copying them, and the transcript prevails when a note says otherwise. The summary export then warns that your notes were used, so you can check that nothing you wanted to keep private shows through. Hosted providers still receive no notes.
+- A summary written by your agent now starts from your notes. Timed notes, free notes and the images pasted during the session (up to eight, when the agent reads images) go with the transcript, each timed note tied to the passage under way when it was taken. The agent writes with them in mind (who speaks, the right names, what you found important) without copying them, and the transcript prevails when a note says otherwise: the contradiction is pointed out in the context section. The summary export then warns that your notes were used, so you can check that nothing you wanted to keep private shows through. Hosted providers still receive no notes.
 
 ## [0.18.0] - 2026-11-21
 
