@@ -196,3 +196,91 @@ private actor StageLog {
     var values: [String] = []
     func add(_ value: String) { values.append(value) }
 }
+
+/// Notes anchor the agent summary: timed entries tied to a passage, free notes, and images when the agent reads them.
+extension AgentSummaryTests {
+    private struct FixedImages: NoteImageStore {
+        let files: [UUID: Data]
+        func add(_ data: Data, to session: UUID) async throws -> NoteImage { throw NoteImageError.notAnImage }
+        func data(of image: NoteImage, in session: UUID) async -> Data? { files[image.id] }
+    }
+
+    private func notedRecording() -> (Recording, NoteImage) {
+        var item = recording()
+        let whiteboard = NoteImage(width: 2, height: 2)
+        item.noteEntries = [
+            NoteEntry(offset: 9, text: "Annonce : Camille"),
+            NoteEntry(offset: 6, text: "Tableau du plan", image: whiteboard),
+        ]
+        item.notes = "Penser au budget Atlas"
+        return (item, whiteboard)
+    }
+
+    func testPromptCarriesNotesAnchoredToThePassageUnderWay() throws {
+        let (item, _) = notedRecording()
+        let prompt = try AgentSummaryTask.prompt(item, attached: ["N1"])
+        // Ordered by time; S2 is the second heard passage (the echo voice is left out), started at 8 s.
+        XCTAssertTrue(prompt.contains(#"{"at":"00:06","id":"N1","image":"jointe","near":"S1","text":"Tableau du plan"}"#), prompt)
+        XCTAssertTrue(prompt.contains(#"{"at":"00:09","id":"N2","near":"S2","text":"Annonce : Camille"}"#), prompt)
+        XCTAssertTrue(prompt.contains("Penser au budget Atlas"))
+        XCTAssertTrue(try AgentSummaryTask.prompt(item).contains(#""image":"non transmise""#))
+        XCTAssertTrue(try AgentSummaryTask.prompt(recording()).contains("NOTES LIBRES :\n(aucune)"))
+    }
+
+    func testNotesChangeTheInputHashOnlyWhenPresent() throws {
+        let plain = recording()
+        var noted = plain
+        noted.noteEntries = [NoteEntry(offset: 1, text: "x")]
+        XCTAssertNotEqual(try SummaryPipeline.inputHash(plain), try SummaryPipeline.inputHash(noted))
+        noted.noteEntries = []
+        XCTAssertEqual(try SummaryPipeline.inputHash(plain), try SummaryPipeline.inputHash(noted), "Sessions without timed notes keep their hash")
+    }
+
+    func testImagesAreCappedAndOversizedOnesLeftOut() async {
+        var item = recording()
+        let images = (0..<(AgentSummaryTask.maximumImages + 2)).map { _ in NoteImage(width: 1, height: 1) }
+        item.noteEntries = images.enumerated().map { NoteEntry(offset: Double($0.offset), image: $0.element) }
+        var files = Dictionary(uniqueKeysWithValues: images.map { ($0.id, Data([1])) })
+        files[images[0].id] = Data(count: AgentSummaryTask.maximumImageBytes + 1)
+        let attached = await AgentSummaryTask.images(item, store: FixedImages(files: files))
+        XCTAssertEqual(attached.map(\.id), (2...(AgentSummaryTask.maximumImages + 1)).map { "N\($0)" })
+    }
+
+    /// The scripted agent records the prompt blocks it receives, then stops without submitting.
+    private func promptBlocks(acceptsImages: Bool) async throws -> [[String: Any]] {
+        let (item, whiteboard) = notedRecording()
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("acp-test-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let output = directory.appendingPathComponent("prompt.json")
+        let script = directory.appendingPathComponent("agent.py")
+        try """
+        import json, sys
+        for line in sys.stdin:
+            msg = json.loads(line); m = msg.get("method")
+            reply = lambda r: (sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": msg["id"], "result": r}) + "\\n"), sys.stdout.flush())
+            if m == "initialize": reply({"protocolVersion": 1, "agentCapabilities": {"promptCapabilities": {"image": \(acceptsImages ? "True" : "False")}}})
+            elif m == "session/new": reply({"sessionId": "s"})
+            elif m == "session/prompt":
+                open(sys.argv[1], "w").write(json.dumps(msg["params"]["prompt"]))
+                reply({"stopReason": "end_turn"})
+        """.write(to: script, atomically: true, encoding: .utf8)
+        _ = try? await ACPSummaryAgent.run(item, command: "python3 " + script.path + " " + output.path, workingDirectory: directory,
+                                           mcpExecutable: URL(fileURLWithPath: "/usr/bin/true"), storeDirectory: directory,
+                                           noteImages: FixedImages(files: [whiteboard.id: Data("png".utf8)]))
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: output)) as? [[String: Any]])
+    }
+
+    func testImagesFollowThePromptOnlyForAnAgentThatReadsThem() async throws {
+        let reading = try await promptBlocks(acceptsImages: true)
+        XCTAssertEqual(reading.count, 3)
+        XCTAssertEqual(reading[1]["text"] as? String, "N1")
+        XCTAssertEqual(reading[2]["type"] as? String, "image")
+        XCTAssertEqual(reading[2]["data"] as? String, Data("png".utf8).base64EncodedString())
+        XCTAssertTrue((reading[0]["text"] as? String)?.contains(#""image":"jointe""#) == true)
+
+        let blind = try await promptBlocks(acceptsImages: false)
+        XCTAssertEqual(blind.count, 1)
+        XCTAssertTrue((blind[0]["text"] as? String)?.contains(#""image":"non transmise""#) == true)
+    }
+}

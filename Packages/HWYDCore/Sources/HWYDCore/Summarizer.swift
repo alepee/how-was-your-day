@@ -226,7 +226,7 @@ public struct AgentSummarizer: Summarizer {
     }
     public var disclosure: SummaryDisclosure {
         SummaryDisclosure(label: String(localized: "Brouillon de votre agent, à relire", bundle: .hwyd),
-                          detail: String(localized: "Votre agent ACP rédigera la synthèse à partir du transcript et de son propre contexte. Vos notes restent sur ce Mac.", bundle: .hwyd))
+                          detail: String(localized: "Votre agent ACP rédigera la synthèse à partir de vos notes, de leurs images, du transcript et de son propre contexte.", bundle: .hwyd))
     }
     var workingDirectory: URL { URL(fileURLWithPath: (directory as NSString).expandingTildeInPath, isDirectory: true) }
 

@@ -11237,18 +11237,18 @@
         }
       }
     },
-    "Votre agent ACP rédigera la synthèse à partir du transcript et de son propre contexte. Vos notes restent sur ce Mac.": {
+    "Votre agent ACP rédigera la synthèse à partir de vos notes, de leurs images, du transcript et de son propre contexte.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your ACP agent will write the summary from the transcript and its own context. Your notes stay on this Mac."
+            "value": "Your ACP agent will write the summary from your notes, their images, the transcript and its own context."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Votre agent ACP rédigera la synthèse à partir du transcript et de son propre contexte. Vos notes restent sur ce Mac."
+            "value": "Votre agent ACP rédigera la synthèse à partir de vos notes, de leurs images, du transcript et de son propre contexte."
           }
         }
       }
