@@ -12,7 +12,16 @@ struct DetailView: View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 17) {
                 HStack {
-                    Eyebrow(text: "\(recording.kind.label) · \(recording.startedAt.formatted(.dateTime.day().month(.wide)))")
+                    HStack(spacing: 2) {
+                        Menu {
+                            Picker("Type", selection: Binding(get: { model.selected?.kind ?? recording.kind }, set: { value in model.update(recording.id) { $0.kind = value } })) {
+                                ForEach(SessionKind.allCases, id: \.self) { Label($0.label, systemImage: $0.symbol).tag($0) }
+                            }.pickerStyle(.inline).labelsHidden()
+                        } label: { Eyebrow(text: recording.kind.label) }
+                            .menuStyle(.borderlessButton).menuIndicator(.visible).fixedSize()
+                            .help("Changer le type de la session").accessibilityLabel("Type de la session : \(recording.kind.label)")
+                        Eyebrow(text: "· \(recording.startedAt.formatted(.dateTime.day().month(.wide)))")
+                    }
                     Spacer()
                     if recording.isDemo { Badge(text: String(localized: "EXEMPLE")) }
                     ResumeRecordingButton(recording: recording)
