@@ -28,6 +28,11 @@ public enum AgentSummaryTask {
         Dictionary(uniqueKeysWithValues: segments(recording).enumerated().map { ("S\($0.offset + 1)", $0.element.id.uuidString) })
     }
 
+    /// Whether the prompt carries any note of the user's.
+    static func hasNotes(_ recording: Recording) -> Bool {
+        !recording.noteEntries.isEmpty || !recording.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     /// Timed note entries in order, numbered `N<n>`.
     static func noteEntries(_ recording: Recording) -> [(id: String, entry: NoteEntry)] {
         recording.noteEntries.sorted { $0.offset == $1.offset ? $0.id.uuidString < $1.id.uuidString : $0.offset < $1.offset }
@@ -75,7 +80,7 @@ public enum AgentSummaryTask {
             Your only task is to produce this summary and send it with the submit_summary tool of the "hwyd" MCP server. Do not write, modify or delete any file, and do not run any command: HWYD refuses these actions.
 
             HWYD hands it to you rather than to an isolated model because you know the user. Proceed as follows:
-            1. Read the user's notes, then the transcript, and note the people, projects, tools and decisions that matter.
+            1. Read the user's session notes at the end of this message and keep them in mind, then read the transcript and note the people, projects, tools and decisions that matter.
             2. Consult your context read-only (instructions, memory, notes, documents you can access) to place them: who these people are, which projects or earlier decisions the topics relate to, what is already known.
             3. Write the summary, then send it.
 
@@ -83,7 +88,8 @@ public enum AgentSummaryTask {
             - overview, key_points, details, decisions and action_items describe only what was said in the session, sourced by the S<n> identifiers of the passages (1 to \(maximumEvidenceReferences) per element, in evidence_segment_ids). Import no fact from your context into them.
             - What your context brings (who a person is, which project or earlier decision a topic relates to, what extends or contradicts a known decision) goes in context, with the sources consulted in sources (note path, document name, link). context stays empty if you have nothing useful to add.
             - assignee_name repeats exactly the voice label (speaker) of the person who commits, or null. assignee_person_id is always null. due_date is null unless a YYYY-MM-DD date appears in the cited passages.
-            - The user's notes show what they judged important during the session. Each noted point must appear in the summary when passages support it: look for it around its near passage, and reuse the names and terms of the notes. The notes are never evidence: evidence_segment_ids cite passages only. A noted point the transcript does not support goes in context, with "session notes" in sources.
+            - The user's session notes are context to keep in mind while writing: they tell you who speaks, which names and terms are right, and what the user found important. The summary is not an account of the notes: do not copy them, and add nothing that comes only from them, not even in context.
+            - The transcript is the only evidence. When a note differs from or contradicts the transcript (another decision, figure, owner or date), follow the transcript and ignore the note.
             - Timed notes carry the time they were taken (at) and the passage under way then (near). An image entry has its caption as text; image says whether the image follows this message, introduced by its N<n> identifier.
             - Write in English, whatever the language of the transcript.
 
@@ -107,7 +113,7 @@ public enum AgentSummaryTask {
         Ta mission est seulement de produire cette synthèse et de l'envoyer avec l'outil submit_summary du serveur MCP « hwyd ». N'écris, ne modifie et ne supprime aucun fichier, et n'exécute aucune commande : HWYD refuse ces actions.
 
         HWYD te la confie plutôt qu'à un modèle isolé parce que tu connais l'utilisateur. Procède ainsi :
-        1. Lis les notes de l'utilisateur, puis le transcript, et relève les personnes, projets, outils et décisions qui comptent.
+        1. Lis les notes de session de l'utilisateur en fin de message et garde-les en tête, puis lis le transcript et relève les personnes, projets, outils et décisions qui comptent.
         2. Consulte ton contexte en lecture seule (instructions, mémoire, notes, documents auxquels tu as accès) pour les situer : qui sont ces personnes, à quels projets ou décisions antérieures les sujets se rattachent, ce qui est déjà connu.
         3. Rédige la synthèse, puis envoie-la.
 
@@ -115,7 +121,8 @@ public enum AgentSummaryTask {
         - overview, key_points, details, decisions et action_items décrivent uniquement ce qui a été dit dans la session, sourcé par les identifiants S<n> des passages (1 à \(maximumEvidenceReferences) par élément, dans evidence_segment_ids). N'y importe aucun fait de ton contexte.
         - Ce que ton contexte apporte (qui est une personne, à quel projet ou à quelle décision antérieure un sujet se rattache, ce qui prolonge ou contredit une décision connue) va dans context, avec les sources consultées dans sources (chemin de note, nom de document, lien). context reste vide si tu n'as rien d'utile à ajouter.
         - assignee_name reprend exactement le libellé de voix (speaker) de la personne qui s'engage, ou null. assignee_person_id est toujours null. due_date est null sauf si une date AAAA-MM-JJ figure dans les passages cités.
-        - Les notes de l'utilisateur montrent ce qu'il a jugé important pendant la session. Chaque point noté doit figurer dans la synthèse quand des passages l'appuient : cherche-le autour de son passage near, et reprends les noms et termes des notes. Les notes ne sont jamais des preuves : evidence_segment_ids ne cite que des passages. Un point noté que le transcript n'appuie pas va dans context, avec « notes de session » dans sources.
+        - Les notes de session de l'utilisateur sont un contexte à garder en tête pendant la rédaction : elles t'indiquent qui parle, quels noms et termes sont justes, et ce que l'utilisateur a jugé important. La synthèse n'est pas un compte rendu des notes : ne les recopie pas, et n'ajoute rien qui ne viendrait que d'elles, pas même dans context.
+        - Le transcript est la seule preuve. Quand une note diffère du transcript ou le contredit (autre décision, chiffre, responsable ou date), suis le transcript et ignore la note.
         - Les notes horodatées portent l'heure de prise (at) et le passage en cours à ce moment (near). Une entrée image a sa légende pour texte ; image indique si l'image suit ce message, introduite par son identifiant N<n>.
         - Écris en français.
 
@@ -473,7 +480,7 @@ public enum ACPSummaryAgent {
         return SummaryProvenance(provider: "acp|" + command, model: agentName.isEmpty ? command : agentName,
                                  promptVersion: AgentSummaryTask.promptVersion(for: language), promptHash: AgentSummaryTask.promptHash(for: language),
                                  generatedAt: Date(), transcriptVersion: recording.transcriptVersion, inputHash: inputHash, structured: result.summary,
-                                 language: language.code)
+                                 language: language.code, usedNotes: AgentSummaryTask.hasNotes(recording) ? true : nil)
     }
 
     private static func json(_ object: Any) throws -> Data { try JSONSerialization.data(withJSONObject: object, options: [.withoutEscapingSlashes]) }

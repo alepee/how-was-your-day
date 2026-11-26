@@ -69,6 +69,9 @@ public struct SummaryProvenance: Codable, Equatable, Sendable {
     /// Language code the summary was written in (`fr`, `en`). Nil for summaries written before the
     /// language preference, which are French.
     public var language: String? = nil
+    /// True when the user's session notes were handed to the writer, so an export can warn about them.
+    /// Nil for summaries written without notes and for those written before notes were sent.
+    public var usedNotes: Bool? = nil
     public var summaryLanguage: SummaryLanguage { SummaryLanguage(code: language) }
     /// The structured summary as Markdown, in its own language.
     public var markdown: String { structured.markdown(in: summaryLanguage) }

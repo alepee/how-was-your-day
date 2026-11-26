@@ -111,6 +111,7 @@ final class AgentSummaryTests: XCTestCase {
             mcpExecutable: URL(fileURLWithPath: "/usr/bin/true"), storeDirectory: directory) { await stages.add($0.stage) }
         XCTAssertEqual(result.structured, content)
         XCTAssertEqual(result.model, "scripted-agent 1.0")
+        XCTAssertNil(result.usedNotes, "A session without notes leaves no export warning")
         XCTAssertEqual(try String(contentsOf: log, encoding: .utf8), "ko", "Write permissions are rejected")
         let seen = await stages.values
         XCTAssertTrue(seen.contains("Agent : Lecture du transcript"))
@@ -225,6 +226,8 @@ extension AgentSummaryTests {
         XCTAssertTrue(prompt.contains("Penser au budget Atlas"))
         XCTAssertTrue(try AgentSummaryTask.prompt(item).contains(#""image":"non transmise""#))
         XCTAssertTrue(try AgentSummaryTask.prompt(recording()).contains("NOTES LIBRES :\n(aucune)"))
+        XCTAssertTrue(AgentSummaryTask.hasNotes(item))
+        XCTAssertFalse(AgentSummaryTask.hasNotes(recording()))
     }
 
     func testNotesChangeTheInputHashOnlyWhenPresent() throws {
