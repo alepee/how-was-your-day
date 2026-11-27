@@ -10,7 +10,7 @@ struct RecordingOverlayView: View {
         let stack = vertical ? AnyLayout(VStackLayout(spacing: 6)) : AnyLayout(HStackLayout(spacing: 6))
         stack {
             Image(systemName: "line.3.horizontal").rotationEffect(.degrees(vertical ? 0 : 90))
-                .font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted).frame(width: 12, height: 18).overlay(WindowDragArea()).help("Déplacer")
+                .font(.system(size: Studio.Size.caption)).foregroundStyle(Studio.muted).frame(width: 12, height: 18).overlay(WindowDragArea(help: String(localized: "Déplacer")))
             Button(action: openNotes) {
                 stack {
                     Circle().fill(paused ? Studio.muted : Studio.copper).frame(width: 7, height: 7)
@@ -27,7 +27,7 @@ struct RecordingOverlayView: View {
         .font(.system(size: Studio.Size.body))
         .padding(.horizontal, vertical ? 5 : 8).padding(.vertical, vertical ? 8 : 3)
         .foregroundStyle(Studio.text)
-        .background(WindowDragArea())
+        .background(WindowDragArea(help: nil))
         .background(RoundedRectangle(cornerRadius: 16).fill(Studio.surface).strokeBorder(Studio.line))
         .fixedSize()
         .preferredColorScheme(model.appearancePreference.colorScheme)
@@ -67,6 +67,7 @@ extension RecordingOverlayOrientation {
     private func show() {
         if panel == nil {
             let host = FirstClickHostingView(rootView: RecordingOverlayView().environmentObject(model))
+            host.sizingOptions = []
             host.onResize = { [weak self] in self?.fitContent() }
             let size = host.fittingSize
             let panel = OverlayPanel(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -86,17 +87,23 @@ extension RecordingOverlayOrientation {
     }
     private func fitContent() {
         guard let panel, let size = panel.contentView?.fittingSize, size != panel.frame.size else { return }
-        var frame = NSRect(x: panel.frame.minX, y: panel.frame.maxY - size.height, width: size.width, height: size.height)
-        if let screen = (panel.screen ?? NSScreen.main)?.visibleFrame {
-            frame.origin.x = min(max(frame.minX, screen.minX), screen.maxX - frame.width)
-            frame.origin.y = min(max(frame.minY, screen.minY), screen.maxY - frame.height)
-        }
-        panel.setFrame(frame, display: true)
+        panel.setFrame(panel.onScreen(NSRect(x: panel.frame.minX, y: panel.frame.maxY - size.height, width: size.width, height: size.height)), display: true)
+    }
+}
+
+private extension NSWindow {
+    func onScreen(_ frame: NSRect) -> NSRect {
+        guard let screen = (self.screen ?? NSScreen.main)?.visibleFrame else { return frame }
+        var frame = frame
+        frame.origin.x = min(max(frame.minX, screen.minX), screen.maxX - frame.width)
+        frame.origin.y = min(max(frame.minY, screen.minY), screen.maxY - frame.height)
+        return frame
     }
 }
 
 private struct WindowDragArea: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { DragView() }
+    let help: String?
+    func makeNSView(context: Context) -> NSView { let view = DragView(); view.toolTip = help; return view }
     func updateNSView(_ view: NSView, context: Context) {}
     private final class DragView: NSView {
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -105,7 +112,7 @@ private struct WindowDragArea: NSViewRepresentable {
         override func mouseDragged(with event: NSEvent) {
             guard let window, let grab else { return }
             let pointer = NSPoint(x: window.frame.minX + event.locationInWindow.x, y: window.frame.minY + event.locationInWindow.y)
-            window.setFrameOrigin(NSPoint(x: pointer.x - grab.x, y: pointer.y - grab.y))
+            window.setFrameOrigin(window.onScreen(NSRect(origin: NSPoint(x: pointer.x - grab.x, y: pointer.y - grab.y), size: window.frame.size)).origin)
         }
         override func mouseUp(with event: NSEvent) { grab = nil }
     }
@@ -118,9 +125,12 @@ private final class OverlayPanel: NSPanel {
 
 private final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
     var onResize: (@MainActor () -> Void)?
+    private var resizePending = false
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func invalidateIntrinsicContentSize() {
         super.invalidateIntrinsicContentSize()
-        DispatchQueue.main.async { [weak self] in self?.onResize?() }
+        guard !resizePending else { return }
+        resizePending = true
+        DispatchQueue.main.async { [weak self] in self?.resizePending = false; self?.onResize?() }
     }
 }
