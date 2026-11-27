@@ -6,7 +6,7 @@ The app UI is available in French (development language) and English. Settings â
 
 What HWYD writes follows the same resolved language (`SummaryLanguage.current`, from `HWYDLocalization.current`):
 
-- Summaries: the provider's `outputLanguage`. English output runs every stage with English prompts and has its own prompt version (`summary-v7-grounded-writing+english`, `agent-summary-v1+english`). The provenance records the language (`language`, absent and read as French for earlier summaries). Changing the preference does not rewrite existing summaries.
+- Summaries: the provider's `outputLanguage`. With a local or hosted model, English output runs every stage with English prompts and has its own prompt version (`summary-v7-grounded-writing+english`). An agent always receives the English prompt (`agent-summary-v3`), which states the output language. The provenance records the language (`language`, absent and read as French for earlier summaries). Changing the preference does not rewrite existing summaries.
 - Summary Markdown, its export and PDF use the words of the summary's own language (`SummaryVocabulary`). Section headings are recognized in both languages.
 - Labels given to new voices ("Voix 3" / "Voice 3", "Voix Ã  nommer" / "Voice to name") and the examples. Stored labels keep the language they were written in.
 

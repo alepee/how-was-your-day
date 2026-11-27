@@ -221,11 +221,11 @@ extension AgentSummaryTests {
         let (item, _) = notedRecording()
         let prompt = try AgentSummaryTask.prompt(item, attached: ["N1"])
         // Ordered by time; S2 is the second heard passage (the echo voice is left out), started at 8 s.
-        XCTAssertTrue(prompt.contains(#"{"at":"00:06","id":"N1","image":"jointe","near":"S1","text":"Tableau du plan"}"#), prompt)
+        XCTAssertTrue(prompt.contains(#"{"at":"00:06","id":"N1","image":"attached","near":"S1","text":"Tableau du plan"}"#), prompt)
         XCTAssertTrue(prompt.contains(#"{"at":"00:09","id":"N2","near":"S2","text":"Annonce : Camille"}"#), prompt)
         XCTAssertTrue(prompt.contains("Penser au budget Atlas"))
-        XCTAssertTrue(try AgentSummaryTask.prompt(item).contains(#""image":"non transmise""#))
-        XCTAssertTrue(try AgentSummaryTask.prompt(recording()).contains("NOTES LIBRES :\n(aucune)"))
+        XCTAssertTrue(try AgentSummaryTask.prompt(item).contains(#""image":"not sent""#))
+        XCTAssertTrue(try AgentSummaryTask.prompt(recording()).contains("FREE NOTES:\n(none)"))
         XCTAssertTrue(AgentSummaryTask.hasNotes(item))
         XCTAssertFalse(AgentSummaryTask.hasNotes(recording()))
     }
@@ -280,10 +280,10 @@ extension AgentSummaryTests {
         XCTAssertEqual(reading[1]["text"] as? String, "N1")
         XCTAssertEqual(reading[2]["type"] as? String, "image")
         XCTAssertEqual(reading[2]["data"] as? String, Data("png".utf8).base64EncodedString())
-        XCTAssertTrue((reading[0]["text"] as? String)?.contains(#""image":"jointe""#) == true)
+        XCTAssertTrue((reading[0]["text"] as? String)?.contains(#""image":"attached""#) == true)
 
         let blind = try await promptBlocks(acceptsImages: false)
         XCTAssertEqual(blind.count, 1)
-        XCTAssertTrue((blind[0]["text"] as? String)?.contains(#""image":"non transmise""#) == true)
+        XCTAssertTrue((blind[0]["text"] as? String)?.contains(#""image":"not sent""#) == true)
     }
 }

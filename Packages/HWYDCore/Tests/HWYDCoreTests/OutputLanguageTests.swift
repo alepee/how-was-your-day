@@ -67,11 +67,17 @@ final class OutputLanguageTests: XCTestCase {
     func testAgentPromptFollowsTheLanguage() throws {
         let recording = Recording(title: "Workshop", segments: [.init(start: 0, end: 10, speakerID: nil, source: .mic, text: "Hello.")])
         let english = try AgentSummaryTask.prompt(recording, language: .english)
-        XCTAssertTrue(english.contains("Write in English"))
+        let french = try AgentSummaryTask.prompt(recording)
+        XCTAssertTrue(english.contains("Write the summary in English"))
         XCTAssertTrue(english.contains("Unidentified voice"))
-        XCTAssertTrue(try AgentSummaryTask.prompt(recording).contains("Écris en français"))
+        XCTAssertTrue(french.contains("Write the summary in French"))
+        XCTAssertTrue(french.contains("Voix non identifiée"), "The voice label follows the summary language")
+        // One English prompt: only the requested language and the voice label differ.
+        let englishLines = english.split(separator: "\n", omittingEmptySubsequences: false), frenchLines = french.split(separator: "\n", omittingEmptySubsequences: false)
+        XCTAssertEqual(englishLines.count, frenchLines.count)
+        XCTAssertEqual(zip(englishLines, frenchLines).filter { $0 != $1 }.count, 3, "Output language, session notes source and transcript row")
         XCTAssertNotEqual(AgentSummaryTask.promptHash(for: .english), AgentSummaryTask.promptHash(for: .french))
-        XCTAssertEqual(AgentSummaryTask.promptVersion(for: .french), AgentSummaryTask.promptVersion)
+        XCTAssertEqual(AgentSummaryTask.promptVersion(for: .french), AgentSummaryTask.promptVersion(for: .english))
     }
 
     func testDocumentsUseTheLanguageOfTheSummary() throws {

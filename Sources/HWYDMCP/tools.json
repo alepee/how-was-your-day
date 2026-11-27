@@ -343,7 +343,7 @@
       "properties": {
         "overview": {
           "type": "string",
-          "description": "Une à trois phrases sur la session."
+          "description": "One to three sentences about the session."
         },
         "key_points": {
           "type": "array",
@@ -365,7 +365,7 @@
                 },
                 "minItems": 1,
                 "maxItems": 5,
-                "description": "Identifiants S<n> des passages du transcript qui étayent l'élément."
+                "description": "S<n> identifiers of the transcript passages that support the element."
               }
             },
             "required": [
@@ -396,7 +396,7 @@
                 },
                 "minItems": 1,
                 "maxItems": 5,
-                "description": "Identifiants S<n> des passages du transcript qui étayent l'élément."
+                "description": "S<n> identifiers of the transcript passages that support the element."
               }
             },
             "required": [
@@ -406,7 +406,7 @@
             ],
             "additionalProperties": false
           },
-          "description": "Compte rendu par thème, dans l'ordre de la session."
+          "description": "Report by theme, in the order of the session."
         },
         "decisions": {
           "type": "array",
@@ -424,7 +424,7 @@
                 },
                 "minItems": 1,
                 "maxItems": 5,
-                "description": "Identifiants S<n> des passages du transcript qui étayent l'élément."
+                "description": "S<n> identifiers of the transcript passages that support the element."
               }
             },
             "required": [
@@ -462,7 +462,7 @@
                 },
                 "minItems": 1,
                 "maxItems": 5,
-                "description": "Identifiants S<n> des passages du transcript qui étayent l'élément."
+                "description": "S<n> identifiers of the transcript passages that support the element."
               }
             },
             "required": [
@@ -475,7 +475,7 @@
         "context": {
           "type": "array",
           "maxItems": 8,
-          "description": "Apports du contexte de l'utilisateur, séparés du contenu de la session.",
+          "description": "What the user's context brings, kept apart from the session content.",
           "items": {
             "type": "object",
             "properties": {
@@ -953,7 +953,7 @@
       "description": "Link an acoustic speaker cluster to an existing person using expected_revision and a unique request_id. Requires --allow-write and the app write setting. Does not enroll voice fingerprints."
     },
     "submit_summary": {
-      "description": "Envoie la synthèse de la session à HWYD. Disponible uniquement quand HWYD confie une synthèse à un agent. La synthèse est validée : en cas de refus, la raison est renvoyée, corrige et renvoie. Une synthèse acceptée remplace la précédente pour ce passage.",
+      "description": "Send the session summary to HWYD. Available only when HWYD hands a summary to an agent. The summary is validated: when it is refused, the reason is returned; correct it and send it again. An accepted summary replaces the previous one for this run.",
       "inputSchema": {
         "type": "object",
         "properties": {
