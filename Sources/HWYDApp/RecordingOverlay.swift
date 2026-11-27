@@ -11,7 +11,8 @@ struct RecordingOverlayView: View {
             Button(action: openNotes) {
                 HStack(spacing: 8) {
                     Image(systemName: paused ? "pause.circle.fill" : "record.circle").foregroundStyle(paused ? Studio.muted : Studio.copper)
-                    Text(timeLabel(model.elapsed)).monospacedDigit().font(.system(size: Studio.Size.body, weight: .medium))
+                    Text(verbatim: "00:00:00").hidden().overlay(alignment: .leading) { Text(timeLabel(model.elapsed)) }
+                        .monospacedDigit().font(.system(size: Studio.Size.body, weight: .medium))
                     VStack(spacing: 2) {
                         WaveformView(level: paused ? 0 : model.micLevel, color: Studio.copper).frame(width: 44, height: 12)
                         WaveformView(level: paused ? 0 : model.systemLevel).frame(width: 44, height: 12)
@@ -25,6 +26,7 @@ struct RecordingOverlayView: View {
         .padding(.leading, 14).padding(.trailing, 8).padding(.vertical, 6)
         .foregroundStyle(Studio.text)
         .background(Capsule().fill(Studio.surface).strokeBorder(Studio.line))
+        .gesture(WindowDragGesture())
         .fixedSize()
         .preferredColorScheme(model.appearancePreference.colorScheme)
         .accessibilityElement(children: .contain)
@@ -58,10 +60,11 @@ struct RecordingOverlayView: View {
             let panel = OverlayPanel(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
             panel.isFloatingPanel = true; panel.level = .floating; panel.hidesOnDeactivate = false
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-            panel.isMovableByWindowBackground = true; panel.isReleasedWhenClosed = false
+            panel.isReleasedWhenClosed = false
             panel.backgroundColor = .clear; panel.isOpaque = false; panel.hasShadow = true
             panel.contentView = host
-            if !panel.setFrameUsingName("HWYDRecordingOverlay"), let screen = NSScreen.main?.visibleFrame {
+            let restored = panel.setFrameUsingName("HWYDRecordingOverlay") && NSScreen.screens.contains { $0.visibleFrame.intersects(panel.frame) }
+            if !restored, let screen = NSScreen.main?.visibleFrame {
                 panel.setFrameOrigin(NSPoint(x: screen.maxX - size.width - 16, y: screen.maxY - size.height - 12))
             }
             panel.setFrameAutosaveName("HWYDRecordingOverlay")
