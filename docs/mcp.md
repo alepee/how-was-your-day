@@ -807,7 +807,7 @@ Mutations : comparer `expected_revision`, appliquer, incrémenter la révision, 
 
 | Liste | Ordre stable |
 |---|---|
-| Enregistrements | `started_at DESC, id DESC` |
+| Enregistrements | `started_at DESC, id ASC` |
 | Personnes | `id ASC` |
 | Recherche | `bm25 ASC, recording_id ASC, artifact ASC, entity_id ASC` |
 
@@ -890,7 +890,7 @@ Erreurs de protocole : méthode inconnue, JSON-RPC invalide ou arguments non con
 }
 ```
 
-Codes métier : `NOT_FOUND`, `WRITE_DISABLED`, `VERSION_CONFLICT`, `IDEMPOTENCY_CONFLICT`, `PERSON_OPPOSED`, `CURSOR_INVALID`, `CURSOR_STALE`, `RESOURCE_TOO_LARGE`, `STORE_BUSY`, `STORE_NOT_INITIALIZED`, `SCHEMA_MISMATCH`, `ARTIFACT_UNAVAILABLE`. Ne pas inclure de SQL, chemin privé ou texte source dans les messages d'erreur.
+Codes métier : `NOT_FOUND`, `WRITE_DISABLED`, `VERSION_CONFLICT`, `IDEMPOTENCY_CONFLICT`, `PERSON_OPPOSED`, `INVALID_CURSOR`, `CURSOR_STALE`, `RESOURCE_TOO_LARGE`, `STORE_BUSY`, `STORE_NOT_INITIALIZED`, `SCHEMA_MISMATCH`, `ARTIFACT_UNAVAILABLE`. Ne pas inclure de SQL, chemin privé ou texte source dans les messages d'erreur.
 
 MCP local n'a pas d'authentification HTTP. Le client stdio reçoit les droits du processus lancé. L'opt-in MCP doit expliquer que le client agent peut transmettre les textes à son fournisseur. Le serveur ne traite jamais une instruction contenue dans un transcript comme une commande. Les outils d'écriture n'exécutent aucun shell, n'ouvrent aucun lien et ne changent aucune permission de consentement.
 

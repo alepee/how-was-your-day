@@ -18,8 +18,8 @@ Entries describe what a user observes. The detailed release notes published on G
 
 ### Fixed
 - Next steps no longer list an offer the other person declined (« je t'envoie l'artefact », « non non, c'était juste curiosité »), a joke, or a reply to a suggestion made outside the recording, such as in the call chat. When in doubt about whether a commitment is serious, the summary leaves it out. Existing summaries are unchanged until generated again.
-
-### Fixed
+- The MCP tool `get_participants` no longer lists people who opposed voice recognition, as `docs/mcp.md` states.
+- The README no longer says images are never sent to the summarizer: an ACP agent that reads images receives up to eight of them.
 - The welcome tour now finds Claude Code, Codex and their npm adapter when their directory is added to the `PATH` in `~/.zshrc` (Claude Code's own installer, nvm, fnm, Volta), so « Installer et connecter » shows as soon as the `claude` command is installed. HWYD asks your shell for its `PATH` once per launch and also looks in the usual install locations; agents start with that same `PATH`. When npm cannot write to its global folder, the adapter is installed under `~/.local` instead, and when npm is missing the message asks for Node.js.
 
 ## [0.18.0] - 2026-11-21

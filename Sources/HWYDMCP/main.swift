@@ -130,7 +130,7 @@ actor MCPService {
         case "list_recordings", "search", "get_participants":
             var items: [[String: Any]] = []
             if method == "get_participants" {
-                items = try await store.people().sorted { $0.id.uuidString < $1.id.uuidString }.map { ["id": $0.id.uuidString, "name": $0.name, "alias": NSNull(), "status": "named"] }
+                items = try await store.people().filter { !$0.opposed }.sorted { $0.id.uuidString < $1.id.uuidString }.map { ["id": $0.id.uuidString, "name": $0.name, "alias": NSNull(), "status": "named"] }
             } else {
                 let recordings = try await store.all().filter(matches)
                 if method == "list_recordings" { items = recordings.map(metadata) }
