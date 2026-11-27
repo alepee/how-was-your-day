@@ -23,6 +23,14 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(store.value(.recordingOverlay))
     }
 
+    func testRecordingOverlayOrientationDefaultsToHorizontalAndRoundTrips() {
+        let store = InMemorySettings(["capture.overlay.orientation": "diagonal"])
+        XCTAssertEqual(store.value(.recordingOverlayOrientation), .horizontal)
+        store.set(.vertical, for: .recordingOverlayOrientation)
+        XCTAssertEqual(store.storedValue(forKey: "capture.overlay.orientation") as? String, "vertical")
+        XCTAssertEqual(store.value(.recordingOverlayOrientation), .vertical)
+    }
+
     func testValuesRoundTripAndRemove() {
         let store = InMemorySettings()
         store.set(.anthropic, for: .summaryService)

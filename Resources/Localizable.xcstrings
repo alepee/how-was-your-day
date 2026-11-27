@@ -3445,6 +3445,22 @@
         }
       }
     },
+    "Disposition de la pastille": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pill layout"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disposition de la pastille"
+          }
+        }
+      }
+    },
     "Données et agents": {
       "localizations": {
         "en": {
@@ -3761,6 +3777,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Démarrer ou terminer un enregistrement"
+          }
+        }
+      }
+    },
+    "Déplacer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Déplacer"
           }
         }
       }
@@ -4961,6 +4993,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "HWYD · Rappel de test"
+          }
+        }
+      }
+    },
+    "Horizontale": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Horizontal"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Horizontale"
           }
         }
       }
@@ -10805,18 +10853,18 @@
         }
       }
     },
-    "Une petite fenêtre reste au-dessus des autres applications, y compris en plein écran : durée, niveaux du micro et du son système, pause et fin de session. Déplacez-la où vous voulez ; un clic sur la durée ouvre les notes.": {
+    "Une petite fenêtre reste au-dessus des autres applications, y compris en plein écran : durée, niveaux du micro et du son système, pause et fin de session. Déplacez-la par sa poignée ou ses bords ; un clic sur la durée ouvre les notes.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "A small window stays above other apps, including full screen: duration, microphone and system sound levels, pause and end of session. Move it anywhere; a click on the duration opens the notes."
+            "value": "A small window stays above other apps, including full screen: duration, microphone and system sound levels, pause and end of session. Move it by its handle or its edges; a click on the duration opens the notes."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Une petite fenêtre reste au-dessus des autres applications, y compris en plein écran : durée, niveaux du micro et du son système, pause et fin de session. Déplacez-la où vous voulez ; un clic sur la durée ouvre les notes."
+            "value": "Une petite fenêtre reste au-dessus des autres applications, y compris en plein écran : durée, niveaux du micro et du son système, pause et fin de session. Déplacez-la par sa poignée ou ses bords ; un clic sur la durée ouvre les notes."
           }
         }
       }
@@ -10977,6 +11025,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Version %@"
+          }
+        }
+      }
+    },
+    "Verticale": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vertical"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verticale"
           }
         }
       }

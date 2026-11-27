@@ -30,9 +30,10 @@ import HWYDCore
         let preferences = InMemorySettings()
         let saved = AppModel(environment: try .synthetic(directory: directory, preferences: preferences))
         guard !saved.recordingOverlay else { throw CaptureFailure(message: "The recording overlay must start off") }
-        saved.recordingOverlay = true
+        guard saved.recordingOverlayOrientation == .horizontal else { throw CaptureFailure(message: "The recording overlay must start horizontal") }
+        saved.recordingOverlay = true; saved.recordingOverlayOrientation = .vertical
         let reopened = AppModel(environment: try .synthetic(directory: directory, preferences: preferences))
-        guard reopened.recordingOverlay else { throw CaptureFailure(message: "The overlay setting did not survive reopening") }
+        guard reopened.recordingOverlay, reopened.recordingOverlayOrientation == .vertical else { throw CaptureFailure(message: "The overlay settings did not survive reopening") }
         let model = AppModel(environment: .preview(capture: .simulated { SimulatedCapture(animatesLevels: false) }))
         var shown: [Bool] = []
         let watch = model.showsRecordingOverlay.sink { shown.append($0) }
@@ -45,7 +46,7 @@ import HWYDCore
         await model.stopCapture(reveal: false).value
         try await waitUntil("Overlay check: capture did not stop") { model.activeCaptureID == nil }
         guard shown == [false, true, false] else { throw CaptureFailure(message: "The overlay did not hide after the capture: \(shown)") }
-        print("Recording overlay: off by default, shown only during a capture once turned on, kept across launches: PASS")
+        print("Recording overlay: off and horizontal by default, shown only during a capture once turned on, settings kept across launches: PASS")
     }
     /// The root gives every synthetic mode in-memory preferences, no store of the user, no
     /// keychain, and a capture that never opens the microphone.
