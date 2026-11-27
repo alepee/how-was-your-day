@@ -2661,6 +2661,22 @@
         }
       }
     },
+    "Changer le type de la session": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change the session type"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changer le type de la session"
+          }
+        }
+      }
+    },
     "Chaque session est transcrite après l’enregistrement, sans que l’audio quitte votre Mac.": {
       "localizations": {
         "en": {
@@ -10481,6 +10497,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Type"
+          }
+        }
+      }
+    },
+    "Type de la session : %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session type: %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type de la session : %@"
           }
         }
       }
