@@ -1,6 +1,6 @@
 # How Was Your Day
 
-[Website](https://alepee.github.io/how-was-your-day/) · [Download](https://github.com/alepee/how-was-your-day/releases/latest) · [Changelog](CHANGELOG.md)
+[Website](https://hwyd.lepee.dev/) · [Download](https://github.com/alepee/how-was-your-day/releases/latest) · [Changelog](CHANGELOG.md)
 
 A native macOS app for recording, transcribing and reviewing conversations locally. Built with SwiftUI and Swift Package Manager.
 
