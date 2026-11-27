@@ -226,6 +226,16 @@ public struct ACPAgentPreset: Identifiable, Hashable, Sendable {
     public static func preset(for command: String) -> ACPAgentPreset? { all.first { $0.command == command } }
     /// The command that installs the adapter, for the user to run when HWYD cannot.
     public var adapterInstallCommand: String? { adapterPackage.map { "npm install -g \($0)" } }
+    /// Exit status of `adapterInstallScript` when npm is not installed.
+    public static let npmMissingStatus: Int32 = 127
+    /// Installs the adapter globally, or under `~/.local` when the global prefix is not writable
+    /// (Node.js installed with the nodejs.org package). `~/.local/bin` is on the agent's search path.
+    public var adapterInstallScript: String? {
+        adapterPackage.map { package in
+            "command -v npm >/dev/null 2>&1 || exit \(Self.npmMissingStatus); "
+                + "npm install -g \(package) >/dev/null 2>&1 || npm install -g --prefix \"$HOME/.local\" \(package) >/dev/null 2>&1"
+        }
+    }
 }
 
 public enum AgentSummaryFailure: LocalizedError, Equatable {
@@ -281,16 +291,13 @@ actor ACPConnection {
     private var exited = false
     private let onNotification: @Sendable (String, Data) async -> Void
 
-    init(command: String, workingDirectory: URL, onNotification: @escaping @Sendable (String, Data) async -> Void) {
+    init(command: String, workingDirectory: URL, shellPath: String?, onNotification: @escaping @Sendable (String, Data) async -> Void) {
         self.onNotification = onNotification
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
         // A login shell finds agents installed with Homebrew, npm or uv; stdout stays the protocol channel.
         process.arguments = ["-lc", "exec " + command]
         process.currentDirectoryURL = workingDirectory
-        var environment = ProcessInfo.processInfo.environment
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        environment["PATH"] = ["/opt/homebrew/bin", "/usr/local/bin", home + "/.local/bin", environment["PATH"] ?? "/usr/bin:/bin"].joined(separator: ":")
-        process.environment = environment
+        process.environment = AgentSearchPath.environment(shellPath: shellPath)
         process.standardInput = input; process.standardOutput = output; process.standardError = errors
     }
 
@@ -390,7 +397,7 @@ public enum ACPSummaryAgent {
     public static let timeout: Duration = .seconds(20 * 60)
 
     public static func run(_ recording: Recording, command: String, workingDirectory: URL, mcpExecutable: URL, storeDirectory: URL,
-                           language: SummaryLanguage = .french, noteImages: (any NoteImageStore)? = nil,
+                           language: SummaryLanguage = .french, noteImages: (any NoteImageStore)? = nil, shellPath: String? = nil,
                            progress: @escaping @Sendable (SummaryProgress) async -> Void = { _ in }) async throws -> SummaryProvenance {
         let command = command.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !command.isEmpty else { throw AgentSummaryFailure.commandMissing }
@@ -401,7 +408,7 @@ public enum ACPSummaryAgent {
         defer { try? FileManager.default.removeItem(at: handoff) }
 
         let lastMessage = MessageTail()
-        let connection = ACPConnection(command: command, workingDirectory: workingDirectory) { method, params in
+        let connection = ACPConnection(command: command, workingDirectory: workingDirectory, shellPath: shellPath) { method, params in
             guard method == "session/update", let object = try? JSONSerialization.jsonObject(with: params) as? [String: Any],
                   let update = object["update"] as? [String: Any] else { return }
             switch update["sessionUpdate"] as? String {

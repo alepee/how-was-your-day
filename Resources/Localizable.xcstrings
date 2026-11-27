@@ -6661,6 +6661,22 @@
         }
       }
     },
+    "L’adaptateur %@ s’installe avec npm, introuvable sur ce Mac. Installez Node.js (nodejs.org ou « brew install node »), puis réessayez.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The %@ adapter installs with npm, which is not on this Mac. Install Node.js (nodejs.org or “brew install node”), then try again."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’adaptateur %@ s’installe avec npm, introuvable sur ce Mac. Installez Node.js (nodejs.org ou « brew install node »), puis réessayez."
+          }
+        }
+      }
+    },
     "L’adaptateur de %@ reste introuvable. Lancez dans un terminal : %@": {
       "localizations": {
         "en": {

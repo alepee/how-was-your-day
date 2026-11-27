@@ -95,10 +95,14 @@ public struct SummarizerEnvironment: Sendable {
     public var apiKey: @Sendable (SummaryService) throws -> String?
     /// Language summaries are written in: the user's language preference.
     public var language: SummaryLanguage
+    /// The user's shell `PATH`, for starting an ACP agent (`UserShellPath`). Nil keeps the usual install locations only.
+    public var agentShellPath: @Sendable () async -> String?
 
     public init(dataDirectory: URL, mcpExecutable: URL, language: SummaryLanguage = .current,
+                agentShellPath: @escaping @Sendable () async -> String? = { nil },
                 apiKey: @escaping @Sendable (SummaryService) throws -> String?) {
-        self.dataDirectory = dataDirectory; self.mcpExecutable = mcpExecutable; self.language = language; self.apiKey = apiKey
+        self.dataDirectory = dataDirectory; self.mcpExecutable = mcpExecutable; self.language = language
+        self.agentShellPath = agentShellPath; self.apiKey = apiKey
     }
 
     func cacheDirectory(for recording: Recording) -> URL {
@@ -233,6 +237,7 @@ public struct AgentSummarizer: Summarizer {
     public func summarize(_ recording: Recording, progress: @escaping @Sendable (SummaryProgress) async -> Void) async throws -> SummaryProvenance {
         try requireReady()
         return try await ACPSummaryAgent.run(recording, command: command, workingDirectory: workingDirectory,
-            mcpExecutable: environment.mcpExecutable, storeDirectory: environment.dataDirectory, language: environment.language, progress: progress)
+            mcpExecutable: environment.mcpExecutable, storeDirectory: environment.dataDirectory, language: environment.language,
+            shellPath: await environment.agentShellPath(), progress: progress)
     }
 }
