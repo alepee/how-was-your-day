@@ -1,6 +1,6 @@
 # Bounded evidence and thematic writing
 
-HWYD processes French, English and mixed-language transcripts. Reports currently use French. A model must pass the bilingual benchmark before it can be recommended; valid JSON alone does not demonstrate language support or factual quality.
+HWYD processes French, English and mixed-language transcripts. Reports are written in French or English, following the HWYD language set in Settings > General. A model must pass the bilingual benchmark before it can be recommended; valid JSON alone does not demonstrate language support or factual quality.
 
 ## Workflow
 
