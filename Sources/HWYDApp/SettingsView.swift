@@ -101,9 +101,8 @@ struct SettingsView: View {
             }
             section(String(localized: "Pastille d’enregistrement"), symbol: "record.circle") {
                 row(String(localized: "Pendant un enregistrement"), help: String(localized: "Une petite fenêtre reste au-dessus des autres applications, y compris en plein écran : durée, niveaux du micro et du son système, pause, reprise et fin de session. Déplacez-la par sa poignée ou ses bords, d’un écran à l’autre ; un clic sur la durée ouvre les notes.")) {
-                    Picker("Pastille d’enregistrement", selection: $model.recordingOverlayChoice) {
-                        Text("Masquée").tag(RecordingOverlayOrientation?.none)
-                        ForEach(RecordingOverlayOrientation.allCases, id: \.self) { orientation in Text(orientation.title).tag(Optional(orientation)) }
+                    Picker("Pastille d’enregistrement", selection: $model.recordingOverlay) {
+                        ForEach(RecordingOverlayLayout.allCases, id: \.self) { layout in Text(layout.title).tag(layout) }
                     }.pickerStyle(.segmented).labelsHidden().frame(width: 300)
                 }
             }

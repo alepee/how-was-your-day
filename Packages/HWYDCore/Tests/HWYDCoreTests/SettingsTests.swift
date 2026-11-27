@@ -15,20 +15,12 @@ final class SettingsTests: XCTestCase {
         XCTAssertFalse(store.contains(.diarizationEnabled))
     }
 
-    func testRecordingOverlayIsOffUntilTheUserTurnsItOn() {
-        let store = InMemorySettings()
-        XCTAssertEqual(SettingKey<Bool>.recordingOverlay.name, "capture.overlay")
-        XCTAssertFalse(store.value(.recordingOverlay))
-        store.set(true, for: .recordingOverlay)
-        XCTAssertTrue(store.value(.recordingOverlay))
-    }
-
-    func testRecordingOverlayOrientationDefaultsToHorizontalAndRoundTrips() {
-        let store = InMemorySettings(["capture.overlay.orientation": "diagonal"])
-        XCTAssertEqual(store.value(.recordingOverlayOrientation), .horizontal)
-        store.set(.vertical, for: .recordingOverlayOrientation)
-        XCTAssertEqual(store.storedValue(forKey: "capture.overlay.orientation") as? String, "vertical")
-        XCTAssertEqual(store.value(.recordingOverlayOrientation), .vertical)
+    func testRecordingOverlayIsHiddenUntilTheUserPicksALayout() {
+        let store = InMemorySettings(["capture.overlay": "diagonal"])
+        XCTAssertEqual(store.value(.recordingOverlay), .hidden)
+        store.set(.vertical, for: .recordingOverlay)
+        XCTAssertEqual(store.storedValue(forKey: "capture.overlay") as? String, "vertical")
+        XCTAssertEqual(store.value(.recordingOverlay), .vertical)
     }
 
     func testValuesRoundTripAndRemove() {

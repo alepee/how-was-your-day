@@ -233,9 +233,9 @@ import HWYDCore
         settle { model.isCapturePaused }
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 850), to: directory.appendingPathComponent("studio-capture-paused.png"))
         renderOverlay("studio-overlay-paused.png")
-        model.recordingOverlayOrientation = .vertical
+        model.recordingOverlay = .vertical
         render(RecordingOverlayView().padding(16).environmentObject(model), size: .init(width: 100, height: 300), to: directory.appendingPathComponent("studio-overlay-vertical.png"))
-        model.recordingOverlayOrientation = .horizontal
+        model.recordingOverlay = .horizontal
         model.toggleCapturePause()
         settle { !model.isCapturePaused }
         render(NotepadWindow().environmentObject(model), size: .init(width: 500, height: 650), to: directory.appendingPathComponent("studio-notepad.png"))

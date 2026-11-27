@@ -6,7 +6,7 @@ import HWYDCore
 struct RecordingOverlayView: View {
     @EnvironmentObject var model: AppModel
     var body: some View {
-        let paused = model.isCapturePaused, vertical = model.recordingOverlayOrientation == .vertical
+        let paused = model.isCapturePaused, vertical = model.recordingOverlay == .vertical
         let stack = vertical ? AnyLayout(VStackLayout(spacing: 6)) : AnyLayout(HStackLayout(spacing: 6))
         stack {
             Image(systemName: "line.3.horizontal").rotationEffect(.degrees(vertical ? 0 : 90))
@@ -45,9 +45,10 @@ struct RecordingOverlayView: View {
     }
 }
 
-extension RecordingOverlayOrientation {
+extension RecordingOverlayLayout {
     var title: String {
         switch self {
+        case .hidden: String(localized: "Masquée")
         case .horizontal: String(localized: "Horizontale")
         case .vertical: String(localized: "Verticale")
         }

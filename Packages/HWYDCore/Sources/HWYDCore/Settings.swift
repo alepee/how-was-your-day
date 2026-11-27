@@ -55,8 +55,8 @@ extension SettingValue where Self: RawRepresentable, RawValue: SettingValue {
     public var storedValue: Any? { rawValue.storedValue }
 }
 extension SessionKind: SettingValue {}
-public enum RecordingOverlayOrientation: String, CaseIterable, Sendable, SettingValue {
-    case horizontal, vertical
+public enum RecordingOverlayLayout: String, CaseIterable, Sendable, SettingValue {
+    case hidden, horizontal, vertical
 }
 extension SummaryService: SettingValue {}
 
@@ -137,8 +137,6 @@ extension SettingKey where Value == Bool {
     public static var calendarReminders: Self { .init("calendar.reminders", default: false) }
     /// A capture in which nobody speaks for a while asks whether the user is done, then stops.
     public static var inactivityStop: Self { .init("capture.inactivityStop", default: true) }
-    /// A small floating panel shows the running capture over every app, with pause and stop.
-    public static var recordingOverlay: Self { .init("capture.overlay", default: false) }
 }
 extension SettingKey where Value == String {
     public static var summaryEndpoint: Self { .init("summary.endpoint", default: "http://127.0.0.1:1234/v1") }
@@ -146,8 +144,9 @@ extension SettingKey where Value == String {
     public static var summaryAgentCommand: Self { .init("summary.agent.command", default: "claude-agent-acp") }
     public static var summaryAgentDirectory: Self { .init("summary.agent.directory", default: "~") }
 }
-extension SettingKey where Value == RecordingOverlayOrientation {
-    public static var recordingOverlayOrientation: Self { .init("capture.overlay.orientation", default: .horizontal) }
+extension SettingKey where Value == RecordingOverlayLayout {
+    /// A small floating panel shows the running capture over every app, with pause and stop.
+    public static var recordingOverlay: Self { .init("capture.overlay", default: .hidden) }
 }
 extension SettingKey where Value == SummaryService {
     public static var summaryService: Self { .init("summary.service", default: .local) }
