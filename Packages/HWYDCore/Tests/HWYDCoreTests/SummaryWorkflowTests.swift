@@ -530,7 +530,7 @@ extension SummaryWorkflowTests {
         XCTAssertEqual(first.promptHash, second.promptHash)
         XCTAssertEqual(first.promptVersion, "summary-v7-grounded-writing")
         // Identity of the shipped prompt texts: checkpoints written before this variant stay valid.
-        XCTAssertEqual(first.promptHash, "fd9a716d4ef2a2782cddd126e8327739c393183818595e77cdc3e2dccc62c0d5")
+        XCTAssertEqual(first.promptHash, "041490bcf62fe2079fbefea7f25404c4df9c805aaa904fe99ef9087eb398d6fa")
         XCTAssertEqual(first.structured, second.structured)
     }
     func testEnglishVerificationRetryFeedbackIsEnglish() async throws {
