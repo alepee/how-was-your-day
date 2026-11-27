@@ -128,6 +128,13 @@ final class AppModel: ObservableObject {
         guard shortcutEnabled else { return }
         recordingShortcutUnavailable = !GlobalHotKey.shared.register(recordingShortcut) { [weak self] in self?.toggleRecordingFromShortcut() }
     }
+    /// The user accepted to record the conversation another application holds: a session starts as
+    /// with the shortcut, and the window stays where it is.
+    func recordProposedConversation() {
+        if activeCaptureID == nil, !isStarting { startCapture(kind: newSessionKind, reveal: false) }
+    }
+    /// Never among the examples.
+    private func updateConversationDetection() { conversations.isEnabled = conversationDetection && !isDemoMode }
     /// Starts a session with the last chosen kind and the default language, or ends the running one.
     /// The window stays where it is: the shortcut is meant to be used from another application.
     func toggleRecordingFromShortcut() {
@@ -175,6 +182,10 @@ final class AppModel: ObservableObject {
     /// A capture in which nobody speaks for a while asks whether the user is done, then stops.
     @Published var inactivityStop = true {
         didSet { workspace.settings.set(inactivityStop, for: .inactivityStop) }
+    }
+    /// Proposes recording when another application holds the microphone.
+    @Published var conversationDetection = true {
+        didSet { workspace.settings.set(conversationDetection, for: .conversationDetection); updateConversationDetection() }
     }
     /// One locale per language, as reported by Apple Speech on this Mac.
     @Published var installedSpeechLocales: [String] = []
@@ -263,6 +274,10 @@ final class AppModel: ObservableObject {
     let microphoneAlerts: MicrophoneAlerts
     /// « Vous avez fini ? » and the stop that follows, as system notifications.
     let inactivityAlerts: InactivityAlerts
+    /// Sees the conversations other applications seem to hold; it proposes, it never records.
+    let conversations: ConversationDetector
+    /// The proposal to record such a conversation, as a system notification.
+    let conversationAlerts: ConversationAlerts
     /// The guided tour, over the preferences read at start.
     let onboarding: OnboardingGuide
     private var onboardingChanges: AnyCancellable?
@@ -287,6 +302,8 @@ final class AppModel: ObservableObject {
         systemNotifications = SystemNotifications(allowed: environment.usesSystem)
         microphoneAlerts = MicrophoneAlerts(notifications: systemNotifications)
         inactivityAlerts = InactivityAlerts(notifications: systemNotifications)
+        conversations = ConversationDetector(activity: environment.audioActivity, enabled: false, now: environment.clock)
+        conversationAlerts = ConversationAlerts(notifications: systemNotifications)
         calendar = CalendarIntegration(settings: preferences, allowed: environment.usesSystem, notifications: systemNotifications)
         onboarding = OnboardingGuide(settings: preferences)
         coordinator = environment.coordinator
@@ -296,6 +313,7 @@ final class AppModel: ObservableObject {
         newSessionKind = preferences.value(.newSessionKind)
         diarizationEnabled = preferences.value(.diarizationEnabled)
         inactivityStop = preferences.value(.inactivityStop)
+        conversationDetection = preferences.value(.conversationDetection)
         if let data = preferences.value(.recordingShortcut) {
             recordingShortcut = data.isEmpty ? nil : (try? JSONDecoder().decode(RecordingShortcut.self, from: data)) ?? .standard
         }
@@ -305,6 +323,7 @@ final class AppModel: ObservableObject {
         if let locales = environment.initialLocales { installedSpeechLocales = locales.installed; supportedSpeechLocales = locales.supported }
         if let error = environment.startupError { notifier.notify(.error(error)) }
         summarySettings.isDemo = workspace.isExamples
+        updateConversationDetection()
         toastCenter.navigate = { [weak self] intent in self?.navigate(to: intent) }
         summarySettingsChanges = summarySettings.objectWillChange.sink { [weak self] _ in
             MainActor.assumeIsolated { self?.objectWillChange.send() }
@@ -343,10 +362,12 @@ final class AppModel: ObservableObject {
             captureSession.$microphones.sink { [weak self] in self?.captureMicrophones = $0 },
             captureSession.$offer.sink { [weak self] in self?.microphoneOffer = $0 },
             captureSession.$isSwitchingMicrophone.sink { [weak self] in self?.isSwitchingMicrophone = $0 },
-            captureSession.$inactivity.sink { [weak self] in self?.inactivityPrompt = $0 }
+            captureSession.$inactivity.sink { [weak self] in self?.inactivityPrompt = $0 },
+            captureSession.$phase.sink { [weak self] in self?.conversations.isCapturing = $0 != .idle }
         ]
         microphoneAlerts.follow(captureSession) { [weak self] in self?.showWindow?() }
         inactivityAlerts.follow(captureSession) { [weak self] in self?.showWindow?() }
+        conversationAlerts.follow(conversations) { [weak self] in self?.recordProposedConversation() }
         followSetupMicrophones()
         captureSession.onEnd = { [weak self] in self?.showCaptureEnd($0) }
         if environment.user.store != nil {
@@ -420,6 +441,7 @@ final class AppModel: ObservableObject {
     }
     private func use(_ next: Workspace) {
         workspace = next
+        updateConversationDetection()
         followSetupMicrophones()
         // Summary settings changed among the examples are neither saved nor checked against the keychain.
         summarySettings.isDemo = next.isExamples

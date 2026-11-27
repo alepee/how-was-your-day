@@ -10,6 +10,7 @@ Entries describe what a user observes. The detailed release notes published on G
 ## [Unreleased]
 
 ### Added
+- HWYD offers to record when another app keeps the microphone open for more than 8 seconds, such as a video meeting or a call: a notification names the app, with « Enregistrer » and « Pas cette fois ». Nothing is recorded without your answer, and HWYD does not open the microphone to find out. One offer per conversation; Settings > Audio & Voice > « Proposer d’enregistrer quand une app utilise le micro » turns it off.
 - The type of a finished session can be changed from the label above its title (« Mémo », « Échange », « Réunion »), without resuming the recording. A voice memo turned into a meeting does not gain a consent declaration: its export still records that none was made.
 
 ### Changed

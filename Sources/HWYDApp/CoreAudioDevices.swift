@@ -95,6 +95,18 @@ enum HAL {
         }
     }
 
+    /// The process objects of every application that has an audio client. Reading them opens nothing.
+    static func processObjects() -> [AudioObjectID] {
+        var prop = address(kAudioHardwarePropertyProcessObjectList), size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(system, &prop, 0, nil, &size) == noErr, size > 0 else { return [] }
+        var objects = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(system, &prop, 0, nil, &size, &objects) == noErr else { return [] }
+        return Array(objects.prefix(Int(size) / MemoryLayout<AudioObjectID>.size))
+    }
+    static func flag(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector) -> Bool {
+        ((try? scalar(object, selector, as: UInt32.self)) ?? 0) != 0
+    }
+
     /// Calls `changed` on `queue` whenever the devices or the default input or output change.
     /// The returned token removes the listeners.
     static func watchDevices(on queue: DispatchQueue, _ changed: @escaping @Sendable () -> Void) -> DeviceWatch {

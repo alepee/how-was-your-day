@@ -497,6 +497,22 @@
         }
       }
     },
+    "%@ utilise le micro. Cliquez pour l’enregistrer avec HWYD.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is using the microphone. Click to record it with HWYD."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ utilise le micro. Cliquez pour l’enregistrer avec HWYD."
+          }
+        }
+      }
+    },
     "%@ · %@": {
       "localizations": {
         "en": {
@@ -7973,6 +7989,22 @@
         }
       }
     },
+    "Pas cette fois": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not this time"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas cette fois"
+          }
+        }
+      }
+    },
     "Pas encore": {
       "localizations": {
         "en": {
@@ -8277,6 +8309,22 @@
         }
       }
     },
+    "Proposer d’enregistrer quand une app utilise le micro": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offer to record when an app uses the microphone"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proposer d’enregistrer quand une app utilise le micro"
+          }
+        }
+      }
+    },
     "Proposition retirée : la voix reste telle quelle.": {
       "localizations": {
         "en": {
@@ -8433,6 +8481,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Prévenir"
+          }
+        }
+      }
+    },
+    "Quand une autre app garde le micro ouvert plus de 8 secondes (visio, appel), HWYD propose par une notification d’enregistrer. Rien n’est enregistré sans votre réponse. HWYD regarde seulement quelles apps utilisent le micro : il ne l’ouvre pas et n’écoute rien.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When another app keeps the microphone open for more than 8 seconds (video meeting, call), HWYD offers to record with a notification. Nothing is recorded without your answer. HWYD only looks at which apps use the microphone: it does not open it and listens to nothing."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quand une autre app garde le micro ouvert plus de 8 secondes (visio, appel), HWYD propose par une notification d’enregistrer. Rien n’est enregistré sans votre réponse. HWYD regarde seulement quelles apps utilisent le micro : il ne l’ouvre pas et n’écoute rien."
           }
         }
       }
@@ -10721,6 +10785,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Une capture ou un traitement en cours empêche la relance. Vos notes et modifications sont enregistrées avant."
+          }
+        }
+      }
+    },
+    "Une conversation semble en cours": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A conversation seems to be under way"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une conversation semble en cours"
           }
         }
       }
