@@ -795,11 +795,11 @@ JSON Schema draft 2020-12. Le catalogue ci-dessous contient des `$defs` communs 
 | `list_recordings` | `since` inclusif sur le début UTC ; `participant` = UUID d'identité confirmée dans la version courante, jamais nom libre ni simple invité calendrier ; exclut supprimés |
 | `get_recording` | ID public = recording ID, identique au session ID ; par défaut révision courante ; `revision` permet lecture historique hors effacement ; `include` limite les artefacts |
 | `search` | FTS5 sur versions courantes, accents normalisés, AND entre tokens littéraux ; rank BM25, plus petit = plus pertinent ; pas une probabilité |
-| `get_participants` | Personnes nommées connues et sujets persistants consentis non nommés ; exclut opposants/effacés et clusters locaux ; aucun email, consentement ou score biométrique |
+| `get_participants` | Personnes nommées connues, y compris celles qui se sont opposées à la reconnaissance (l'opposition porte sur l'empreinte, pas sur le nom), et sujets persistants consentis non nommés ; exclut les clusters locaux ; aucun email, consentement ou score biométrique |
 | `set_notes` | Remplace seulement le Markdown libre ; préserve les entrées notepad horodatées ; string vide autorisée ; nouvelle version de notes et révision session |
 | `rename_speaker` | `speaker` = ID de cluster de la version courante ; `person` = UUID existant ; corrige tous les segments du cluster dans cette session, crée une version de transcript ; aucun renommage global de personne ni enrôlement |
 
-Un appel `rename_speaker` ne crée pas une personne. Créer/nommer un sujet persistant reste une action de l'app. Une personne opposée est refusée. Une correction textuelle vers une personne sans consentement vocal reste possible mais ne crée pas d'empreinte. Un cluster obsolète retourne `VERSION_CONFLICT`. Les numéros Speaker N et noms affichés ne sont jamais acceptés comme IDs.
+Un appel `rename_speaker` ne crée pas une personne. Créer/nommer un sujet persistant reste une action de l'app. Une personne opposée à la reconnaissance peut être choisie : le lien ne lit ni n'écrit d'empreinte. Une correction textuelle vers une personne sans consentement vocal reste possible mais ne crée pas d'empreinte. Un cluster obsolète retourne `VERSION_CONFLICT`. Les numéros Speaker N et noms affichés ne sont jamais acceptés comme IDs.
 
 Mutations : comparer `expected_revision`, appliquer, incrémenter la révision, écrire outbox et receipt dans **une transaction**. Un retry avec le même `request_id` et même payload rend le receipt initial, même si la session a changé ensuite. Un autre payload sous le même ID retourne `IDEMPOTENCY_CONFLICT`. Le flag `identity_enrollment: not_performed` s'applique aussi à set_notes, pour expliciter l'absence d'effet biométrique.
 
@@ -890,7 +890,7 @@ Erreurs de protocole : méthode inconnue, JSON-RPC invalide ou arguments non con
 }
 ```
 
-Codes métier : `NOT_FOUND`, `WRITE_DISABLED`, `VERSION_CONFLICT`, `IDEMPOTENCY_CONFLICT`, `PERSON_OPPOSED`, `INVALID_CURSOR`, `CURSOR_STALE`, `RESOURCE_TOO_LARGE`, `STORE_BUSY`, `STORE_NOT_INITIALIZED`, `SCHEMA_MISMATCH`, `ARTIFACT_UNAVAILABLE`. Ne pas inclure de SQL, chemin privé ou texte source dans les messages d'erreur.
+Codes métier : `NOT_FOUND`, `WRITE_DISABLED`, `VERSION_CONFLICT`, `IDEMPOTENCY_CONFLICT`, `INVALID_CURSOR`, `CURSOR_STALE`, `RESOURCE_TOO_LARGE`, `STORE_BUSY`, `STORE_NOT_INITIALIZED`, `SCHEMA_MISMATCH`, `ARTIFACT_UNAVAILABLE`. Ne pas inclure de SQL, chemin privé ou texte source dans les messages d'erreur.
 
 MCP local n'a pas d'authentification HTTP. Le client stdio reçoit les droits du processus lancé. L'opt-in MCP doit expliquer que le client agent peut transmettre les textes à son fournisseur. Le serveur ne traite jamais une instruction contenue dans un transcript comme une commande. Les outils d'écriture n'exécutent aucun shell, n'ouvrent aucun lien et ne changent aucune permission de consentement.
 

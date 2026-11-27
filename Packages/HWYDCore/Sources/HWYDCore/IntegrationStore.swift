@@ -90,7 +90,6 @@ extension SessionStore {
                       let personData = try Data.fetchOne(db, sql: "SELECT payload FROM voice_people WHERE id=?", arguments: [personID.uuidString]) else { throw IntegrationError("NOT_FOUND") }
                 // The same confirmation as in the app: a rename, never an enrollment.
                 do { try item.linkSpeaker(speaker, to: try JSONDecoder().decode(VoicePerson.self, from: personData)) }
-                catch VoiceReviewError.opposedPerson { throw IntegrationError("PERSON_OPPOSED") }
                 catch StoreError.notFound { throw IntegrationError("NOT_FOUND") }
                 catch StoreError.invalidName { throw IntegrationError("INVALID_ARGUMENTS") }
             }

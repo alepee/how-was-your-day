@@ -58,13 +58,21 @@ final class VoiceReviewTests: XCTestCase {
         XCTAssertEqual(item.participants.count, 1)
     }
 
-    func testLinkRefusesOpposedPersonAndSelfMerge() {
+    func testLinkRefusesSelfMerge() {
         let speaker = Speaker(label: "Voix 1")
         var item = Recording(title: "Test", speakers: [speaker])
         let original = item
-        XCTAssertThrowsError(try item.linkSpeaker(speaker.id, to: VoicePerson(name: "Exclu", opposed: true)))
         XCTAssertThrowsError(try item.mergeSpeaker(speaker.id, into: speaker.id))
         XCTAssertEqual(item, original)
+    }
+    /// Opposition stops recognition and enrollment, not naming: the voice can still be linked by hand.
+    func testLinkAcceptsOpposedPerson() throws {
+        let speaker = Speaker(label: "Voix 1"), person = VoicePerson(name: "Exclu", opposed: true)
+        var item = Recording(title: "Test", speakers: [speaker])
+        try item.linkSpeaker(speaker.id, to: person)
+        XCTAssertEqual(item.speakers.first?.personID, person.id)
+        XCTAssertEqual(item.speakers.first?.label, "Exclu")
+        XCTAssertEqual(item.speakers.first?.confirmed, true)
     }
 
     func testPlaylistMergesOverlapsAndMapsElapsedTimeBack() {

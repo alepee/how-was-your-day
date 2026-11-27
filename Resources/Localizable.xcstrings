@@ -2533,22 +2533,6 @@
         }
       }
     },
-    "Cette personne est exclue de la reconnaissance.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This person is excluded from recognition."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cette personne est exclue de la reconnaissance."
-          }
-        }
-      }
-    },
     "Cette réunion n’est plus disponible ou a été déplacée.": {
       "localizations": {
         "en": {

@@ -62,12 +62,11 @@ public struct VoicePlaylist: Equatable, Sendable {
 public enum VoiceSplitSide: Equatable, Sendable { case before, after }
 
 public enum VoiceReviewError: LocalizedError, Equatable {
-    case unnamedMerge, opposedPerson, sameVoice, nothingToSplit
+    case unnamedMerge, sameVoice, nothingToSplit
     public var errorDescription: String? {
         switch self {
         case .nothingToSplit: String(localized: "Ce passage est le premier de cette voix : il n’y a rien à scinder avant lui.", bundle: .hwyd)
         case .unnamedMerge: String(localized: "Ces voix sont sur deux pistes différentes. Nommez d’abord l’une des deux.", bundle: .hwyd)
-        case .opposedPerson: String(localized: "Cette personne est exclue de la reconnaissance.", bundle: .hwyd)
         case .sameVoice: String(localized: "Choisissez une autre voix.", bundle: .hwyd)
         }
     }
@@ -230,10 +229,9 @@ extension Recording {
     }
 
     /// Confirms a voice as a known person: the one mutation behind the voice tiles, an enrollment
-    /// and an MCP rename. The name is validated and an opposed person refused. Linking is not
-    /// enrollment: no vector is read or written.
+    /// and an MCP rename. The name is validated. An opposed person can be linked: opposition stops
+    /// recognition and enrollment, not naming. Linking is not enrollment: no vector is read or written.
     public mutating func linkSpeaker(_ id: UUID, to person: VoicePerson) throws {
-        guard !person.opposed else { throw VoiceReviewError.opposedPerson }
         guard let index = speakers.firstIndex(where: { $0.id == id }) else { throw StoreError.notFound }
         let name = person.name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, name.count <= 120 else { throw StoreError.invalidName }

@@ -42,7 +42,7 @@ struct VoiceTilesView: View {
                     HStack(spacing: 8) {
                         ForEach(voices) { voice in
                             VoiceTile(voice: voice, playing: playingID == voice.id, canPlay: !recording.audioChunks.isEmpty && !voice.spans.isEmpty,
-                                      locked: locked, others: recording.speakers.filter { $0.id != voice.id && !$0.ignored }, people: known,
+                                      locked: locked, others: recording.speakers.filter { $0.id != voice.id && !$0.ignored }, people: model.people,
                                       proposed: voice.speaker.proposedIdentity.flatMap { match in known.first { $0.id == match.personID } },
                                       separable: recording.separableVoices(of: voice.id),
                                       canRemember: !recording.isDemo,
