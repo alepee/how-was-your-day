@@ -466,14 +466,10 @@ actor CoreAudioCapture: AudioCapture {
     /// The other processes currently reading audio input, from any device. A meeting app with voice processing
     /// reads through its own aggregate device, so the reader is not filtered on the capture's microphone.
     private func inputReaders() -> Set<Int32> {
-        var prop = HAL.address(kAudioHardwarePropertyProcessObjectList), size: UInt32 = 0
-        guard AudioObjectGetPropertyDataSize(HAL.system, &prop, 0, nil, &size) == noErr, size > 0 else { return [] }
-        var processes = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
-        guard AudioObjectGetPropertyData(HAL.system, &prop, 0, nil, &size, &processes) == noErr else { return [] }
         let own = getpid()
         var readers: Set<Int32> = []
-        for process in processes {
-            guard (try? HAL.scalar(process, kAudioProcessPropertyIsRunningInput, as: UInt32.self)) ?? 0 != 0,
+        for process in HAL.processObjects() {
+            guard HAL.flag(process, kAudioProcessPropertyIsRunningInput),
                   let pid = try? HAL.scalar(process, kAudioProcessPropertyPID, as: pid_t.self), pid != own else { continue }
             readers.insert(pid)
         }

@@ -157,6 +157,7 @@ struct SettingsView: View {
                 }
             }.task { model.refreshSpeechLanguages() }
             section(String(localized: "Enregistrement"), symbol: "record.circle") {
+                toggleRow(String(localized: "Proposer d’enregistrer quand une app utilise le micro"), help: String(localized: "Quand une autre app garde le micro ouvert plus de 8 secondes (visio, appel), HWYD propose par une notification d’enregistrer. Rien n’est enregistré sans votre réponse. HWYD regarde seulement quelles apps utilisent le micro : il ne l’ouvre pas et n’écoute rien."), isOn: $model.conversationDetection).disabled(model.isDemoMode)
                 toggleRow(String(localized: "Proposer d’arrêter quand personne ne parle"), help: String(localized: "Si personne ne parle pendant 5 minutes, au micro ou dans le son de la visio, HWYD demande si vous avez fini. Sans réponse, l’enregistrement s’arrête 2 minutes plus tard ; l’audio et les notes sont conservés. La parole est détectée sur ce Mac par le classifieur de sons de macOS ; rien n’est envoyé ni conservé."), isOn: $model.inactivityStop).disabled(model.isDemoMode)
             }
             section(String(localized: "Séparation des voix"), symbol: "person.2.wave.2") {

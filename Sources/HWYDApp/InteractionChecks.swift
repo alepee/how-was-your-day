@@ -35,13 +35,15 @@ import HWYDCore
                   environment.secrets is InMemorySecretVault, environment.user.audio == nil, environment.user.capture.isSimulated, environment.examples().capture.isSimulated,
                   (try environment.user.capture.make()) is SimulatedCapture,
                   // Listing inputs reads the hardware: only the installed app does.
-                  !(environment.user.capture.microphones is CoreAudioMicrophones), !(environment.examples().capture.microphones is CoreAudioMicrophones) else {
+                  !(environment.user.capture.microphones is CoreAudioMicrophones), !(environment.examples().capture.microphones is CoreAudioMicrophones),
+                  // Nor do they look at which applications use the microphone.
+                  environment.audioActivity is FixedAudioActivity else {
                 throw CaptureFailure(message: "A synthetic mode reached the user's preferences, data or microphone: \(mode)")
             }
         }
         let checks = try AppEnvironment.synthetic(directory: directory)
         guard checks.preferences is InMemorySettings, !checks.usesSystem, !checks.user.capture.isSimulated,
-              !(checks.user.capture.microphones is CoreAudioMicrophones),
+              !(checks.user.capture.microphones is CoreAudioMicrophones), checks.audioActivity is FixedAudioActivity,
               checks.secrets is InMemorySecretVault, checks.helpers.secrets == .memory, checks.examples().audio == nil,
               (try? checks.user.capture.make()) == nil, checks.examples().transcription.refusal == .examples,
               checks.examples().summarizer(SummaryConfiguration()).refusal == .examples else {

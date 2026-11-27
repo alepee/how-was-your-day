@@ -83,6 +83,8 @@ struct CaptureSource {
     var notifier: (any UserNotifier)?
     var coordinator = WorkCoordinator()
     var agentDiscovery: any AgentDiscovery = FixedAgentDiscovery()
+    /// Which other applications use the microphone. Core Audio's processes only for the installed app.
+    var audioActivity: any AudioActivity = FixedAudioActivity()
     /// Summary API keys. The keychain only for the installed app; every other environment gets
     /// one in memory, so no preview, example or check can reach the user's keychain.
     var secrets: any SecretVault = InMemorySecretVault()
@@ -137,7 +139,7 @@ struct CaptureSource {
             user.capture = .coreAudio(store.audio, microphones: CoreAudioMicrophones())
         } catch { startupError = String(localized: "Impossible d’ouvrir les données locales : \(error.localizedDescription)") }
         return AppEnvironment(dataDirectory: directory, preferences: preferences, helpers: helpers, agentDiscovery: LoginShellAgentDiscovery(),
-                              secrets: secrets, usesSystem: true, appliesAppearance: true, user: user, startsWithExamples: examples, startupError: startupError)
+                              audioActivity: CoreAudioActivity(), secrets: secrets, usesSystem: true, appliesAppearance: true, user: user, startsWithExamples: examples, startupError: startupError)
     }
 
     /// Volatile sessions for previews and snapshots: the examples (default), or `recordings` shown
