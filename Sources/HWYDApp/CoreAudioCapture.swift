@@ -58,7 +58,7 @@ actor CoreAudioCapture: AudioCapture {
     /// When the stream stopped delivering, in `systemUptime` seconds, for a restart, a rebuild or a
     /// lost microphone.
     private var stillSince: TimeInterval?
-    /// Restarts the microphone stream once another app opened the input after the capture started.
+    /// Restarts the microphone stream once another app opened the input, or reconfigured it as the graph was built.
     private var claimWatch: MicrophoneClaimWatch?
     private var lastClaimPoll: TimeInterval = 0
     /// Checks levels, speech, health and microphone claims five times per second while recording.
@@ -115,7 +115,7 @@ actor CoreAudioCapture: AudioCapture {
             try startDevices()
             try await waitForAudio(seconds: 5)
             devices = CaptureDevices(list: list, output: output, microphone: device)
-            claimWatch = MicrophoneClaimWatch(readers: inputReaders())
+            claimWatch = MicrophoneClaimWatch(readers: inputReaders(), now: Self.uptime)
             watch = HAL.watchDevices(on: queue) { [weak self] in Task { await self?.devicesChanged() } }
         } catch { _ = teardown(); continuation.finish(); throw error }
         startMonitor()
@@ -145,11 +145,13 @@ actor CoreAudioCapture: AudioCapture {
                 if self.writer != nil { halt(); isPaused = true }
                 throw error
             }
+            // Its first start, like a graph built while recording.
+            claimWatch?.graphBuilt(readers: inputReaders(), now: Self.uptime)
         } else {
             writer.resume()
             do { try startDevices() } catch { isPaused = true; throw error }
+            claimWatch?.reset(readers: inputReaders())
         }
-        claimWatch?.reset(readers: inputReaders())
     }
     func stop() -> CapturedAudio {
         let audio = teardown()
@@ -389,7 +391,7 @@ actor CoreAudioCapture: AudioCapture {
         guard self.writer != nil else { throw CaptureFailure(message: String(localized: "Aucune capture en cours.")) }
         guard outcome == .flowing else { return }
         awaitingAudio = false
-        claimWatch?.reset(readers: inputReaders())
+        claimWatch?.graphBuilt(readers: inputReaders(), now: Self.uptime)
     }
     /// Waits for the first buffers of both tracks. Returns early if the capture is paused or
     /// stopped meanwhile. Only the deadline ends the wait: device notifications never cancel it.
@@ -445,8 +447,8 @@ actor CoreAudioCapture: AudioCapture {
         monitor?.cancel(); monitor = nil
         continuation.yield(.failed(fault))
     }
-    /// A meeting app that opens the microphone after the capture started may switch on voice processing,
-    /// which leaves the stream already running about 30 dB lower. Stopping and starting it again, like a manual
+    /// A meeting app that opens the microphone after the capture started, or that sets up its voice processing again
+    /// when the capture's aggregate appears, may leave the stream already running about 30 dB lower. Stopping and starting it again, like a manual
     /// pause and resume, restores the level. The gap lasts a few milliseconds to about a second and, like a pause,
     /// is left out of the timeline; the events let the session clock skip it too.
     private func restartIfMicrophoneClaimed() throws {

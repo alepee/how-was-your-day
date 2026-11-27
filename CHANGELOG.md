@@ -17,6 +17,7 @@ Entries describe what a user observes. The detailed release notes published on G
 - The summary agent now receives its instructions in English whatever the summary language, which the prompt states once. The summary keeps the language you chose; only the prompt sent to the agent changes, under a new prompt version.
 
 ### Fixed
+- The microphone track no longer stays about 25 dB too quiet when the recording starts while a call already uses the microphone, as seen with Google Meet on the MacBook microphone. When another app already reads the microphone, the capture now restarts its stream once, a second and a half after starting, as a pause and resume did by hand. The restart lasts a few milliseconds and is left out of the timeline.
 - Next steps no longer list an offer the other person declined (« je t'envoie l'artefact », « non non, c'était juste curiosité »), a joke, or a reply to a suggestion made outside the recording, such as in the call chat. When in doubt about whether a commitment is serious, the summary leaves it out. Existing summaries are unchanged until generated again.
 
 ### Fixed
