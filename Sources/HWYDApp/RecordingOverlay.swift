@@ -92,8 +92,8 @@ extension RecordingOverlayOrientation {
 }
 
 private extension NSWindow {
-    func onScreen(_ frame: NSRect) -> NSRect {
-        guard let screen = (self.screen ?? NSScreen.main)?.visibleFrame else { return frame }
+    func onScreen(_ frame: NSRect, _ target: NSScreen? = nil) -> NSRect {
+        guard let screen = (target ?? self.screen ?? NSScreen.main)?.visibleFrame else { return frame }
         var frame = frame
         frame.origin.x = min(max(frame.minX, screen.minX), screen.maxX - frame.width)
         frame.origin.y = min(max(frame.minY, screen.minY), screen.maxY - frame.height)
@@ -112,7 +112,8 @@ private struct WindowDragArea: NSViewRepresentable {
         override func mouseDragged(with event: NSEvent) {
             guard let window, let grab else { return }
             let pointer = NSPoint(x: window.frame.minX + event.locationInWindow.x, y: window.frame.minY + event.locationInWindow.y)
-            window.setFrameOrigin(window.onScreen(NSRect(origin: NSPoint(x: pointer.x - grab.x, y: pointer.y - grab.y), size: window.frame.size)).origin)
+            let screen = NSScreen.screens.first { $0.frame.contains(pointer) }
+            window.setFrameOrigin(window.onScreen(NSRect(origin: NSPoint(x: pointer.x - grab.x, y: pointer.y - grab.y), size: window.frame.size), screen).origin)
         }
         override func mouseUp(with event: NSEvent) { grab = nil }
     }

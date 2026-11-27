@@ -99,6 +99,14 @@ struct SettingsView: View {
                     }.pickerStyle(.segmented).labelsHidden().frame(width: 260)
                 }
             }
+            section(String(localized: "Pastille d’enregistrement"), symbol: "record.circle") {
+                row(String(localized: "Pendant un enregistrement"), help: String(localized: "Une petite fenêtre reste au-dessus des autres applications, y compris en plein écran : durée, niveaux du micro et du son système, pause, reprise et fin de session. Déplacez-la par sa poignée ou ses bords, d’un écran à l’autre ; un clic sur la durée ouvre les notes.")) {
+                    Picker("Pastille d’enregistrement", selection: $model.recordingOverlayChoice) {
+                        Text("Masquée").tag(RecordingOverlayOrientation?.none)
+                        ForEach(RecordingOverlayOrientation.allCases, id: \.self) { orientation in Text(orientation.title).tag(Optional(orientation)) }
+                    }.pickerStyle(.segmented).labelsHidden().frame(width: 300)
+                }
+            }
             section(String(localized: "Raccourci"), symbol: "keyboard") {
                 row(String(localized: "Démarrer ou terminer un enregistrement"), help: String(localized: "Fonctionne aussi quand une autre application est au premier plan. La session prend le dernier type choisi et détecte la langue ; la fenêtre reste en arrière-plan. Sans raccourci, utilisez le menu de la barre des menus.")) {
                     if model.recordingShortcutUnavailable {
@@ -158,12 +166,6 @@ struct SettingsView: View {
             }.task { model.refreshSpeechLanguages() }
             section(String(localized: "Enregistrement"), symbol: "record.circle") {
                 toggleRow(String(localized: "Proposer d’arrêter quand personne ne parle"), help: String(localized: "Si personne ne parle pendant 5 minutes, au micro ou dans le son de la visio, HWYD demande si vous avez fini. Sans réponse, l’enregistrement s’arrête 2 minutes plus tard ; l’audio et les notes sont conservés. La parole est détectée sur ce Mac par le classifieur de sons de macOS ; rien n’est envoyé ni conservé."), isOn: $model.inactivityStop).disabled(model.isDemoMode)
-                toggleRow(String(localized: "Afficher une pastille flottante pendant l’enregistrement"), help: String(localized: "Une petite fenêtre reste au-dessus des autres applications, y compris en plein écran : durée, niveaux du micro et du son système, pause et fin de session. Déplacez-la par sa poignée ou ses bords ; un clic sur la durée ouvre les notes."), isOn: $model.recordingOverlay)
-                row(String(localized: "Disposition de la pastille")) {
-                    Picker("Disposition de la pastille", selection: $model.recordingOverlayOrientation) {
-                        ForEach(RecordingOverlayOrientation.allCases, id: \.self) { orientation in Text(orientation.title).tag(orientation) }
-                    }.pickerStyle(.segmented).labelsHidden().frame(width: 220)
-                }.disabled(!model.recordingOverlay)
             }
             section(String(localized: "Séparation des voix"), symbol: "person.2.wave.2") {
                 toggleRow(String(localized: "Séparer les voix après transcription"), isOn: $model.diarizationEnabled).disabled(model.isDemoMode)

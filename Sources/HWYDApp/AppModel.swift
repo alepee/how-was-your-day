@@ -182,6 +182,13 @@ final class AppModel: ObservableObject {
     @Published var recordingOverlayOrientation = RecordingOverlayOrientation.horizontal {
         didSet { workspace.settings.set(recordingOverlayOrientation, for: .recordingOverlayOrientation) }
     }
+    var recordingOverlayChoice: RecordingOverlayOrientation? {
+        get { recordingOverlay ? recordingOverlayOrientation : nil }
+        set {
+            if let newValue { recordingOverlayOrientation = newValue }
+            recordingOverlay = newValue != nil
+        }
+    }
     private(set) lazy var showsRecordingOverlay: AnyPublisher<Bool, Never> =
         $activeCaptureID.combineLatest($recordingOverlay).map { capture, enabled in enabled && capture != nil }.removeDuplicates().eraseToAnyPublisher()
     /// One locale per language, as reported by Apple Speech on this Mac.

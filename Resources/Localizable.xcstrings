@@ -1349,22 +1349,6 @@
         }
       }
     },
-    "Afficher une pastille flottante pendant l’enregistrement": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show a floating pill while recording"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Afficher une pastille flottante pendant l’enregistrement"
-          }
-        }
-      }
-    },
     "Agent": {
       "localizations": {
         "en": {
@@ -3441,22 +3425,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Diarisation et rejet d’écho non appliqués à ce transcript."
-          }
-        }
-      }
-    },
-    "Disposition de la pastille": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pill layout"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Disposition de la pastille"
           }
         }
       }
@@ -7061,6 +7029,22 @@
         }
       }
     },
+    "Masquée": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hidden"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Masquée"
+          }
+        }
+      }
+    },
     "Me rappeler avant chaque réunion": {
       "localizations": {
         "en": {
@@ -8133,6 +8117,22 @@
         }
       }
     },
+    "Pastille d’enregistrement": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recording pill"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pastille d’enregistrement"
+          }
+        }
+      }
+    },
     "Pause": {
       "localizations": {
         "en": {
@@ -8161,6 +8161,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pendant la conversation"
+          }
+        }
+      }
+    },
+    "Pendant un enregistrement": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "While recording"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pendant un enregistrement"
           }
         }
       }
@@ -10853,18 +10869,18 @@
         }
       }
     },
-    "Une petite fenêtre reste au-dessus des autres applications, y compris en plein écran : durée, niveaux du micro et du son système, pause et fin de session. Déplacez-la par sa poignée ou ses bords ; un clic sur la durée ouvre les notes.": {
+    "Une petite fenêtre reste au-dessus des autres applications, y compris en plein écran : durée, niveaux du micro et du son système, pause, reprise et fin de session. Déplacez-la par sa poignée ou ses bords, d’un écran à l’autre ; un clic sur la durée ouvre les notes.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "A small window stays above other apps, including full screen: duration, microphone and system sound levels, pause and end of session. Move it by its handle or its edges; a click on the duration opens the notes."
+            "value": "A small window stays above other apps, including full screen: duration, microphone and system sound levels, pause, resume and end of session. Move it by its handle or its edges, from one screen to another; a click on the duration opens the notes."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Une petite fenêtre reste au-dessus des autres applications, y compris en plein écran : durée, niveaux du micro et du son système, pause et fin de session. Déplacez-la par sa poignée ou ses bords ; un clic sur la durée ouvre les notes."
+            "value": "Une petite fenêtre reste au-dessus des autres applications, y compris en plein écran : durée, niveaux du micro et du son système, pause, reprise et fin de session. Déplacez-la par sa poignée ou ses bords, d’un écran à l’autre ; un clic sur la durée ouvre les notes."
           }
         }
       }
