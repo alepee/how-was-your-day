@@ -191,7 +191,8 @@ struct CaptureSource {
     /// Summarizers for the settings of the moment, reading keys from the environment's vault.
     private static func summarizers(directory: URL, helpers: HelperLocator, secrets: any SecretVault) -> @MainActor (SummaryConfiguration) -> any Summarizer {
         let keys = SummaryKeys(vault: secrets)
-        let environment = SummarizerEnvironment(dataDirectory: directory, mcpExecutable: helpers.mcp) { try keys.key(for: $0) }
+        let environment = SummarizerEnvironment(dataDirectory: directory, mcpExecutable: helpers.mcp,
+                                                agentShellPath: { await UserShellPath.shared.value() }) { try keys.key(for: $0) }
         return { SummarizerFactory.make($0, environment: environment) }
     }
 }
