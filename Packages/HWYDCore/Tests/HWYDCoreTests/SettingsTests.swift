@@ -15,6 +15,14 @@ final class SettingsTests: XCTestCase {
         XCTAssertFalse(store.contains(.diarizationEnabled))
     }
 
+    func testRecordingOverlayIsOffUntilTheUserTurnsItOn() {
+        let store = InMemorySettings()
+        XCTAssertEqual(SettingKey<Bool>.recordingOverlay.name, "capture.overlay")
+        XCTAssertFalse(store.value(.recordingOverlay))
+        store.set(true, for: .recordingOverlay)
+        XCTAssertTrue(store.value(.recordingOverlay))
+    }
+
     func testValuesRoundTripAndRemove() {
         let store = InMemorySettings()
         store.set(.anthropic, for: .summaryService)

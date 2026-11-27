@@ -1349,6 +1349,22 @@
         }
       }
     },
+    "Afficher une pastille flottante pendant l’enregistrement": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show a floating pill while recording"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher une pastille flottante pendant l’enregistrement"
+          }
+        }
+      }
+    },
     "Agent": {
       "localizations": {
         "en": {
@@ -10785,6 +10801,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Une modification d’empreinte vocale est en cours."
+          }
+        }
+      }
+    },
+    "Une petite fenêtre reste au-dessus des autres applications, y compris en plein écran : durée, niveaux du micro et du son système, pause et fin de session. Déplacez-la où vous voulez ; un clic sur la durée ouvre les notes.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A small window stays above other apps, including full screen: duration, microphone and system sound levels, pause and end of session. Move it anywhere; a click on the duration opens the notes."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une petite fenêtre reste au-dessus des autres applications, y compris en plein écran : durée, niveaux du micro et du son système, pause et fin de session. Déplacez-la où vous voulez ; un clic sur la durée ouvre les notes."
           }
         }
       }

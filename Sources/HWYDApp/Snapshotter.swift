@@ -227,9 +227,12 @@ import HWYDCore
         clock.time = 1122; capture.emit(.levels(mic: 0.65, system: 0.35))
         settle { model.elapsed == 1122 && model.micLevel == 0.65 }
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 850), to: directory.appendingPathComponent("studio-capture.png"))
+        let renderOverlay = { (name: String) in render(RecordingOverlayView().padding(16).environmentObject(model), size: .init(width: 340, height: 84), to: directory.appendingPathComponent(name)) }
+        renderOverlay("studio-overlay.png")
         model.toggleCapturePause()
         settle { model.isCapturePaused }
         render(RootView().environmentObject(model), size: .init(width: 1080, height: 850), to: directory.appendingPathComponent("studio-capture-paused.png"))
+        renderOverlay("studio-overlay-paused.png")
         model.toggleCapturePause()
         settle { !model.isCapturePaused }
         render(NotepadWindow().environmentObject(model), size: .init(width: 500, height: 650), to: directory.appendingPathComponent("studio-notepad.png"))

@@ -176,6 +176,11 @@ final class AppModel: ObservableObject {
     @Published var inactivityStop = true {
         didSet { workspace.settings.set(inactivityStop, for: .inactivityStop) }
     }
+    @Published var recordingOverlay = false {
+        didSet { workspace.settings.set(recordingOverlay, for: .recordingOverlay) }
+    }
+    private(set) lazy var showsRecordingOverlay: AnyPublisher<Bool, Never> =
+        $activeCaptureID.combineLatest($recordingOverlay).map { capture, enabled in enabled && capture != nil }.removeDuplicates().eraseToAnyPublisher()
     /// One locale per language, as reported by Apple Speech on this Mac.
     @Published var installedSpeechLocales: [String] = []
     @Published var supportedSpeechLocales: [String] = []
@@ -296,6 +301,7 @@ final class AppModel: ObservableObject {
         newSessionKind = preferences.value(.newSessionKind)
         diarizationEnabled = preferences.value(.diarizationEnabled)
         inactivityStop = preferences.value(.inactivityStop)
+        recordingOverlay = preferences.value(.recordingOverlay)
         if let data = preferences.value(.recordingShortcut) {
             recordingShortcut = data.isEmpty ? nil : (try? JSONDecoder().decode(RecordingShortcut.self, from: data)) ?? .standard
         }

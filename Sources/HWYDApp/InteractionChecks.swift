@@ -26,6 +26,27 @@ import HWYDCore
         guard fallback.appearancePreference == .system else { throw CaptureFailure(message: "Invalid preference must follow system") }
         print("Appearance persistence, system fallback and demo/test isolation: PASS")
     }
+    private static func checkRecordingOverlay(directory: URL) async throws {
+        let preferences = InMemorySettings()
+        let saved = AppModel(environment: try .synthetic(directory: directory, preferences: preferences))
+        guard !saved.recordingOverlay else { throw CaptureFailure(message: "The recording overlay must start off") }
+        saved.recordingOverlay = true
+        let reopened = AppModel(environment: try .synthetic(directory: directory, preferences: preferences))
+        guard reopened.recordingOverlay else { throw CaptureFailure(message: "The overlay setting did not survive reopening") }
+        let model = AppModel(environment: .preview(capture: .simulated { SimulatedCapture(animatesLevels: false) }))
+        var shown: [Bool] = []
+        let watch = model.showsRecordingOverlay.sink { shown.append($0) }
+        defer { watch.cancel() }
+        model.startCapture()
+        try await waitUntil("Overlay check: no capture") { model.activeCaptureID != nil }
+        guard shown == [false] else { throw CaptureFailure(message: "The overlay showed while turned off: \(shown)") }
+        model.recordingOverlay = true
+        guard shown == [false, true] else { throw CaptureFailure(message: "The overlay did not show once turned on: \(shown)") }
+        await model.stopCapture(reveal: false).value
+        try await waitUntil("Overlay check: capture did not stop") { model.activeCaptureID == nil }
+        guard shown == [false, true, false] else { throw CaptureFailure(message: "The overlay did not hide after the capture: \(shown)") }
+        print("Recording overlay: off by default, shown only during a capture once turned on, kept across launches: PASS")
+    }
     /// The root gives every synthetic mode in-memory preferences, no store of the user, no
     /// keychain, and a capture that never opens the microphone.
     private static func checkSyntheticEnvironments(directory: URL) async throws {
@@ -706,6 +727,7 @@ import HWYDCore
         try await checkMicrophoneSwitch(directory: directory.appendingPathComponent("microphone-test"))
         try await checkNoMicrophone(directory: directory.appendingPathComponent("no-microphone-test"))
         try await checkSyntheticEnvironments(directory: directory.appendingPathComponent("environments-test"))
+        try await checkRecordingOverlay(directory: directory.appendingPathComponent("overlay-test"))
         let notices = RecordingNotifier(), coordinator = WorkCoordinator()
         // The capture clock is the check's: the timer moves only when the check advances it.
         let captureClock = ManualClock()

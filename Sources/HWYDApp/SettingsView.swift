@@ -158,6 +158,7 @@ struct SettingsView: View {
             }.task { model.refreshSpeechLanguages() }
             section(String(localized: "Enregistrement"), symbol: "record.circle") {
                 toggleRow(String(localized: "Proposer d’arrêter quand personne ne parle"), help: String(localized: "Si personne ne parle pendant 5 minutes, au micro ou dans le son de la visio, HWYD demande si vous avez fini. Sans réponse, l’enregistrement s’arrête 2 minutes plus tard ; l’audio et les notes sont conservés. La parole est détectée sur ce Mac par le classifieur de sons de macOS ; rien n’est envoyé ni conservé."), isOn: $model.inactivityStop).disabled(model.isDemoMode)
+                toggleRow(String(localized: "Afficher une pastille flottante pendant l’enregistrement"), help: String(localized: "Une petite fenêtre reste au-dessus des autres applications, y compris en plein écran : durée, niveaux du micro et du son système, pause et fin de session. Déplacez-la où vous voulez ; un clic sur la durée ouvre les notes."), isOn: $model.recordingOverlay)
             }
             section(String(localized: "Séparation des voix"), symbol: "person.2.wave.2") {
                 toggleRow(String(localized: "Séparer les voix après transcription"), isOn: $model.diarizationEnabled).disabled(model.isDemoMode)

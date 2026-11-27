@@ -134,6 +134,8 @@ extension SettingKey where Value == Bool {
     public static var calendarReminders: Self { .init("calendar.reminders", default: false) }
     /// A capture in which nobody speaks for a while asks whether the user is done, then stops.
     public static var inactivityStop: Self { .init("capture.inactivityStop", default: true) }
+    /// A small floating panel shows the running capture over every app, with pause and stop.
+    public static var recordingOverlay: Self { .init("capture.overlay", default: false) }
 }
 extension SettingKey where Value == String {
     public static var summaryEndpoint: Self { .init("summary.endpoint", default: "http://127.0.0.1:1234/v1") }

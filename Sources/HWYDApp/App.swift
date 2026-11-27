@@ -37,6 +37,7 @@ import HWYDCore
 @MainActor final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var mainWindow: NSWindow?
     private var notepad: NSPanel?
+    private var recordingOverlay: RecordingOverlayPanel?
     func applicationDidFinishLaunching(_ notification: Notification) {
         func check(_ run: @escaping @MainActor () async throws -> Void) {
             Task {
@@ -70,6 +71,7 @@ import HWYDCore
         let model = AppRoot.model
         model.showWindow = { [weak self] in self?.openWindow() }
         model.openNotepad = { [weak self] in self?.openNotepad() }
+        recordingOverlay = RecordingOverlayPanel(model: model)
         // Only the installed app on its own data takes the shortcut, follows the calendar and
         // checks for updates: a `--demo` instance must not take them from a real one running alongside.
         let ownsSystem = AppRoot.mode == .app(examples: false)
