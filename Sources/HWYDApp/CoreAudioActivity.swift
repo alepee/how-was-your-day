@@ -9,7 +9,7 @@ import HWYDCore
 /// (`kAudioProcessPropertyIsRunning`) and nothing when it releases the microphone while it keeps
 /// playing: `kAudioProcessPropertyIsRunningInput` and `IsRunningOutput` have no notification
 /// (measured with a probe, November 2026). Hence the reading every two seconds while attending
-/// closely, and none otherwise. The HAL is read on a queue of its own, never on the main thread.
+/// closely (a conversation is followed, or an application plays), and none otherwise. The HAL is read on a queue of its own, never on the main thread.
 @MainActor final class CoreAudioActivity: AudioActivity {
     private let subject = PassthroughSubject<[AppAudioActivity], Never>()
     private let reader = Reader()

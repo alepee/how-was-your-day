@@ -229,6 +229,15 @@ final class ConversationDetectorTests: XCTestCase {
         XCTAssertEqual(detector.proposal?.app, gather)
     }
 
+    func testWatchesCloselyWhileAnAppPlays() {
+        let detector = detector()
+        activity.report([sound(chrome)])
+        XCTAssertEqual(activity.attention, .closely, "A playing app that opens the microphone is not reported")
+        XCTAssertNil(detector.proposal)
+        activity.report([])
+        XCTAssertEqual(activity.attention, .changes)
+    }
+
     func testStopsWatchingCloselyOnceEveryAppIsQuiet() {
         let detector = detector()
         activity.report([microphone(handy)])

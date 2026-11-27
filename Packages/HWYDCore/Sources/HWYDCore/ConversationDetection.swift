@@ -35,7 +35,8 @@ public enum AudioAttention: Sendable {
     /// What the system reports: an application that starts or stops audio.
     case changes
     /// A reading every two seconds as well: the system does not report an application that
-    /// releases the microphone and keeps playing.
+    /// releases the microphone and keeps playing, and may not report one that plays and then
+    /// opens the microphone.
     case closely
 }
 
@@ -169,7 +170,7 @@ public struct ConversationProposal: Identifiable, Equatable, Sendable {
     private func observe() {
         let app = watch.observe(last, capturing: isCapturing, now: now())
         if app != proposal?.app { proposal = app.map { ConversationProposal(app: $0) } }
-        activity.attend(!isEnabled ? .off : watch.isTracking ? .closely : .changes)
+        activity.attend(!isEnabled ? .off : watch.isTracking || last.contains(where: \.playsAudio) ? .closely : .changes)
     }
 }
 
