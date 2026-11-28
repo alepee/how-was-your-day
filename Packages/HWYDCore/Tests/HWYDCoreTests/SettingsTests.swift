@@ -15,6 +15,14 @@ final class SettingsTests: XCTestCase {
         XCTAssertFalse(store.contains(.diarizationEnabled))
     }
 
+    func testRecordingOverlayIsHiddenUntilTheUserPicksALayout() {
+        let store = InMemorySettings(["capture.overlay": "diagonal"])
+        XCTAssertEqual(store.value(.recordingOverlay), .hidden)
+        store.set(.vertical, for: .recordingOverlay)
+        XCTAssertEqual(store.storedValue(forKey: "capture.overlay") as? String, "vertical")
+        XCTAssertEqual(store.value(.recordingOverlay), .vertical)
+    }
+
     func testValuesRoundTripAndRemove() {
         let store = InMemorySettings()
         store.set(.anthropic, for: .summaryService)

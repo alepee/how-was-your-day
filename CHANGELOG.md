@@ -12,6 +12,7 @@ Entries describe what a user observes. The detailed release notes published on G
 ## [0.19.0] - 2026-11-28
 
 ### Added
+- An optional floating pill shows the running recording above every app, including full screen: duration, microphone and system sound levels, pause or play to resume, and end of session. A click on the duration opens the notes. It does not take focus from your call, moves by its handle or its edges, from one screen to another, and keeps its place. Choose Horizontal or Vertical in Settings › General › Recording pill; it is hidden by default.
 - The type of a finished session can be changed from the label above its title (« Mémo », « Échange », « Réunion »), without resuming the recording. A voice memo turned into a meeting does not gain a consent declaration: its export still records that none was made.
 
 ### Changed

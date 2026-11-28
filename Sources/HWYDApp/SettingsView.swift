@@ -99,6 +99,13 @@ struct SettingsView: View {
                     }.pickerStyle(.segmented).labelsHidden().frame(width: 260)
                 }
             }
+            section(String(localized: "Pastille d’enregistrement"), symbol: "record.circle") {
+                row(String(localized: "Pendant un enregistrement"), help: String(localized: "Une petite fenêtre reste au-dessus des autres applications, y compris en plein écran : durée, niveaux du micro et du son système, pause, reprise et fin de session. Déplacez-la par sa poignée ou ses bords, d’un écran à l’autre ; un clic sur la durée ouvre les notes.")) {
+                    Picker("Pastille d’enregistrement", selection: $model.recordingOverlay) {
+                        ForEach(RecordingOverlayLayout.allCases, id: \.self) { layout in Text(layout.title).tag(layout) }
+                    }.pickerStyle(.segmented).labelsHidden().frame(width: 300)
+                }
+            }
             section(String(localized: "Raccourci"), symbol: "keyboard") {
                 row(String(localized: "Démarrer ou terminer un enregistrement"), help: String(localized: "Fonctionne aussi quand une autre application est au premier plan. La session prend le dernier type choisi et détecte la langue ; la fenêtre reste en arrière-plan. Sans raccourci, utilisez le menu de la barre des menus.")) {
                     if model.recordingShortcutUnavailable {

@@ -55,6 +55,9 @@ extension SettingValue where Self: RawRepresentable, RawValue: SettingValue {
     public var storedValue: Any? { rawValue.storedValue }
 }
 extension SessionKind: SettingValue {}
+public enum RecordingOverlayLayout: String, CaseIterable, Sendable, SettingValue {
+    case hidden, horizontal, vertical
+}
 extension SummaryService: SettingValue {}
 
 /// A typed preference: its stored name and the value used when nothing valid is stored.
@@ -140,6 +143,10 @@ extension SettingKey where Value == String {
     public static var summaryLocalModel: Self { .init("summary.model", default: "") }
     public static var summaryAgentCommand: Self { .init("summary.agent.command", default: "claude-agent-acp") }
     public static var summaryAgentDirectory: Self { .init("summary.agent.directory", default: "~") }
+}
+extension SettingKey where Value == RecordingOverlayLayout {
+    /// A small floating panel shows the running capture over every app, with pause and stop.
+    public static var recordingOverlay: Self { .init("capture.overlay", default: .hidden) }
 }
 extension SettingKey where Value == SummaryService {
     public static var summaryService: Self { .init("summary.service", default: .local) }
