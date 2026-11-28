@@ -13,6 +13,7 @@ Entries describe what a user observes. The detailed release notes published on G
 - The type of a finished session can be changed from the label above its title (« Mémo », « Échange », « Réunion »), without resuming the recording. A voice memo turned into a meeting does not gain a consent declaration: its export still records that none was made.
 
 ### Changed
+- A person who opposed voice recognition can still be chosen by hand to name a voice, from « Personnes connues » in the voice menu or through the MCP tool `rename_speaker`, and `get_participants` lists them. Opposition keeps blocking their voice print, enrollment and recognition; naming reads and writes no print.
 - A summary written by your agent now starts from your notes. Timed notes, free notes and the images pasted during the session (up to eight, when the agent reads images) go with the transcript, each timed note tied to the passage under way when it was taken. The agent writes with them in mind (who speaks, the right names, what you found important) without copying them, and the transcript prevails when a note says otherwise: the contradiction is pointed out in the context section. The summary export then warns that your notes were used, so you can check that nothing you wanted to keep private shows through. Hosted providers still receive no notes.
 - The summary agent now receives its instructions in English whatever the summary language, which the prompt states once. The summary keeps the language you chose; only the prompt sent to the agent changes, under a new prompt version.
 

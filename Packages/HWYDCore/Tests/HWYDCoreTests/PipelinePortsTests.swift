@@ -178,8 +178,6 @@ final class SpeakerConfirmationTests: XCTestCase {
         try await store.savePerson(lea); try await store.savePerson(hugo)
         let voice = Speaker(label: "Voix 1")
         let saved = try await store.save(Recording(title: "Test", speakers: [voice], summary: "old"))
-        do { _ = try await store.mutate(id: saved.id, expectedRevision: saved.revision, requestID: UUID(), speaker: voice.id, personID: hugo.id); XCTFail() }
-        catch { XCTAssertEqual((error as? IntegrationError)?.code, "PERSON_OPPOSED") }
         do { _ = try await store.mutate(id: saved.id, expectedRevision: saved.revision, requestID: UUID(), speaker: UUID(), personID: lea.id); XCTFail() }
         catch { XCTAssertEqual((error as? IntegrationError)?.code, "NOT_FOUND") }
         _ = try await store.mutate(id: saved.id, expectedRevision: saved.revision, requestID: UUID(), speaker: voice.id, personID: lea.id)
@@ -192,5 +190,12 @@ final class SpeakerConfirmationTests: XCTestCase {
         let after = try await store.people().first { $0.id == lea.id }
         XCTAssertNil(after?.enrollmentRequestedAt)
         XCTAssertFalse(after?.recognitionEnabled ?? true)
+        // Opposition stops recognition, not naming: an opposed person can be linked, still without enrolling.
+        _ = try await store.mutate(id: saved.id, expectedRevision: renamed.revision, requestID: UUID(), speaker: voice.id, personID: hugo.id)
+        let linked = try await store.recording(saved.id)
+        XCTAssertEqual(linked.speakers[0].personID, hugo.id)
+        let opposed = try await store.people().first { $0.id == hugo.id }
+        XCTAssertEqual(opposed?.opposed, true)
+        XCTAssertNil(opposed?.enrollmentRequestedAt)
     }
 }

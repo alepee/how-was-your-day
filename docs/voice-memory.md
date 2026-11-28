@@ -11,7 +11,7 @@ Memorize a voice from its tile in a session. A named voice offers **Mémoriser c
 | Matching | Runs automatically after diarization, inside the [voice post-processing](voice-post-processing.md) and from the embeddings the diarizer already computed, and after each enrollment, from the audio; threshold and runner-up margin plus one-to-one assignment, so one person is proposed for at most one voice per session |
 | Result | Name suggestions appear on the tiles and transcript rows with **à confirmer**; manual names stay separate from enrollment |
 | Traceability | Each stored sample keeps the session and voice it came from, in the keychain only. Settings › Audio et voix lists, per person, what each session added and can withdraw it. Samples stored before 0.9 are grouped as unknown origin |
-| Withdrawal | **Retirer** removes one session's samples. **Effacer l’empreinte** removes all samples and keeps the person. **Effacer et opposer** also blocks enrollment and recognition until **Lever l’exclusion**, after which a new enrollment is required |
+| Withdrawal | **Retirer** removes one session's samples. **Effacer l’empreinte** removes all samples and keeps the person. **Effacer et opposer** also blocks enrollment and recognition until **Lever l’exclusion**, after which a new enrollment is required. Opposition concerns the voice print only: the person can still be chosen by hand to name a voice, and sessions where they were named keep their name |
 | Failure | A locked keychain leaves a usable transcript and a visible warning |
 | Storage | Vectors and their origin only in the local keychain. SQLite holds person metadata and enrolled channel names |
 
