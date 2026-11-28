@@ -148,6 +148,14 @@ final class AudioWaitTests: XCTestCase {
         XCTAssertEqual(outcome, .flowing)
     }
 
+    /// The device changed its channel count while the graph waited for its first buffers: the wait ends at once,
+    /// so the capture builds the graph again instead of waiting for a deadline no buffer can meet.
+    func testAFormatChangeEndsTheWait() async throws {
+        let probes = Probes([.waiting, .formatChanged, .flowing])
+        let outcome = try await AudioWait.until(deadline(), every: .milliseconds(1)) { await probes.next() }
+        XCTAssertEqual(outcome, .formatChanged)
+    }
+
     /// A pause or a stop during a rebuild ends the wait without an error: the rebuild is kept, and
     /// resuming waits for the first buffers.
     func testAPauseOrAStopEndsTheWait() async throws {
