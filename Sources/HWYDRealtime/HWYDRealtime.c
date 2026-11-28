@@ -7,7 +7,7 @@
 struct HWYDRing {
     uint32_t channels;
     _Atomic uint64_t readIndex, writeIndex, dropped;
-    _Atomic uint64_t reasons[4]; // 0 channel overflow, 1 inconsistent buffer, 2 channel count or frame size, 3 ring full
+    _Atomic uint64_t reasons[5]; // 0 channel overflow, 1 inconsistent buffer, 2 frame size, 3 ring full, 4 fewer channels
     uint32_t frames[CAPACITY];
     uint64_t timestamps[CAPACITY];
     float *samples;
@@ -23,7 +23,7 @@ HWYDRing *HWYDRingCreate(uint32_t channels) {
 }
 void HWYDRingDestroy(HWYDRing *r) { if (r) { free(r->samples); free(r); } }
 uint64_t HWYDRingDropped(HWYDRing *r) { return atomic_load_explicit(&r->dropped, memory_order_relaxed); }
-uint64_t HWYDRingDropReason(HWYDRing *r, uint32_t reason) { return reason < 4 ? atomic_load_explicit(&r->reasons[reason], memory_order_relaxed) : 0; }
+uint64_t HWYDRingDropReason(HWYDRing *r, uint32_t reason) { return reason < 5 ? atomic_load_explicit(&r->reasons[reason], memory_order_relaxed) : 0; }
 OSStatus HWYDIOProc(AudioDeviceID device, const AudioTimeStamp *now, const AudioBufferList *input,
     const AudioTimeStamp *inputTime, AudioBufferList *output, const AudioTimeStamp *outputTime, void *context) {
     HWYDRing *r = context;
@@ -48,7 +48,12 @@ OSStatus HWYDIOProc(AudioDeviceID device, const AudioTimeStamp *now, const Audio
         }
     }
     uint64_t w = atomic_load_explicit(&r->writeIndex, memory_order_relaxed);
-    if (channels != r->channels || !frames || frames > MAX_FRAMES) {
+    // Fewer channels than the ring: the device changed its format, told apart from a frame size the ring cannot hold.
+    if (channels != r->channels) {
+        atomic_fetch_add_explicit(&r->reasons[4], 1, memory_order_relaxed);
+        atomic_fetch_add_explicit(&r->dropped, 1, memory_order_relaxed); return noErr;
+    }
+    if (!frames || frames > MAX_FRAMES) {
         atomic_fetch_add_explicit(&r->reasons[2], 1, memory_order_relaxed);
         atomic_fetch_add_explicit(&r->dropped, 1, memory_order_relaxed); return noErr;
     }

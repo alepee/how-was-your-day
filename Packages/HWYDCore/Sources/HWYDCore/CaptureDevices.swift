@@ -119,8 +119,10 @@ public enum AudioWait {
         case stopped
         /// The writer failed.
         case failed(String)
+        /// The device changed its channel count: the graph refuses its buffers and must be built again.
+        case formatChanged
     }
-    public enum Outcome: Equatable, Sendable { case flowing, paused, stopped }
+    public enum Outcome: Equatable, Sendable { case flowing, paused, stopped, formatChanged }
     public struct Timeout: Error, Equatable {}
     public struct Failure: Error, Equatable { public var message: String }
 
@@ -134,6 +136,7 @@ public enum AudioWait {
             case .flowing: return .flowing
             case .paused: return .paused
             case .stopped: return .stopped
+            case .formatChanged: return .formatChanged
             case .failed(let message): throw Failure(message: message)
             case .waiting: break
             }

@@ -5989,6 +5989,22 @@
         }
       }
     },
+    "Le micro change de format en boucle, la capture ne peut pas le suivre.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The microphone keeps changing format; the capture cannot follow it."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le micro change de format en boucle, la capture ne peut pas le suivre."
+          }
+        }
+      }
+    },
     "Le micro enregistré pendant toute la session. Par défaut, le dernier choisi s’il est branché, sinon l’entrée par défaut du Mac. Vous pourrez en changer pendant l’enregistrement.": {
       "localizations": {
         "en": {

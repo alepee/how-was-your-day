@@ -31,6 +31,10 @@ actor CoreAudioCapture: AudioCapture {
     private var session = UUID()
     /// Each graph gets its own aggregate UID.
     private var generation = 0
+    /// The microphone channels of the graph in use, to tell a format change from a broken buffer.
+    private var graphMicChannels: UInt32 = 0
+    /// Bounds the rebuilds for a format change, so a format that never settles stops the session.
+    private var formatBudget = FormatRebuildBudget()
     private var tap: AudioObjectID = 0
     private var tapUID = ""
     /// Microphone plus tap on one clock, or the tap alone when the microphone runs on its own clock.
@@ -113,7 +117,8 @@ actor CoreAudioCapture: AudioCapture {
             // Drain before the devices start: starting a tap aggregate can block for about a second.
             writer?.start()
             try startDevices()
-            try await waitForAudio(seconds: 5)
+            // A call taking the built-in microphone before its first buffers: built again on the new format.
+            if try await waitForAudio(seconds: 5) == .formatChanged { try await rebuildAfterWait(on: device) }
             devices = CaptureDevices(list: list, output: output, microphone: device)
             claimWatch = MicrophoneClaimWatch(readers: inputReaders())
             watch = HAL.watchDevices(on: queue) { [weak self] in Task { await self?.devicesChanged() } }
@@ -140,7 +145,11 @@ actor CoreAudioCapture: AudioCapture {
             writer.rearm()
             do {
                 try startDevices()
-                if try await waitForAudio(seconds: 8) == .flowing { awaitingAudio = false }
+                switch try await waitForAudio(seconds: 8) {
+                case .flowing: awaitingAudio = false
+                case .formatChanged: if let device = devices?.microphone { try await rebuildAfterWait(on: device) }
+                case .paused, .stopped: break
+                }
             } catch {
                 if self.writer != nil { halt(); isPaused = true }
                 throw error
@@ -265,10 +274,11 @@ actor CoreAudioCapture: AudioCapture {
 
     /// A call app took or released the built-in microphone, which changed its channel count (`MicrophoneReading`):
     /// the graph is built again on the same microphone and the new format, without a boundary, like an output change.
-    private func rebuildForFormat() async {
-        guard let device = devices?.microphone else { return }
-        if !isPaused { continuation.yield(.restarting); stillSince = Self.uptime }
+    private func rebuildForFormat(on device: MicrophoneDevice) async {
+        // Buffers were refused since the last one written, not since now: the session clock skips that time too.
+        if !isPaused { continuation.yield(.restarting); stillSince = min(Self.uptime, writer?.lastPacket(track: 0) ?? Self.uptime) }
         do {
+            try spendFormatBudget()
             try await rebuild(on: device, newTap: false)
             restarted()
         } catch {
@@ -298,8 +308,8 @@ actor CoreAudioCapture: AudioCapture {
         guard micStreams.count == 1 else { throw CaptureFailure(message: String(localized: "Ce prototype prend en charge les microphones à un seul flux d’entrée. Sélectionnez le micro du Mac.")) }
         let micFormat = try HAL.format(micStreams[0])
         let micChannels = micFormat.mChannelsPerFrame
-        let builtIn = (try? HAL.scalar(input, kAudioDevicePropertyTransportType, as: UInt32.self)) == kAudioDeviceTransportTypeBuiltIn
-        let reading = MicrophoneReading(builtIn: builtIn, channels: Int(micChannels))
+        let reading = MicrophoneReading(uid: device.uid, channels: Int(micChannels), othersReading: !inputReaders().isEmpty)
+        graphMicChannels = micChannels
         let tapRate = try HAL.scalar(tap, kAudioTapPropertyFormat, as: AudioStreamBasicDescription.self).mSampleRate
         generation += 1
         let inputs: [CaptureInput]
@@ -403,9 +413,31 @@ actor CoreAudioCapture: AudioCapture {
         // A Bluetooth headset may take more than a second to switch to call mode.
         let outcome = try await waitForAudio(seconds: 8)
         guard self.writer != nil else { throw CaptureFailure(message: String(localized: "Aucune capture en cours.")) }
+        if outcome == .formatChanged { try await rebuildAfterWait(on: device); return }
         guard outcome == .flowing else { return }
         awaitingAudio = false
         claimWatch?.reset(readers: inputReaders())
+    }
+    /// The microphone changed its channel count while a new graph waited for its first buffers (its format was read
+    /// before the change settled): the graph is built again, within the format budget.
+    private func rebuildAfterWait(on device: MicrophoneDevice) async throws {
+        try spendFormatBudget()
+        try await rebuild(on: device, newTap: false)
+    }
+    private func spendFormatBudget() throws {
+        guard formatBudget.allow(now: Self.uptime) else {
+            throw CaptureFailure(message: String(localized: "Le micro change de format en boucle, la capture ne peut pas le suivre."))
+        }
+    }
+    /// The channels the microphone in use exposes now, when they differ from the graph's: the refused buffers are a
+    /// format change. Nil when they are the same, or the microphone cannot be read: then the buffers are broken and
+    /// the stall watchdog decides.
+    private func changedMicrophoneChannels() -> UInt32? {
+        guard let device = devices?.microphone else { return nil }
+        let input = HAL.device(uid: device.uid)
+        guard input != 0, let streams = try? HAL.streams(input), streams.count == 1, let format = try? HAL.format(streams[0]),
+              format.mChannelsPerFrame != graphMicChannels else { return nil }
+        return format.mChannelsPerFrame
     }
     /// Waits for the first buffers of both tracks. Returns early if the capture is paused or
     /// stopped meanwhile. Only the deadline ends the wait: device notifications never cancel it.
@@ -424,6 +456,7 @@ actor CoreAudioCapture: AudioCapture {
         if isPaused { return .paused }
         let status = writer.status()
         if let error = status.error { return .failed(error) }
+        if writer.formatChanged { return .formatChanged }
         return status.lastPacket == nil ? .waiting : .flowing
     }
 
@@ -442,11 +475,11 @@ actor CoreAudioCapture: AudioCapture {
     /// going away, it is a lost microphone for the session to replace, not a fault.
     private func inspect() async {
         guard let writer, !isPaused, !faulted, !gate.isBusy, !awaitingAudio, devices?.isLost != true else { return }
-        if writer.formatChanged {
-            if gate.begin() {
-                await rebuildForFormat()
-                if gate.end() { devicesChanged() }
-            }
+        // Refused buffers rebuild the graph only when the microphone's channel count really changed; otherwise the
+        // checks below run, and the stall watchdog stops a stream that delivers nothing usable.
+        if writer.formatChanged, changedMicrophoneChannels() != nil, let device = devices?.microphone, gate.begin() {
+            await rebuildForFormat(on: device)
+            if gate.end() { devicesChanged() }
             return
         }
         let status = writer.status()
@@ -468,9 +501,10 @@ actor CoreAudioCapture: AudioCapture {
         monitor?.cancel(); monitor = nil
         continuation.yield(.failed(fault))
     }
-    /// A meeting app that opens the microphone after the capture started may switch on voice processing,
-    /// which leaves the stream already running about 30 dB lower. Stopping and starting it again, like a manual
-    /// pause and resume, restores the level. The gap lasts a few milliseconds to about a second and, like a pause,
+    /// A meeting app that opens the microphone after the capture started may switch on voice processing. With an
+    /// external microphone, the stream already running then stays about 25 dB lower (`MicrophoneClaimWatch`); stopping
+    /// and starting it again, like a manual pause and resume, restores the level. The built-in microphone changes its
+    /// format instead, which `rebuildForFormat` handles. The gap lasts a few milliseconds to about a second and, like a pause,
     /// is left out of the timeline; the events let the session clock skip it too.
     private func restartIfMicrophoneClaimed() throws {
         guard !isPaused, claimWatch != nil else { return }
@@ -734,7 +768,8 @@ private final class AudioWriter: @unchecked Sendable {
         guard status().error == nil else { return }
         for input in inputs where HWYDRingDropped(input.ring) > 0 {
             let drops = CaptureDrops(overflow: HWYDRingDropReason(input.ring, 0), inconsistent: HWYDRingDropReason(input.ring, 1),
-                                     layout: HWYDRingDropReason(input.ring, 2), full: HWYDRingDropReason(input.ring, 3))
+                                     frameSize: HWYDRingDropReason(input.ring, 2), full: HWYDRingDropReason(input.ring, 3),
+                                     fewerChannels: HWYDRingDropReason(input.ring, 4))
             // What the ring holds is in the old format and is written; the capture builds the graph again.
             if drops.isFormatChange { statusLock.lock(); formatChangedFlag = true; statusLock.unlock(); continue }
             let reasons = drops.summary
@@ -985,14 +1020,14 @@ extension CoreAudioCapture {
         push(before, capsules, at: 0.5); writer.consumeForTest()
         guard writer.status().error == nil, writer.formatChanged else { throw CaptureFailure(message: "Voice processing start: \(writer.status().error ?? "not reported")") }
         writer.detach()
-        writer.attach([CaptureInput(ring: during, channels: 5, sampleRate: 48000, layout: .combined(micChannels: 3), microphone: MicrophoneReading(builtIn: true, channels: 3))])
+        writer.attach([CaptureInput(ring: during, channels: 5, sampleRate: 48000, layout: .combined(micChannels: 3), microphone: MicrophoneReading(uid: MicrophoneReading.builtInMicrophoneUID, channels: 3, othersReading: true))])
         guard !writer.formatChanged else { throw CaptureFailure(message: "Voice processing: format change kept after the rebuild") }
         for block in 0..<50 { push(during, capsules, at: 1 + Double(block) * 0.01); writer.consumeForTest() }
         // The call ends: one channel again.
         push(during, processed, at: 1.5); writer.consumeForTest()
         guard writer.status().error == nil, writer.formatChanged else { throw CaptureFailure(message: "Voice processing end: \(writer.status().error ?? "not reported")") }
         writer.detach()
-        writer.attach([CaptureInput(ring: after, channels: 3, sampleRate: 48000, layout: .combined(micChannels: 1), microphone: MicrophoneReading(builtIn: true, channels: 1))])
+        writer.attach([CaptureInput(ring: after, channels: 3, sampleRate: 48000, layout: .combined(micChannels: 1), microphone: MicrophoneReading(uid: MicrophoneReading.builtInMicrophoneUID, channels: 1, othersReading: true))])
         for block in 0..<50 { push(after, processed, at: 2 + Double(block) * 0.01); writer.consumeForTest() }
         let chunks = writer.finish()
         guard writer.status().error == nil else { throw CaptureFailure(message: "Voice processing capture failed: \(writer.status().error!)") }
@@ -1017,6 +1052,17 @@ extension CoreAudioCapture {
                 throw CaptureFailure(message: "Voice processing capture at \(time) s: \(tracks[0][index]) / \(tracks[1][index]), expected \(mic) / 0.6")
             }
         }
+        // A buffer without frames is broken, not a new format: the writer still fails.
+        guard let broken = HWYDRingCreate(3) else { throw CaptureFailure(message: "Ring allocation") }
+        defer { HWYDRingDestroy(broken) }
+        let failing = try AudioWriter(inputs: [CaptureInput(ring: broken, channels: 3, sampleRate: 48000, layout: .combined(micChannels: 1))],
+                                      folder: audio.sessionFolder(for: UUID()), chunkSeconds: 0.4)
+        var empty = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(mNumberChannels: 3, mDataByteSize: 0, mData: nil))
+        var stamp = AudioTimeStamp(); var input = stamp, output = stamp
+        _ = withUnsafeMutablePointer(to: &empty) { HWYDIOProc(0, &stamp, $0, &input, $0, &output, UnsafeMutableRawPointer(broken)) }
+        failing.consumeForTest()
+        guard failing.status().error != nil, !failing.formatChanged else { throw CaptureFailure(message: "Voice processing: an empty buffer was taken for a format change") }
+        _ = failing.finish()
     }
 
     /// Changing microphone mid-session: a 48 kHz microphone on the tap's clock, then a 16 kHz headset on its own

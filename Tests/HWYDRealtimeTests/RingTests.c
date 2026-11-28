@@ -34,6 +34,20 @@ int main(void) {
     // Exercise wrap-around repeatedly without changing the allocation footprint.
     for (int i = 0; i < 100000; i++) { submit(ring, input, i); assert(HWYDRingRead(ring, result, &time) == 16 && time == (uint64_t)i); }
     assert(HWYDRingDropped(ring) == 2);
+    assert(HWYDRingDropReason(ring, 1) == 1 && HWYDRingDropReason(ring, 3) == 1);
+    // A device that changes its channel count is told apart from a frame size the ring cannot hold.
+    input->mNumberBuffers = 1;
+    submit(ring, input, 1);
+    assert(HWYDRingDropReason(ring, 4) == 1 && HWYDRingDropReason(ring, 2) == 0);
+    input->mNumberBuffers = 2;
+    input->mBuffers[0] = (AudioBuffer){2, sizeof(mic), mic};
+    submit(ring, input, 2);
+    assert(HWYDRingDropReason(ring, 0) == 1);
+    input->mBuffers[0] = (AudioBuffer){1, 0, mic};
+    input->mBuffers[1] = (AudioBuffer){2, 0, system};
+    submit(ring, input, 3);
+    assert(HWYDRingDropReason(ring, 2) == 1 && HWYDRingDropReason(ring, 4) == 1);
+    assert(HWYDRingDropped(ring) == 5 && HWYDRingRead(ring, result, &time) == 0);
     HWYDRingDestroy(ring); free(input);
-    puts("Ring split buffers, silent tap, malformed buffers, overflow and wrap-around: PASS");
+    puts("Ring split buffers, silent tap, malformed buffers, channel count, overflow and wrap-around: PASS");
 }
