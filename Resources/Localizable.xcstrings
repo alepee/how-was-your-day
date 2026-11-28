@@ -5429,6 +5429,22 @@
         }
       }
     },
+    "La capture n’a pas pu repartir après un changement de format du micro : %@. La session a été arrêtée, l’audio est conservé.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The capture could not restart after the microphone changed format: %@. The session was stopped; its audio is kept."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La capture n’a pas pu repartir après un changement de format du micro : %@. La session a été arrêtée, l’audio est conservé."
+          }
+        }
+      }
+    },
     "La capture n’a pas pu repartir après un changement de sortie audio : %@. La session a été arrêtée, l’audio est conservé.": {
       "localizations": {
         "en": {

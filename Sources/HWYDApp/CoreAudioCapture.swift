@@ -263,6 +263,20 @@ actor CoreAudioCapture: AudioCapture {
         }
     }
 
+    /// A call app took or released the built-in microphone, which changed its channel count (`MicrophoneReading`):
+    /// the graph is built again on the same microphone and the new format, without a boundary, like an output change.
+    private func rebuildForFormat() async {
+        guard let device = devices?.microphone else { return }
+        if !isPaused { continuation.yield(.restarting); stillSince = Self.uptime }
+        do {
+            try await rebuild(on: device, newTap: false)
+            restarted()
+        } catch {
+            guard writer != nil else { return }
+            report(CaptureFault(.restart, message: String(localized: "La capture n’a pas pu repartir après un changement de format du micro : \(error.localizedDescription). La session a été arrêtée, l’audio est conservé.")))
+        }
+    }
+
     // MARK: Graph
 
     private func createTap() throws {
@@ -284,6 +298,8 @@ actor CoreAudioCapture: AudioCapture {
         guard micStreams.count == 1 else { throw CaptureFailure(message: String(localized: "Ce prototype prend en charge les microphones à un seul flux d’entrée. Sélectionnez le micro du Mac.")) }
         let micFormat = try HAL.format(micStreams[0])
         let micChannels = micFormat.mChannelsPerFrame
+        let builtIn = (try? HAL.scalar(input, kAudioDevicePropertyTransportType, as: UInt32.self)) == kAudioDeviceTransportTypeBuiltIn
+        let reading = MicrophoneReading(builtIn: builtIn, channels: Int(micChannels))
         let tapRate = try HAL.scalar(tap, kAudioTapPropertyFormat, as: AudioStreamBasicDescription.self).mSampleRate
         generation += 1
         let inputs: [CaptureInput]
@@ -308,7 +324,7 @@ actor CoreAudioCapture: AudioCapture {
             try validateLayout(starts: starts, formats: formats, micChannels: micChannels, micName: micName)
             guard let created = HWYDRingCreate(micChannels + 2) else { throw CaptureFailure(message: String(localized: "Mémoire insuffisante pour préparer la capture.")) }
             ring = created
-            inputs = [CaptureInput(ring: created, channels: Int(micChannels + 2), sampleRate: formats[0].mSampleRate, layout: .combined(micChannels: Int(micChannels)))]
+            inputs = [CaptureInput(ring: created, channels: Int(micChannels + 2), sampleRate: formats[0].mSampleRate, layout: .combined(micChannels: Int(micChannels)), microphone: reading)]
         } else {
             // A Bluetooth headset in call mode (HFP) runs its microphone at 16 or 24 kHz while system audio stays at 48 kHz.
             // An aggregate only offers the rates its subdevice supports and does not resample, so each source keeps
@@ -332,7 +348,7 @@ actor CoreAudioCapture: AudioCapture {
             micRing = createdMicRing
             micDevice = input
             inputs = [
-                CaptureInput(ring: createdMicRing, channels: Int(micChannels), sampleRate: micFormat.mSampleRate, layout: .mic),
+                CaptureInput(ring: createdMicRing, channels: Int(micChannels), sampleRate: micFormat.mSampleRate, layout: .mic, microphone: reading),
                 CaptureInput(ring: systemRing, channels: 2, sampleRate: systemFormat.mSampleRate, layout: .system)
             ]
         }
@@ -426,6 +442,13 @@ actor CoreAudioCapture: AudioCapture {
     /// going away, it is a lost microphone for the session to replace, not a fault.
     private func inspect() async {
         guard let writer, !isPaused, !faulted, !gate.isBusy, !awaitingAudio, devices?.isLost != true else { return }
+        if writer.formatChanged {
+            if gate.begin() {
+                await rebuildForFormat()
+                if gate.end() { devicesChanged() }
+            }
+            return
+        }
         let status = writer.status()
         continuation.yield(.levels(mic: status.mic, system: status.system))
         let heard = writer.speechHeard
@@ -545,6 +568,8 @@ struct CaptureInput: @unchecked Sendable {
     let channels: Int
     let sampleRate: Double
     let layout: Layout
+    /// How the microphone channels become one track. System audio is always the average of the stereo tap.
+    var microphone: MicrophoneReading = .firstChannel
 }
 
 /// Host-time bookkeeping of one track in split mode, at the 16 kHz output rate.
@@ -572,6 +597,9 @@ private final class AudioWriter: @unchecked Sendable {
     private let statusLock = NSLock()
     /// `dropped`: the error is buffers the realtime callback could not queue.
     private var state: (mic: Float, system: Float, error: String?, dropped: Bool, lastPackets: [Double?]) = (0, 0, nil, false, [nil, nil])
+    /// The device changed its channel count: the rings refuse its buffers until the capture builds the graph again.
+    private var formatChangedFlag = false
+    var formatChanged: Bool { statusLock.lock(); defer { statusLock.unlock() }; return formatChangedFlag }
     private var inputs: [CaptureInput] = []
     private var split = false
     private let folder: AudioFolder
@@ -650,7 +678,7 @@ private final class AudioWriter: @unchecked Sendable {
         queue.sync {
             use(inputs)
             pending = [[], []]; clocks = [TrackClock(), TrackClock()]; origin = nil
-            statusLock.lock(); state.lastPackets = [nil, nil]; statusLock.unlock()
+            statusLock.lock(); state.lastPackets = [nil, nil]; formatChangedFlag = false; statusLock.unlock()
         }
     }
     func status() -> (mic: Float, system: Float, error: String?, lastPacket: Double?) {
@@ -705,7 +733,11 @@ private final class AudioWriter: @unchecked Sendable {
     private func drain() {
         guard status().error == nil else { return }
         for input in inputs where HWYDRingDropped(input.ring) > 0 {
-            let reasons = (0..<4).map { String(HWYDRingDropReason(input.ring, UInt32($0))) }.joined(separator: "/")
+            let drops = CaptureDrops(overflow: HWYDRingDropReason(input.ring, 0), inconsistent: HWYDRingDropReason(input.ring, 1),
+                                     layout: HWYDRingDropReason(input.ring, 2), full: HWYDRingDropReason(input.ring, 3))
+            // What the ring holds is in the old format and is written; the capture builds the graph again.
+            if drops.isFormatChange { statusLock.lock(); formatChangedFlag = true; statusLock.unlock(); continue }
+            let reasons = drops.summary
             setError(String(localized: "La capture a perdu des buffers audio (\(reasons)). La session est arrêtée pour éviter une désynchronisation silencieuse."), dropped: true); return
         }
         do {
@@ -737,11 +769,14 @@ private final class AudioWriter: @unchecked Sendable {
         mono.frameLength = AVAudioFrameCount(frames)
         let pointer = mono.floatChannelData![0]
         let channels = input.channels
-        // The microphone keeps its first channel; the stereo tap is averaged.
-        let systemOffset: Int = if case .combined(let micChannels) = input.layout { micChannels } else { 0 }
+        // The microphone channels follow `input.microphone`; the stereo tap is averaged.
+        let micChannels: Int = if case .combined(let count) = input.layout { count } else { channels }
+        let systemOffset: Int = if case .combined = input.layout { micChannels } else { 0 }
+        let microphone = input.microphone
         var peak: Float = 0
         for f in 0..<frames {
-            let value = track == 0 ? samples[f * channels] : (samples[f * channels + systemOffset] + samples[f * channels + systemOffset + 1]) * 0.5
+            let frame = samples + f * channels
+            let value = track == 0 ? microphone.sample(frame, channels: micChannels) : (frame[systemOffset] + frame[systemOffset + 1]) * 0.5
             pointer[f] = value; peak = max(peak, abs(value))
         }
         let output = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: AVAudioFrameCount(ceil(Double(frames) * Self.outputRate / input.sampleRate)) + 64)!
@@ -921,6 +956,66 @@ extension CoreAudioCapture {
         let expected = AudioRecovery.merge(stored: session.audioChunks, recovered: added)
         guard recovered.map(\.relativePath) == expected.map(\.relativePath), zip(recovered, expected).allSatisfy({ abs($0.start - $1.start) < 1e-9 && abs($0.duration - $1.duration) < 1e-9 }) else {
             throw CaptureFailure(message: "Recovery of a resumed session: \(recovered.map { "\($0.relativePath) at \($0.start)" })")
+        }
+    }
+
+    /// A call app takes the built-in microphone, then releases it: the microphone goes from one channel to three raw
+    /// capsules and back. The rings refuse the new format without failing the writer, which reports it; on the graph
+    /// built again, the capsules are averaged and raised. One timeline, and each part holds the expected level.
+    static func verifySyntheticVoiceProcessing(audio: any AudioLocator) throws {
+        guard let before = HWYDRingCreate(3), let during = HWYDRingCreate(5), let after = HWYDRingCreate(3) else { throw CaptureFailure(message: "Ring allocation") }
+        defer { [before, during, after].forEach { HWYDRingDestroy($0) } }
+        var timebase = mach_timebase_info_data_t(); mach_timebase_info(&timebase)
+        let ticks = 1e9 * Double(timebase.denom) / Double(timebase.numer)
+        func push(_ ring: OpaquePointer, _ frame: [Float], at time: Double) {
+            let channels = frame.count, frames = 480
+            let samples = UnsafeMutablePointer<Float>.allocate(capacity: frames * channels); defer { samples.deallocate() }
+            for f in 0..<frames { for c in 0..<channels { samples[f * channels + c] = frame[c] } }
+            var list = AudioBufferList(mNumberBuffers: 1, mBuffers: AudioBuffer(mNumberChannels: UInt32(channels), mDataByteSize: UInt32(frames * channels * 4), mData: samples))
+            var stamp = AudioTimeStamp(); stamp.mHostTime = UInt64(1_000_000 + time * ticks)
+            var input = stamp, output = stamp
+            _ = withUnsafeMutablePointer(to: &list) { HWYDIOProc(0, &stamp, $0, &input, $0, &output, UnsafeMutableRawPointer(ring)) }
+        }
+        let processed: [Float] = [0.2, 0.6, 0.6], capsules: [Float] = [0.001, 0.002, 0.003, 0.6, 0.6]
+        let raised = 0.002 * MicrophoneReading.capsuleGain
+        let writer = try AudioWriter(inputs: [CaptureInput(ring: before, channels: 3, sampleRate: 48000, layout: .combined(micChannels: 1))],
+                                     folder: audio.sessionFolder(for: UUID()), chunkSeconds: 0.4)
+        for block in 0..<50 { push(before, processed, at: Double(block) * 0.01); writer.consumeForTest() }
+        // The call starts: three channels where the ring expects one.
+        push(before, capsules, at: 0.5); writer.consumeForTest()
+        guard writer.status().error == nil, writer.formatChanged else { throw CaptureFailure(message: "Voice processing start: \(writer.status().error ?? "not reported")") }
+        writer.detach()
+        writer.attach([CaptureInput(ring: during, channels: 5, sampleRate: 48000, layout: .combined(micChannels: 3), microphone: MicrophoneReading(builtIn: true, channels: 3))])
+        guard !writer.formatChanged else { throw CaptureFailure(message: "Voice processing: format change kept after the rebuild") }
+        for block in 0..<50 { push(during, capsules, at: 1 + Double(block) * 0.01); writer.consumeForTest() }
+        // The call ends: one channel again.
+        push(during, processed, at: 1.5); writer.consumeForTest()
+        guard writer.status().error == nil, writer.formatChanged else { throw CaptureFailure(message: "Voice processing end: \(writer.status().error ?? "not reported")") }
+        writer.detach()
+        writer.attach([CaptureInput(ring: after, channels: 3, sampleRate: 48000, layout: .combined(micChannels: 1), microphone: MicrophoneReading(builtIn: true, channels: 1))])
+        for block in 0..<50 { push(after, processed, at: 2 + Double(block) * 0.01); writer.consumeForTest() }
+        let chunks = writer.finish()
+        guard writer.status().error == nil else { throw CaptureFailure(message: "Voice processing capture failed: \(writer.status().error!)") }
+        var tracks: [[Float]] = []
+        for source in [AudioSource.mic, .system] {
+            var samples: [Float] = []
+            for chunk in chunks where chunk.source == source {
+                let file = try AVAudioFile(forReading: audio.url(for: chunk))
+                let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length))!
+                try file.read(into: buffer)
+                samples += UnsafeBufferPointer(start: buffer.floatChannelData![0], count: Int(buffer.frameLength))
+            }
+            tracks.append(samples)
+        }
+        // The rebuilds are left out: three parts of 0.5 s, a few converter frames short.
+        guard tracks[0].count == tracks[1].count, tracks[0].count > 23000, tracks[0].count <= 24000 else {
+            throw CaptureFailure(message: "Voice processing capture: \(tracks.map(\.count)) samples")
+        }
+        for (time, mic) in [(0.25, Float(0.2)), (0.75, raised), (1.25, 0.2)] {
+            let index = Int(time * 16000)
+            guard abs(tracks[0][index] - mic) < 0.015, abs(tracks[1][index] - 0.6) < 0.015 else {
+                throw CaptureFailure(message: "Voice processing capture at \(time) s: \(tracks[0][index]) / \(tracks[1][index]), expected \(mic) / 0.6")
+            }
         }
     }
 

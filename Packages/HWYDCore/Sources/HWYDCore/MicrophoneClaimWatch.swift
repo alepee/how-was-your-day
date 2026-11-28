@@ -2,10 +2,12 @@ import Foundation
 
 /// Decides when the capture should restart its microphone stream because another app started reading audio input.
 ///
-/// A meeting app that opens the microphone after the capture started may switch on voice processing and reconfigure
-/// the input device. The stream that was already running then keeps delivering the microphone about 30 dB lower,
-/// until it is stopped and started again. The watch compares the processes reading input at each poll with the
-/// previous poll and asks for one restart once a newcomer had time to settle.
+/// A meeting app that opens the microphone after the capture started may switch on voice processing. With an external
+/// interface (measured with a Komplete Audio 6 during FaceTime), the stream that was already running then keeps
+/// delivering the microphone about 25 dB lower, until it is stopped and started again; streams started afterwards are
+/// not affected. The watch compares the processes reading input at each poll with the previous poll and asks for one
+/// restart once a newcomer had time to settle. The built-in microphone changes its format instead, which the capture
+/// handles by building the graph again (`MicrophoneReading`).
 public struct MicrophoneClaimWatch: Sendable {
     /// Lets the newcomer finish setting up its audio graph before the stream restarts.
     public static let settleDelay: TimeInterval = 1.5

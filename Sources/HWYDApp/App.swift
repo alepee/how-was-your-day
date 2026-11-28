@@ -59,6 +59,8 @@ import HWYDCore
                 FileHandle.standardOutput.write(Data("Synthetic split-clock capture: PASS\n".utf8))
                 try CoreAudioCapture.verifySyntheticSwitch(audio: DataDirectoryAudio(directory: directory))
                 FileHandle.standardOutput.write(Data("Synthetic microphone switch: combined, split and back, one timeline: PASS\n".utf8))
+                try CoreAudioCapture.verifySyntheticVoiceProcessing(audio: DataDirectoryAudio(directory: directory))
+                FileHandle.standardOutput.write(Data("Synthetic built-in microphone held by a call: rebuilt and raised, one timeline: PASS\n".utf8))
                 exit(0)
             } catch { FileHandle.standardError.write(Data("\(error)\n".utf8)); exit(1) }
         case .snapshot(let directory):
