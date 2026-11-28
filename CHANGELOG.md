@@ -9,6 +9,8 @@ Entries describe what a user observes. The detailed release notes published on G
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-28
+
 ### Added
 - The type of a finished session can be changed from the label above its title (« Mémo », « Échange », « Réunion »), without resuming the recording. A voice memo turned into a meeting does not gain a consent declaration: its export still records that none was made.
 
@@ -267,7 +269,8 @@ Entries describe what a user observes. The detailed release notes published on G
 ### Added
 - First experimental release for Apple Silicon and macOS 26+: separate microphone and system audio recording, local French transcription, optional diarization, notes and speaker corrections, optional local summaries, calendar reminders, Markdown/JSON exports and a standalone MCP server.
 
-[Unreleased]: https://github.com/alepee/how-was-your-day/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/alepee/how-was-your-day/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/alepee/how-was-your-day/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/alepee/how-was-your-day/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/alepee/how-was-your-day/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/alepee/how-was-your-day/compare/v0.15.0...v0.16.0
